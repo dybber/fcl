@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module SobolPi where
+module SobolObsidian where
 
 import Obsidian
 import Obsidian.CodeGen.CUDA (genKernel)
