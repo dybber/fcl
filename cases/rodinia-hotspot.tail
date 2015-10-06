@@ -1,0 +1,22 @@
+let v2:[double]1 = readDoubleVecFile(['.','.','/','.','.','/','d','a','t','a','s','e','t','s','/','t','e','m','p','_','6','4']) in
+let v3:[double]1 = readDoubleVecFile(['.','.','/','.','.','/','d','a','t','a','s','e','t','s','/','p','o','w','e','r','_','6','4']) in
+let v4:[double]2 = mem(reshape([64,64],v2)) in
+let v5:[double]2 = mem(reshape([64,64],v3)) in
+let v21:[double]0 = divd(0.016,64.0) in
+let v22:[double]0 = divd(0.016,64.0) in
+let v23:[double]0 = muld(0.5,muld(1750000.0,muld(0.0005,muld(v22,v21)))) in
+let v24:[double]0 = divd(v22,muld(2.0,muld(100.0,muld(0.0005,v21)))) in
+let v25:[double]0 = divd(v21,muld(2.0,muld(100.0,muld(0.0005,v22)))) in
+let v26:[double]0 = divd(0.0005,muld(100.0,muld(v21,v22))) in
+let v27:[double]0 = divd(3000000.0,437.5) in
+let v28:[double]0 = divd(0.001,v27) in
+let v32:[int]2 = cons(each(b2i,reshape([64],[tt])),snoc(reshape([64,62],[2]),each(b2i,reshape([64],[tt])))) in
+let v35:[int]2 = transp(cons(each(b2i,reshape([64],[tt])),snoc(reshape([64,62],[2]),each(b2i,reshape([64],[tt]))))) in
+reduce(maxd,-inf,reduce(maxd,-inf,power(fn v36:[double]2 => let v41:[double]2 = cat(transp(drop(1,transp(v36))),each(i2d,each(b2i,reshape([64,1],[ff])))) in
+                      let v44:[double]2 = cat(each(i2d,each(b2i,reshape([64,1],[ff]))),transp(drop(-1,transp(v36)))) in
+                      let v52:[double]2 = zipWith(subd,zipWith(addd,v41,v44),zipWith(muld,each(i2d,v32),v36)) in
+                      let v55:[double]2 = transp(snoc(transp(drop(1,v36)),each(i2d,each(b2i,reshape([64],[ff]))))) in
+                      let v58:[double]2 = transp(cons(each(i2d,each(b2i,reshape([64],[ff]))),transp(drop(-1,v36)))) in
+                      let v66:[double]2 = zipWith(subd,zipWith(addd,v55,v58),zipWith(muld,each(i2d,v35),v36)) in
+                      let v78:[double]2 = each(fn v77:[double]0 => muld(divd(v28,v23),v77),zipWith(addd,v5,zipWith(addd,each(fn v72:[double]0 => divd(v72,v25),v66),zipWith(addd,each(fn v69:[double]0 => divd(v69,v24),v52),each(fn v68:[double]0 => divd(v68,v26),each(fn v67:[double]0 => subd(80.0,v67),v36)))))) in
+                      zipWith(addd,v36,v78),360,v4)))
