@@ -7,8 +7,12 @@ case $1 in
 	cabal sandbox init 
 	;;
     "obsidian") 
-	echo "Install Obsidian into sandbox" 
+	echo "Installing Obsidian into sandbox" 
 	cabal install ./Obsidian/.
+	;;
+    "sobol") 
+	echo "Installing Sobol into sandbox" 
+	cabal install ./ObsidianSobol/.
 	;;
     *) 
     echo "provide argument init or obsidian"
