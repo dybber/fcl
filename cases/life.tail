@@ -1,0 +1,16 @@
+let v1:[bool]2 = reshape([3,3],[tt,tt,tt,tt,ff,ff,ff,tt,ff]) in
+let v2:[bool]2 = transp(take(-10,transp(take(-10,v1)))) in
+let v4:[bool]2 = cat(vrotate(5,v2),rotate(3,transp(v2))) in
+let v5:[bool]2 = transp(cat(transp(v4),transp(vrotate(4,v4)))) in
+let v7:[bool]2 = cat(vrotate(5,v5),rotate(3,transp(v5))) in
+let v8:[bool]2 = transp(cat(transp(v7),transp(vrotate(4,v7)))) in
+let v88:[bool]2 = power(fn v49:[bool]2 => let v53:[bool]2 = vrotate(1,v49) in
+          let v71:[bool]2 = vrotate(-1,v49) in
+          let v81:[int]2 = zipWith(addi,zipWith(addi,each(b2i,rotate(-1,v71)),zipWith(addi,each(b2i,v71),each(b2i,rotate(1,v71)))),zipWith(addi,zipWith(addi,each(b2i,rotate(-1,v49)),zipWith(addi,each(b2i,v49),each(b2i,rotate(1,v49)))),zipWith(addi,each(b2i,rotate(-1,v53)),zipWith(addi,each(b2i,v53),each(b2i,rotate(1,v53)))))) in
+          zipWith(orb,each(fn v85:[int]0 => eqi(v85,3),v81),zipWith(andb,each(fn v82:[int]0 => eqi(v82,4),v81),v49)),20000,v8) in
+let v91:[bool]2 = vrotate(1,v88) in
+let v109:[bool]2 = vrotate(-1,v88) in
+let v119:[int]2 = zipWith(addi,zipWith(addi,each(b2i,rotate(-1,v109)),zipWith(addi,each(b2i,v109),each(b2i,rotate(1,v109)))),zipWith(addi,zipWith(addi,each(b2i,rotate(-1,v88)),zipWith(addi,each(b2i,v88),each(b2i,rotate(1,v88)))),zipWith(addi,each(b2i,rotate(-1,v91)),zipWith(addi,each(b2i,v91),each(b2i,rotate(1,v91)))))) in
+let v126:[bool]2 = zipWith(orb,each(fn v123:[int]0 => eqi(v123,3),v119),zipWith(andb,each(fn v120:[int]0 => eqi(v120,4),v119),v88)) in
+let v133:[bool]0 = reduce(andb,tt,rav(zipWith(eqb,v88,v126))) in
+i2d(b2i(v133))
