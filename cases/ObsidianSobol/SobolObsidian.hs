@@ -38,7 +38,7 @@ sobol_divisor = fromIntegral (2^30)
 sobol_dirVs :: DPull EWord32
 sobol_dirVs = undefinedGlobal (30 * Literal sobol_dim)
 
-sobol_dirVsND :: SPull (DPull EWord32)
+sobol_dirVsND :: DPull (SPull EWord32)
 sobol_dirVsND = splitUp sobol_bit_count (undefinedGlobal (30 * sobol_dim))
 
 ---------------------------------
@@ -76,10 +76,22 @@ sobol_iterations = 10000
 sobol1DKernel = putStrLn $ genKernel blockSize "sobol1D" (sobol1D sobol_iterations)
 
 -- -- TODO sobolND (N direction vectors)
-sobolND :: Word32 -> SPull EWord32 -> DPush Grid EFloat
-sobolND n dirV = asGrid $ mkPull (Literal n) (\i -> asBlock $ fmap (sobolIndReal i) dirVs)
+-- sobolND :: Word32 -> DPull EWord32 -> DPush Grid EFloat
+-- sobolND n dirV = asGrid $
+--                  mkPull (Literal n)
+--                   (\i -> asBlock $ fmap (sobolIndReal i) dirVs)
+--   where
+--    dirVs :: DPull (SPull EWord32)
+--    dirVs = splitUp sobol_bit_count dirV
+
+sobolND :: Word32 -> DPull EWord32 -> DPush Grid EFloat
+sobolND n dirV = asGrid $
+                 mkPull (Literal n)
+                  (\i -> asBlock $ fmap (sobolIndReal i) dirVs)
   where
-   dirVs :: SPull (DPull EWord32)
+   dirVs :: DPull (SPull EWord32)
    dirVs = splitUp sobol_bit_count dirV
+
+
 
 sobolNDKernel = putStrLn $ genKernel blockSize "sobolND" (sobolND sobol_iterations)
