@@ -1,6 +1,10 @@
 Related work on low-level intermediate languages
 ================================================
 
+Additional references can be found here:
+http://wiki.portal.chalmers.se/cse/pmwiki.php/FP/PapersRelatedToFeldsparObsidianIntermediateRepresentationsAndTheLike
+
+
 Low-level
 ---------
 
