@@ -2,6 +2,6 @@
 
 import SobolObsidian
 
-
-
-main = putStrLn "Hello World"
+main = do
+  sobol1DKernel
+  sobolNDKernel
