@@ -1,0 +1,21 @@
+let mv301:[double]2 = reshape([6,3],[0.0]) in
+let v354:[int]0 = 
+  powerScl(fn v336:[int]0 => 
+    (* Compute the right hand side *)
+    let v344:[double]1 = 
+          zipWith(addd,
+                  each(fn v341:[double]0 => muld(idxS(1,v336,v14),v341),
+                       idxS(1,addi(idxS(1,v336,v11),1),mv301)),
+                  zipWith(addd,
+                          idxS(1,v336,v300),
+                          each(fn v338:[double]0 => muld(idxS(1,v336,v15),v338),
+                               idxS(1,addi(idxS(1,v336,v12),1),mv301)))) in
+
+    (* Index where it should be assigned *)
+    let v345:[int]0 = addi(idxS(1,v336,v10),1) in
+
+    (* Assign using another loop *)
+    let v353:[int]0 = powerScl(fn v350:[int]0 => 
+                        let v352:[bool]0 = idxassign([v345,v350],mv301,idxS(1,v350,v344))
+                        in addi(v350,1),3,1) 
+    in addi(v336,1),5,1)
