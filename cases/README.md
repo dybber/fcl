@@ -25,3 +25,13 @@ Or something else following the same memory access pattern.
 GPU algorithm described here (very detailed, we should focus on a
 simpler approach first I think)
 http://www.nag.com/doc/techrep/pdf/tr2_12.pdf
+
+Other
+-----
+
+Longstaff & Schwartz algorithm:
+http://devblogs.nvidia.com/parallelforall/american-option-pricing-monte-carlo-simulation/
+
+NVidia provides more OpenCL examples in their GPU Computing SDK. A
+copy is available here:
+https://github.com/ChiahungTai/OpenCL-playgorund/blob/master/nvidia/nvidia-opencl-examples/
