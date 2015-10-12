@@ -53,7 +53,8 @@ Parallel cost-model papers
  * "Simple Memory Machine Models for GPUs" by Koji Nakano
  * "The Hierarchical Memory Machine Model for GPUs" by Koji Nakano
  * "A detailed GPU cache model based on Reuse Distance Theory" by Nugteren et al.
-
+ * [Modeling parallel computers as memory hierarchies](http://ieeexplore.ieee.org/xpl/login.jsp?tp=&arnumber=315548&url=http%3A%2F%2Fieeexplore.ieee.org%2Fxpls%2Fabs_all.jsp%3Farnumber%3D315548)
+ * [LogP: A practical model of parallel computation](http://rsim.cs.uiuc.edu/arch/qual_papers/systems/5.pdf)
 
 High-level intermediate languages
 ---------------------------------
