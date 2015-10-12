@@ -20,11 +20,14 @@ https://people.maths.ox.ac.uk/gilesm/files/gems_rng.pdf
 
 Brownian-bridge algorithm
 -------------------------
-Or something else following the same memory access pattern.
-
-GPU algorithm described here (very detailed, we should focus on a
-simpler approach first I think)
+GPU algorithm described here:
 http://www.nag.com/doc/techrep/pdf/tr2_12.pdf
+
+This is a very detailed study doing stuff like prefetching from
+shared-memory to registers, precomputing optimal execution strategies
+etc. The focus here should not be on those aspects, the important
+thing here is the memory access pattern which may require mutable
+updates in our language.
 
 Other
 -----
