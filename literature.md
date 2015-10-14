@@ -38,7 +38,7 @@ computing.
 They support domain-specific optimizations,e .g. rewriting matrix
 multiplications: ```AB + AC --> A(B + C)```
 
-#### Mutable state
+##### Mutable state
 Delite provides for a programming model where most operations are
 side-effect free, but they are pragmatic and thus still allow
 restricted access side-effects. All objects starts out immutable, but
@@ -52,12 +52,12 @@ The DSL-developer annotate effectful operations and indicate which
 inputs are only read and which inputs can be aliased by the return
 value of the operation.
 
-#### Parallel IR
+##### Parallel IR
 Most operations are specified in terms of a looping construct, that
 seem similar to SaCs "with-loops", having both a map and reduction
 phase.
 
-#### Code-generation and runtime
+##### Code-generation and runtime
 In the code-generation stage the DSL-developer is allowed to override
 code generation, and provide hand-optimized implementations
 (e.g. through CUBLAS).
