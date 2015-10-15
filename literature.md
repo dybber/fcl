@@ -95,13 +95,39 @@ And a lot of papers that it references also seem relevant to look at:
  * "Automatic extraction of functional parallelism from ordinary programs"
    (also not available from Chalmers)
 
- * "Kimble: a Hierarchical Intermediate Representation for Multi-Grain Parallelism"
-   <http://nbenoit.tuxfamily.org/projects/gomet/wir11-kimble.pdf>
-
  * and more ...
+
+### Kimble: a Hierarchical Intermediate Representation for Multi-Grain Parallelism
+<http://nbenoit.tuxfamily.org/projects/gomet/wir11-kimble.pdf>
+
+This is not a great paper. No example code or benchmarking. Not really
+sure if this is implemented.
+
+Graph based approach, a collection of DAGs are connected by nesting
+relationships, and these nesting relationships can also point back to
+form cycles (recursion). This graph is generated from a C-like
+language (I think), though they never really mention the source
+language explicitly.
+
+Data-parallel loops are annotated by the user if they are maps or
+reductions (OpenMP annotations I believe).
+
+##### Node types:
+ * Function (containing body as subgraph)
+ * Loop (containing body as subgraph, annotated with "undividable", "map", "reduce")
+ * Region ("basic block", containing clusters, statements and function calls)
+ * Cluster (undividable sequence of statements)
+ * Statements (three-address instruction)
+ * Function call (with a nested function node, here recursion comes in)
+ * Guard (conditional, with two subgraphs)
+
 
 ### EXOCHI
 <http://web.cs.ucla.edu/~palsberg/course/cs239/papers/wang.pdf>
+
+Check also the papers that references this one!
+
+### Qilin
 
 Parallel cost-model papers
 --------------------------
