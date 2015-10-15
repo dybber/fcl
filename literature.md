@@ -23,7 +23,8 @@ platform.
 They claim to support nested arrays, but do not describe how they
 handle deeply nested arrays, maybe they only parallelise on certain
 dimensions, like Copperhead, sequentialising on the remaining
-dimensions?
+dimensions? Maybe they only support irregular arrays in the sequential
+code, like Futhark?
 
 No type inference, my guess is that it isn't possible.
 
@@ -108,22 +109,11 @@ OpenCL specific:
  * mapLocal f --> toLocal (mapLocal f)
  * map f --> joinVec o map (mapVec f) o splitVec
 
-##### My thoughts
-
-The low-level language is sort of where I want this project to end,
-but with some additions/changes:
-
- - additional sequential iteration-patterns are necessary, maybe even
-   full-blown for-loops or Futhark style loops
- 
- - support for array updates in sequential code (brownian bridge)
-
- - move the local/global annotations to the type-level, as
-   annotations on arrays?
-
- - move the reorder/reorderStride-annotations to the type-level?
+See "designthoughts.md" for my thoughts on how we can extend on these
+ideas for this project.
 
 ### SkelCL
+
 
 
 ### Insieme / INSPIRE
@@ -270,9 +260,10 @@ conflicts.
 He describes two models and evaluates how the big-O performance will
 be on a few examples.
 
-*DMM* (Discrete Memory Machine) is modelling the shared memory of NVIDIA GPUs, where only a
-single simultaneous load to a memory bank can be performed at a time,
-and thus simultaneous loads should be made to different memory banks.
+*DMM* (Discrete Memory Machine) is modelling the shared memory of
+NVIDIA GPUs, where only a single simultaneous load to a memory bank
+can be performed at a time, and thus simultaneous loads should be made
+to different memory banks.
 
 *UMM* (Unified Memory Machine) represents the global memory of GPUs,
 where accesses are coalesced, and thus many contiguous addresses of
