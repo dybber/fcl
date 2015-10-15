@@ -3,7 +3,6 @@ Design thoughts
 
 Language design
 ---------------
-
  * Start with language constructs like those in Michel Steuwer et
    al. ICFP'15,
 
@@ -24,9 +23,6 @@ Language design
  * Perhaps move toLocal/toGlobal/reorder-annotations to the
    type-level? Maybe on function arrows, an effect-system of some
    kind?
-
- * Data-movement from host-to-device is not mentioned in Michel
-   Steuwers design, we should be able to do this explicitly.
 
 Output of compilation
 ---------------------
@@ -61,24 +57,40 @@ hardware as well as input size (see Koji Nakano papers)
 Limitations
 -----------
 
-* The user should be able to express how everything is fused, so
-  fusion should not be automatic.
+ * The user should be able to express how everything is fused, so
+   fusion should not be automatic.
 
-* Scheduling kernels is not a part of this project, that should be
-  implemented at a higher level.
+ * Scheduling kernels is not a part of this project, that should be
+   implemented at a higher level.
 
-* We will only generate individual kernels, which can be called from
-  some runtime system
+ * We will only generate individual kernels, which can be called from
+   some runtime system
+
+ * Data-movement between host and device is not mentioned in Michel
+   Steuwers design. I also think we should avoid doing this at all on
+   this level and instead assume that input arrays are already present
+   on the device and that the output should stay on the device for the
+   next kernel to consume.
+
+   There might thus be need for an additional layer on top of this to
+   specify these memory movement and kernel-invocation schedules?
+
 
 Benchmarks
 ----------
 See the README-file in cases-directory.
 
-Future work
------------
+Additional features
+--------------------
 
-Stuff we don't really want to do for this paper, but would be nice to
-add later:
+Stuff we might not have time to do for this paper, but would be nice
+to add later:
 
  * Compiling to CUDA
- * 
+
+ * Some macro-language on top to make it easier to write big (but
+   recursively defined) kernels? Similar to the role Haskell plays in
+   Obsidian.
+
+ * Some scheduling and data-movement language on top of this (see
+   Limitations section)
