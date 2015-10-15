@@ -8,6 +8,124 @@ http://wiki.portal.chalmers.se/cse/pmwiki.php/FP/PapersRelatedToFeldsparObsidian
 Low-level
 ---------
 
+### Generating Performance Portable Code using Rewrite Rules (ICFP'15)
+by Michel Steuwer, Christian Fensch, Sam Lindley
+
+They present the fact that OpenCL is not performance-portable between
+platforms, and show that different optimizations are necessary for
+NVIDIA GPUs, AMD GPUs and Intel CPUs.
+
+They address this issue by a rewrite system, where the high-level
+constructs used in describing the program are rewritten automatically
+to different low-level representations depending on the hardware
+platform.
+
+They claim to support nested arrays, but do not describe how they
+handle deeply nested arrays, maybe they only parallelise on certain
+dimensions, like Copperhead, sequentialising on the remaining
+dimensions?
+
+No type inference, my guess is that it isn't possible.
+
+##### High-level language
+ * map, zip
+ 
+ * reduce: like foldAll, reduction to a single scalar
+
+ * split: cut's a vector into a vector of vectors, increasing
+   dimension by one. (The first argument denotes the size of subarrays.)
+
+ * join: catenate subarrays, lowering the dimension by one. (Inverse of
+   split)
+
+ * iterate: apply some function *n* times. It is allowed to shrink the
+   array by some fixed amount in each iteration (given implicitly by
+   the type of argument function).
+
+ * reorder: an annotation that does not perform any computation, but
+   specifies that the order of elements is not of importance.
+
+<!-- On the high-level the language is much like Accelerate, and the -->
+<!-- programmer is programming using well known combinators: map, reduce -->
+
+##### Low-level representation
+
+ * mapWorkgroup, mapLocal, mapGlobal, mapVec: All of these have the
+   same type, but generates different OpenCL code
+
+   - mapWorkgroup: each element is given to a workgroup
+   - mapLocal: each element is given to one thread in a workgroup
+   - mapVec: sequential map in a thread
+   - mapGlobal: used if workgroup concept is not important I guess,
+     disallowing any synchronization between threads I guess..
+     
+ * toLocal/toGlobal: annotation on function, saying if results should
+   be stored in local (shared) memory or in global memory. Registers
+   are not mentioned.
+
+   "the implementation checks that a toLocal primitive is eventually
+   followed by a toGlobal primitive to ensure that the final result is
+   copied back into global memory"
+
+ * reduceSeq: sequential reduction in a thread
+
+ * reducePart: partial reduction, where *n* elements are still left
+   afterwards.
+
+ * reorderStride: ??
+
+ * mapVec, splitVec, joinVec: used to target vector units (e.g. by
+   using ```int4``` types in OpenCL), splitVec returns another
+   array-type (angle brackets), which mapVec can consume and joinVec
+   can convert back to an ordinary array
+
+(Footnote: This is actually much like what I and my fellow student
+suggested in a future work section of our Master thesis, though we
+being even more imprecise and handwavy)
+
+##### Rewrite rules
+Mostly standard rewrite rules:
+
+ * reordering annotations propagates through maps
+ * map f --> join o map (map f) o split
+ * fusion:
+    - map f o map g --> map (f o g)
+    - reduceSeq o mapSeq --> reduceSeq
+ * join/split --> identity
+ * reduce:
+   - reduce --> reduce o reducePart
+   - reducePart (resulting in scalar) --> reduce
+   - reducePart --> reducePart o reorder
+   - reducePart --> iterate (reducePart)
+   - reducePart --> join o map (reducePart) o split
+   - reduce --> reduceSeq
+
+OpenCL specific:
+
+ * map --> mapWorkgroup/mapLocal/mapGlobal/mapSeq
+ * reorder --> reorderStride
+ * mapLocal f --> toGlobal (mapLocal f)
+ * mapLocal f --> toLocal (mapLocal f)
+ * map f --> joinVec o map (mapVec f) o splitVec
+
+##### My thoughts
+
+The low-level language is sort of where I want this project to end,
+but with some additions/changes:
+
+ - additional sequential iteration-patterns are necessary, maybe even
+   full-blown for-loops or Futhark style loops
+ 
+ - support for array updates in sequential code (brownian bridge)
+
+ - move the local/global annotations to the type-level, as
+   annotations on arrays?
+
+ - move the reorder/reorderStride-annotations to the type-level?
+
+### SkelCL
+
+
 ### Insieme / INSPIRE
 <http://www.dps.uibk.ac.at/insieme/architecture.html>
 
