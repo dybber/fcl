@@ -1,3 +1,4 @@
 .cabal-sandbox
 shared/lib
 shared/obj
+dist/
