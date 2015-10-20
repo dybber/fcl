@@ -1,0 +1,26 @@
+Name:                fcl
+Version:             0.1
+Category:            Language
+License:             BSD3
+Build-type:          Simple
+Maintainer:          dybber@dybber.dk
+Cabal-version:       >= 1.10
+
+Library
+  Build-depends: base >= 4 && < 4.8,
+                 array >= 0.5,
+                 containers >= 0.5,
+                 mtl >= 2.1
+                 -- language-c-quote,
+                 -- mainland-pretty
+
+  HS-source-dirs: src
+
+  exposed-modules: Language.FCL.Syntax
+                   Language.FCL.Eval
+                   Language.FCL.Eval.ArrayLib
+                   Language.FCL.TypeInference
+
+  Default-Language: Haskell2010
+  GHC-Options: -Wall
+  GHC-prof-options: -fprof-auto
