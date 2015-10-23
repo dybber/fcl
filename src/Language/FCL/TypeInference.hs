@@ -7,12 +7,11 @@ import Control.Monad.State
 import Control.Applicative
 import Data.List (nub)
 
-data TypeScheme = TypeScheme [TyVarName] Type
 type TypeEnv = Map.Map VarName TypeScheme
 type Subst = Map.Map TyVarName Type
 
-add :: TypeEnv -> VarName -> TypeScheme -> TypeEnv
-add env n t = Map.insert n t env
+insert :: TypeEnv -> VarName -> TypeScheme -> TypeEnv
+insert env n t = Map.insert n t env
 
 -- Type inference monad
 newtype TI x = TI (State (Subst, Int) x)
@@ -20,6 +19,10 @@ newtype TI x = TI (State (Subst, Int) x)
             Applicative,
             Monad,
             MonadState (Subst, Int))
+
+initState = (Map.empty, 0)
+
+emptyTEnv = Map.empty
 
 evalTI :: TI x -> (Subst, Int) -> x
 evalTI (TI m) = evalState m
@@ -45,11 +48,9 @@ applySubst :: Subst -> Type -> Type
 applySubst _ IntT = IntT
 applySubst _ DoubleT = DoubleT
 applySubst _ BoolT = BoolT
-applySubst _ UnitT = UnitT
-applySubst s (ArrayT t size) = ArrayT (applySubst s t) size
-applySubst s (t1 :*: t2) = applySubst s t1 :*: applySubst s t2
+applySubst s (ArrayT t) = ArrayT (applySubst s t)
+applySubst s (t1 :*: t2) = applySubst s t1 :> applySubst s t2
 applySubst s (t1 :> t2) = applySubst s t1 :> applySubst s t2
-applySubst s (size :=> t) = size :=> applySubst s t
 applySubst s (TyVar n) = case Map.lookup n s of
                           Just t -> t
                           Nothing -> TyVar n
@@ -73,11 +74,9 @@ occurs :: Subst -> TyVarName -> Type -> Bool
 occurs _ _ IntT = False
 occurs _ _ DoubleT = False
 occurs _ _ BoolT = False
-occurs _ _ UnitT = False
-occurs s n (ArrayT t _) = occurs s n t
-occurs s n (t1 :*: t2) = occurs s n t1 || occurs s n t2
+occurs s n (ArrayT t) = occurs s n t
 occurs s n (t1 :> t2) = occurs s n t1 || occurs s n t2
-occurs s n (_ :=> t) = occurs s n t
+occurs s n (t1 :*: t2) = occurs s n t1 || occurs s n t2
 occurs s n (TyVar n') =
  case Map.lookup n' s of
    Just t -> occurs s n t
@@ -85,15 +84,13 @@ occurs s n (TyVar n') =
 
 -- | Return the list of type variables in t (possibly with duplicates)
 freevars :: Type -> [TyVarName]
-freevars IntT         = []
-freevars DoubleT      = []
-freevars BoolT        = []
-freevars UnitT        = []
-freevars (t1 :*: t2)  = freevars t1 ++ freevars t2
-freevars (t1 :> t2)   = freevars t1 ++ freevars t2
-freevars (_ :=> t)    = freevars t
-freevars (ArrayT t _) = freevars t
-freevars (TyVar v)    = [v]
+freevars IntT       = []
+freevars DoubleT    = []
+freevars BoolT      = []
+freevars (t1 :> t2) = freevars t1 ++ freevars t2
+freevars (t1 :*: t2) = freevars t1 ++ freevars t2
+freevars (ArrayT t) = freevars t
+freevars (TyVar v)  = [v]
 
 -- | The list of all type variables that are allocated in TVE but
 -- not bound there
@@ -119,13 +116,8 @@ unify t1 t2 = do
     unify' IntT IntT = return ()
     unify' DoubleT DoubleT = return ()
     unify' BoolT BoolT = return ()
-    unify' (t1l :*: t1r) (t2l :*: t2r) = do
-      unify' t1l t2l
-      unify' t1r t2r
     unify' (t1l :> t1r) (t2l :> t2r) = do
       unify' t1l t2l
-      unify' t1r t2r
-    unify' (_ :=> t1r) (_ :=> t2r) = do
       unify' t1r t2r
     unify' (TyVar n) t = unify_fv n t
     unify' t (TyVar n) = unify_fv n t
@@ -141,37 +133,58 @@ unify t1 t2 = do
       if c then error "occurs check failed"
            else extendSubst n t
 
-infer :: TypeEnv -> Exp NoType -> TI (Type, Exp Type)
+infer :: TypeEnv -> Exp a -> TI (Type, Exp Type)
 infer _ (IntE e) = return (IntT, IntE e)
 infer _ (DoubleE e) = return (DoubleT, DoubleE e)
 infer _ (BoolE e) = return (BoolT, BoolE e)
-infer _ UnitE = return (UnitT, UnitE)
-infer env (VarE n) = case Map.lookup n env of
-                      Just t -> do
-                         t' <- instantiate t
-                         return (t', VarE n)
-                      Nothing -> error "unknown var"
-infer env (LamE n _ e NoType) = do
+infer env (VarE n _) =
+  case Map.lookup n env of
+    Just t -> do
+      t' <- instantiate t
+      return (t', VarE n t')
+    Nothing -> error "unknown var"
+infer env (LamE n _ e _) = do
   tv <- freshTyVar
-  (t, e') <- infer (add env n (TypeScheme [] tv)) e
+  (t, e') <- infer (insert env n (TypeScheme [] tv)) e
   return $ (tv :> t, LamE n t e' tv)
-infer env (AppE e1 e2 NoType) = do
+infer env (AppE e1 e2 _) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- freshTyVar
   unify t1 (t2 :> tv)
   return (tv, AppE e1' e2' tv)
-infer env (IfE e1 e2 e3 NoType) = do
+infer env (IfE e1 e2 e3 _) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
   unify t1 BoolT
   unify t2 t3
   return (t2, IfE e1' e2' e3' t2)
-infer env (LetE x NoType e body) = do
+infer env (PairE e1 e2) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  return (t1 :*: t2, PairE e1' e2')
+infer env (Proj1E e) = do
+  (tpair, e') <- infer env e
+  tv1 <- freshTyVar
+  tv2 <- freshTyVar
+  unify tpair (tv1 :*: tv2)
+  return (tv1, Proj1E e')
+infer env (Proj2E e) = do
+  (tpair, e') <- infer env e
+  tv1 <- freshTyVar
+  tv2 <- freshTyVar
+  unify tpair (tv1 :*: tv2)
+  return (tv2, Proj2E e')
+infer env (VectorE es _) = do
+  (ts,es') <- unzip <$> mapM (infer env) es
+  tv <- freshTyVar
+  mapM_ (unify tv) ts
+  return (ArrayT tv, VectorE es' tv)
+infer env (LetE x _ e body _) = do
   (ts,e') <- generalize (infer env e)
-  (t,body') <- infer (add env x ts) body
-  return (t, LetE x t e' body')
+  (t,body') <- infer (insert env x ts) body
+  return (t, LetE x ts e' body' t)
  where
    generalize :: TI (Type, Exp Type) -> TI (TypeScheme, Exp Type)
    generalize ta = do
@@ -188,3 +201,9 @@ infer env (LetE x NoType e body) = do
    tvdependentset :: (Subst, Int) -> Subst -> (TyVarName -> Bool)
    tvdependentset (s_before, i) s_after = 
        \tv -> any (\tvb -> occurs s_after tv (TyVar tvb)) (free (s_before,i))
+
+
+typeinfer :: TypeEnv -> Exp a -> Type
+typeinfer env e =
+ let ((t,_), (subst,_)) = runTI (infer env e) initState
+ in (applySubst subst t)

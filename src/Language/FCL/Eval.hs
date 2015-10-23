@@ -10,57 +10,42 @@ import qualified Language.FCL.Eval.ArrayLib as Arr
 
 -- Evaluation environment
 type VarEnv ty = Map.Map VarName (Value ty)
-type SizeEnv = Map.Map SizeVar Int
 
-data Env ty = Env { varEnv :: VarEnv ty
-                  , sizeEnv :: SizeEnv }
+data Env ty = Env { varEnv :: VarEnv ty }
   deriving (Eq, Show)
 
 emptyEnv :: Env ty
-emptyEnv = Env { varEnv = Map.empty,
-                 sizeEnv = Map.empty }
+emptyEnv = Env { varEnv = Map.empty-- ,
+                 -- sizeEnv = Map.empty
+               }
 
 lookupVar :: VarName -> Env ty -> Maybe (Value ty)
 lookupVar x env = Map.lookup x (varEnv env)
 
-lookupSize :: SizeVar -> Env ty -> Maybe Int
-lookupSize x env = Map.lookup x (sizeEnv env)
-
 insertVar :: VarName -> Value ty -> Env ty -> Env ty
 insertVar x v env = env { varEnv = Map.insert x v (varEnv env) }
 
-insertSize :: SizeVar -> Int -> Env ty -> Env ty
-insertSize x v env = env { sizeEnv = Map.insert x v (sizeEnv env) }
-
 -- Values
 data Value ty = LamV (Env ty) VarName (Exp ty)
-              | LamS (Env ty) SizeVar (Exp ty)
+--              | LamS (Env ty) SizeVar (Exp ty)
               | IntV Int
               | DoubleV Double
               | BoolV Bool
               | PairV (Value ty) (Value ty)
-              | UnitV
+--              | UnitV
               | ArrayV (FCLArray (Value ty))
    deriving (Eq, Show)
-
--- Evaluation of size-expressions
-evalSize :: Env ty -> Size -> Int
-evalSize _ (Size i) = i
-evalSize env (SizeVar x) = case lookupSize x env of
-                             Just v -> v
-                             Nothing -> error "Size variable not in environment"
-evalSize env (SizeProd s1 s2) = evalSize env s1 + evalSize env s2
-evalSize env (SizePow s1 s2) = evalSize env s1 ^ evalSize env s2
 
 -- Evaluation of expressions
 eval :: Env ty -> Exp ty -> Value ty
 eval _ (IntE i) = IntV i
 eval _ (DoubleE d) = DoubleV d
 eval _ (BoolE b) = BoolV b
-eval env (VarE x) = case lookupVar x env of
-                      Just v -> v
-                      Nothing -> error "using undefined variable"
-eval _ UnitE = UnitV
+eval env (VarE x _) =
+  case lookupVar x env of
+    Just v -> v
+    Nothing -> error "using undefined variable"
+--eval _ UnitE = UnitV
 eval env (PairE e1 e2) = PairV (eval env e1) (eval env e2)
 eval env (Proj1E e) =
   case eval env e of
@@ -81,16 +66,11 @@ eval env (AppE e1 e2 _) =
   in case eval env e1 of
       LamV env' x e -> eval (insertVar x v env') e
       _ -> error "Using non-function value as a function"
-eval env (LamSizeE sx e _) = LamS env sx e
-eval env (AppSizeE e s _) =
-  let sv = evalSize env s
-  in case eval env e of
-      LamS env' sx ebody -> eval (insertSize sx sv env') ebody
-      _ -> error "Using non-function value as a function"
-eval env (LetE x _ e ebody) =
+eval env (LetE x _ e ebody _) =
   let v = eval env e
   in eval (insertVar x v env) ebody
-eval env (UnaryOpE op e _) =
+eval env (VectorE es _) = ArrayV $ Arr.fromList $ map (eval env) es
+eval env (UnaryOpE op e) =
   let v = eval env e
   in case op of
        Not          -> BoolV   (not          (unBool "not" v))
@@ -103,7 +83,7 @@ eval env (UnaryOpE op e _) =
        Ceil         -> IntV    (ceiling      (unDouble "ceil" v))
        Floor        -> IntV    (floor        (unDouble "floor" v))
        I2D          -> DoubleV (fromIntegral (unInt "i2d" v))
-eval env (BinOpE op e1 e2 _) =
+eval env (BinOpE op e1 e2) =
   let v1 = eval env e1
       v2 = eval env e2
   in case op of
@@ -149,9 +129,9 @@ eval env (ReduceSeqE ef e1 e2 _) =
       in Arr.foldlA f v arr
     (LamV _ _ _, _, _) -> error "Error when evaluating second argument to reduceSeq: not an array"
     _                  -> error "Error when evaluating first argument to reduceSeq: not a function"
-eval env (ToGlobalE e _) = eval env e
-eval env (ToLocalE e _) = eval env e
-eval env (ReorderE e _) = eval env e
+eval env (ToGlobalE e) = eval env e
+eval env (ToLocalE e) = eval env e
+eval env (ReorderE e) = eval env e
 eval env (JoinE e _) =
   case eval env e of
     ArrayV arr -> let arr' = Arr.mapA (\x -> case x of
@@ -161,9 +141,9 @@ eval env (JoinE e _) =
     _ -> error "Expecting array as argument to join"
 eval env (SplitE s e _) =
   case eval env e of
-    ArrayV arr -> ArrayV (Arr.mapA ArrayV (Arr.splitA (evalSize env s) arr))
+    ArrayV arr -> ArrayV (Arr.mapA ArrayV (Arr.splitA (unInt "first argument to split" $ eval env s) arr))
     _ -> error "Expecting array as argument to split"
-eval _ (ReorderStrideE _ _ _) = error "Error: reorderStride not yet supported by the interpreter"
+eval _ (ReorderStrideE _ _) = error "Error: reorderStride not yet supported by the interpreter"
 
 -- We could have done something smart with multi-parameter typeclasses
 -- providing lifting functions, but this works for now.
@@ -186,3 +166,6 @@ unBool str v = case v of BoolV v' -> v'
 unInt :: String -> Value t -> Int
 unInt str v = case v of IntV v' -> v'
                         _ -> error ("Expecting int in " ++ str)
+
+
+
