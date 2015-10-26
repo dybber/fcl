@@ -5,9 +5,12 @@ Additional references can be found here:
 <http://wiki.portal.chalmers.se/cse/pmwiki.php/FP/PapersRelatedToFeldsparObsidianIntermediateRepresentationsAndTheLike>
 
 
+
 Low-level
 ---------
 
+ * FSCL - F# to OpenCL
+   http://fscl.github.io/FSCL.Compiler/
  * Generating Performance Portable Code using Rewrite Rules (ICFP'15)
    by Michel Steuwer, Christian Fensch, Sam Lindley
  * SkelCL
@@ -58,3 +61,8 @@ Intermediate languages for sequential compilers
  * C-- (or Cmm, or C minus minus)
    Intermediate language in GHC. "C without type declarations and pointers" + a runtime system for
    - Talk on vimeo: <https://vimeo.com/69025829>
+
+
+Permutations/Index-transformations
+----------------------------------
+Might be relevant at some later point: http://dl.acm.org/citation.cfm?id=165248
