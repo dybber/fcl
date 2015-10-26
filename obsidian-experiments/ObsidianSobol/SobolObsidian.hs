@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module SobolObsidian where
+module SobolObsidianDyn where
 
 import Obsidian
 import Obsidian.CodeGen.CUDA (genKernel)
@@ -50,13 +50,13 @@ grayCode ix = ix `xor` (ix `shiftR` 1)
 -- Computes a singleton array containing the sobol-number
 -- at index 'ix' (inherently sequential)
 -- Uses the independent formula
-sobolInd :: EWord32 -> SPull EWord32 -> SPush Thread EWord32
+--sobolInd :: EWord32 -> DPull EWord32 -> DPush Thread EWord32
 sobolInd ix dirVs = execThread' $ seqReduce xor $ zipWith (*) dirVs bitVec
   where
-   bitVec :: SPull EWord32
-   bitVec = mkPull sobol_bit_count id --(\i -> fromBool $ testBit (grayCode ix) i)
+   bitVec :: DPull EWord32
+   bitVec = mkPull sobol_bit_count (\i -> fromBool $ testBit (grayCode ix) i)
 
-sobolIndReal :: EWord32 -> SPull EWord32 -> SPush Thread EFloat
+sobolIndReal :: EWord32 -> DPull EWord32 -> SPush Thread EFloat
 sobolIndReal i dirVs = fmap normalise $ sobolInd i dirVs
   where
    normalise x = w32ToF x / sobol_divisor
@@ -64,7 +64,7 @@ sobolIndReal i dirVs = fmap normalise $ sobolInd i dirVs
 blockSize = 512
 
 -- Compute 1D sobol sequence
-sobol1D :: Word32 -> SPull EWord32 -> SPush Grid EFloat
+sobol1D :: Word32 -> DPull EWord32 -> SPush Grid EFloat
 sobol1D n dirVs = asGrid  $ mkPull gridSize
                     (\bid -> asBlock $ mkPull blockSize
                       (\tid -> sobolIndReal (bid * (Literal blockSize) + tid) dirVs))
@@ -74,13 +74,11 @@ sobol1D n dirVs = asGrid  $ mkPull gridSize
 sobol_iterations = 10000
 sobol1DKernel = putStrLn $ genKernel blockSize "sobol1D" (sobol1D sobol_iterations)
 
-
-sobolND :: Word32 -> SPull EWord32 -> SPush Grid EFloat
-sobolND n dirV = asGrid $
-                 mkPull n
-                  (\i -> asBlock $ fmap (sobolIndReal i) dirVs)
+sobolND :: Word32 -> Word32 -> DPull EWord32 -> SPush Grid EFloat
+sobolND dim n dirV =
+  asGrid $ mkPull n (\i -> asBlock $ fmap (sobolIndReal i) dirVs)
   where
-   dirVs :: SPull (SPull EWord32)
-   dirVs = splitUp sobol_bit_count dirV
+   dirVs :: SPull (DPull EWord32)
+   dirVs = fromDyn dim (splitUp sobol_bit_count dirV)
 
-sobolNDKernel = putStrLn $ genKernel blockSize "sobolND" (sobolND sobol_iterations)
+sobolNDKernel = putStrLn $ genKernel blockSize "sobolND" (sobolND sobol_iterations sobol_dim)
