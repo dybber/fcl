@@ -2,10 +2,13 @@ INCLUDE = -I../../shared/include/
 LIBDIR = -L../../shared/lib/
 COMPILERFLAGS = -std=c99 -Wall -O2
 CFLAGS = $(COMPILERFLAGS) $(INCLUDE)
-LIB = -lclu_runtime -lOpenCL
+LIB = -lclu_runtime -lOpenCL -lstdc++ # We need stdc++ because of CLU
 
-reverse: reverse.c
-	g++ $(CFLAGS) $(LIBDIR) -o $@ $^ $(LIB)
+build: reverse.c
+	gcc $(CFLAGS) $(LIBDIR) -o reverse $^ $(LIB)
+
+run: build
+	./reverse
 
 clean:
 	rm reverse

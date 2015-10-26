@@ -1,6 +1,6 @@
 
 INCLUDE=-Iinclude
-CFLAGS= -Wall -m64 -O2 -std=c++11
+CFLAGS= -Wall -m64 -O2 -std=c++11 -D _DEBUG
 
 build: lib/libclu_runtime.a
 

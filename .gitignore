@@ -2,3 +2,6 @@
 shared/lib
 shared/obj
 dist/
+cabal.sandbox.config
+*.a
+*.o

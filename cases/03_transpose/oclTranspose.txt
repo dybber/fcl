@@ -1,0 +1,14 @@
+/home/dybber/Documents/research/chalmers/fcl/cases/03_transpose/oclTranspose Starting...
+
+WARNING: NVIDIA OpenCL platform not found - defaulting to first platform!
+
+Device 0: Intel(R) Core(TM) i7-4600U CPU @ 2.10GHz
+
+Processing a 2048 by 2048 matrix of floats...
+
+
+Processing a 2048 by 2048 matrix of floats...
+
+
+Comparing results with CPU computation... 
+

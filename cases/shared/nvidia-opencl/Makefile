@@ -1,6 +1,6 @@
 
 INCLUDE=-Iinclude
-CFLAGS= -Wall -m64 -O2
+CFLAGS= -Wall -m64 -O2 -DUNIX
 
 build: lib/libshrutil.a lib/liboclUtil.a
 
