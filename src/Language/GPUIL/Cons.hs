@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 -- | Untyped constructors for building GPUIL-kernels
 module Language.GPUIL.Cons (
   

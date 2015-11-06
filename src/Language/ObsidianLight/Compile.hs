@@ -2,7 +2,6 @@ module Language.ObsidianLight.Compile where
 
 import Language.ObsidianLight.Syntax
 import Language.GPUIL
-
 import qualified Data.Map as Map
 
 data Idx a = Pull (Exp -> Program a)
@@ -18,6 +17,7 @@ data Tagged = TagInt Exp
             | TagBool Exp
             | TagArray (Array Tagged)
             | TagFn (Tagged -> Program Tagged)
+            | TagPair Exp
 
 type VarEnv = Map.Map VarName Tagged
 
@@ -85,7 +85,8 @@ compile env (Generate lvl e0 e1) = do
   v1 <- compile env e1
   case (v0, v1) of
     (TagInt e0', TagFn f) ->
-      return . TagArray $ Array { arrayElemType = int -- TODO, when type inference is done, put something sensible here
+      return . TagArray $ Array { arrayElemType = int -- TODO, when type inference is done,
+                                                      -- put something sensible here
                                 , arrayLen = e0'
                                 , arrayLevel = lvl
                                 , arrayFun = Pull (\i -> f (TagInt i))
@@ -98,13 +99,13 @@ compile env (Map e0 e1) = do
     (TagFn f, TagArray (Array n ty lvl idx)) ->
       case idx of
         Pull g -> return $ TagArray $
-                    Array { arrayElemType = ty
+                    Array { arrayElemType = ty -- TODO this seems wrong, find the correct return type
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Pull (\x -> g x >>= f)
                           }
         Push g -> return . TagArray $
-                    Array { arrayElemType = ty
+                    Array { arrayElemType = ty -- TODO this seems wrong
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Push (\writer -> g (\e ix -> do v <- f e
@@ -134,6 +135,10 @@ compile env (ForceLocal e0) = do
     TagArray arr -> TagArray `fmap` unsafeWrite arr
     _ -> error "ComputeLocal expects array as argument"
 
+-- TODO: What will happen with arrays of arrays?
+--
+-- TODO: Maybe we could just handle everything about array-of-tuples,
+-- to tuples of arrays here?
 unsafeWrite :: Array Tagged -> Program (Array Tagged)
 unsafeWrite arr =
   let parr = push arr
@@ -141,6 +146,12 @@ unsafeWrite arr =
        Push f -> do name <- allocate (arrayElemType parr) (arrayLen parr)
                     f (\(TagInt i) -> assignArray name i)
                     -- TODO ^ This should unpack according elem type, currently only supports integers
+                    
+                    -- TODO: Also, the "name" tag should be
+                    -- "warpIx"/"tid" depending on the level, but
+                    -- would be nicer if that could be handled at a
+                    -- lower level. Maybe give the level as argument
+                    -- to assignArray?
                     return $ pullFrom name (arrayLen parr) (arrayLevel parr)
        Pull _ -> error "This should not be possible, array was just converted to push array."
 
