@@ -62,6 +62,7 @@ ppUnaryOp op e =
          LocalID -> text "get_local_id"
          GroupID -> text "get_group_id"
          LocalSize -> text "get_local_size"
+         WarpSize -> text "32" -- TODO fetch this from device info-query
          NumGroups -> text "get_num_groups"
          _ -> error "can not happen"
 
@@ -137,6 +138,7 @@ ppStmt (DistrPar _ _ _ _) =
 ppStmt (ForAll _ _ _ _) =
   error $ concat ["Cannot pretty print ForAll, ",
                   "use `XX.funcYY` to convert to sequential for-loops"]
+ppStmt (Allocate name size ty) = text "" -- TODO
 
 ppStmts :: [Stmt ty] -> Doc
 ppStmts [] = text ""

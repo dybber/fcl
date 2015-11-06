@@ -1,13 +1,15 @@
 module Language.ObsidianLight.Syntax where
 
-data Level = Block | Warp | Thread
+import Language.GPUIL.Syntax (Level)
 
-data BinOp = AddI | SubI | DivI | EqI | MinI
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | EqI
+  deriving (Eq, Show)
 
 type VarName = String
 
 data OExp =
     IntScalar Int
+  | BoolScalar Bool
   | BinOp BinOp OExp OExp
 
   | Var VarName
@@ -27,7 +29,7 @@ data OExp =
   | Fixpoint OExp OExp OExp -- APL-style, representing tail-recursive functions
   | Generate Level OExp OExp -- mkPull
   | Map OExp OExp
-  | ComputeLocal OExp -- force
+  | ForceLocal OExp -- force
 
   -- To be added later!
   -- | Iota OExp

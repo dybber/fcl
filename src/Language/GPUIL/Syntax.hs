@@ -38,7 +38,7 @@ data UnaryOp =
     Not | I2D | NegateInt | NegateDouble |
     NegateBitwise |
     Ceil | Floor | Exp | Ln | AbsI | AbsD |
-    GlobalID | LocalID | GroupID | LocalSize | NumGroups
+    GlobalID | LocalID | GroupID | LocalSize | NumGroups | WarpSize
   deriving (Eq, Show)
 
 data BinOp =
@@ -89,3 +89,4 @@ data Kernel ty =
          , kernelParams :: [VarName]
          , kernelBody :: [Stmt ty]
          }
+  deriving (Eq, Show)

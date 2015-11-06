@@ -1,11 +1,37 @@
 module Language.ObsidianLight.Examples where
 
-import Language.ObsidianLight.Syntax
+import Language.GPUIL (generateKernel, Level(..))
+import Language.GPUIL.PrettyLib (render)
+import Language.GPUIL.PrettyOpenCL (ppKernel)
 import Language.ObsidianLight.Compile
+import Language.ObsidianLight.Syntax
 import Prelude hiding (splitAt, zipWith)
 
--- Examples from Obsidian
 
+compileAndPrint :: OExp -> IO ()
+compileAndPrint e =
+  let prog = do _ <- compile emptyEnv e
+                return ()
+      kernel = generateKernel "kernel" prog
+  in do --print kernel
+        putStrLn (render 0 2 (ppKernel kernel))
+
+-- Basic examples
+mapIota1000 =
+  (ForceLocal $ Map (Lamb "x" (BinOp AddI (IntScalar 20000) (Var "x")))
+                    (Generate Block (IntScalar 1000) (Lamb "ix" (Var "ix"))))
+
+test_mapIota = compileAndPrint mapIota1000
+
+mapForceMap =
+  ForceLocal $
+  (Map (Lamb "x" (BinOp MulI (IntScalar 10) (Var "x")))
+       (ForceLocal $ Map (Lamb "x" (BinOp AddI (IntScalar 20000) (Var "x")))
+                         (Generate Block (IntScalar 1000) (Lamb "ix" (Var "ix")))))
+
+test_mapForceMap = compileAndPrint mapForceMap
+
+-- Examples from Obsidian
 zipWith :: Level -> OExp -> OExp -> OExp -> OExp
 zipWith lvl op a1 a2 =
   Generate lvl
@@ -26,13 +52,9 @@ red1 :: OExp -> OExp -> OExp
 red1 f arr =
   Fixpoint (Lamb "arr"
                  (Let "y" (halve Block (Var "arr")) $
-                  ComputeLocal (zipWith Block f (Proj1E (Var "y")) (Proj2E (Var "y")))))
+                  ForceLocal (zipWith Block f (Proj1E (Var "y")) (Proj2E (Var "y")))))
            (Lamb "arr" (BinOp EqI (IntScalar 1) (Length (Var "arr"))))
            arr
 
+addi :: OExp
 addi = Lamb "x1" (Lamb "x2" (BinOp AddI (Var "x1") (Var "x2")))
-
-test :: Array Tagged
-test =
-  case compile emptyEnv (red1 addi undefined) of
-    TagArray arr -> arr
