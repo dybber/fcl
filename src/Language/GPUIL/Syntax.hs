@@ -16,7 +16,7 @@ data IType =
   | Word8T
   | Word32T
   | Ptr [Attribute] IType -- ^ Only put attributes on the outermost Ptr, if nested!
- deriving (Eq, Show)
+ deriving (Eq, Show, Ord)
 
 sizeOf :: IType -> Int
 sizeOf Int32T = 4
@@ -37,8 +37,7 @@ type VarName = (String, IType)
 data UnaryOp =
     Not | I2D | NegateInt | NegateDouble |
     NegateBitwise |
-    Ceil | Floor | Exp | Ln | AbsI | AbsD |
-    GlobalID | LocalID | GroupID | LocalSize | NumGroups | WarpSize
+    Ceil | Floor | Exp | Ln | AbsI | AbsD
   deriving (Eq, Show)
 
 data BinOp =
@@ -50,6 +49,8 @@ data BinOp =
     Land | Lor | Xor | Sll | Srl -- bitwise ops
   deriving (Eq, Show)
 
+-- TODO: add function call?
+-- TODO: why casting?
 data IExp ty = 
     IntE Int
   | DoubleE Double
@@ -62,16 +63,21 @@ data IExp ty =
   | IfE (IExp ty) (IExp ty) (IExp ty) ty
   | IndexE VarName (IExp ty)
   | CastE IType (IExp ty)
+  | GlobalID | LocalID | GroupID
+  | LocalSize | NumGroups | WarpSize
  deriving (Eq, Show)
 
 data Level = Thread | Warp | Block | Grid
  deriving (Eq, Show)
 
-data Stmt ty =
-    For VarName (IExp ty) [Stmt ty]
-  | DistrPar Level VarName (IExp ty) [Stmt ty]
-  | ForAll Level VarName (IExp ty) [Stmt ty]
-  | If (IExp ty) [Stmt ty] [Stmt ty]
+type Statements a ty = [(Statement a ty,a)]
+
+data Statement a ty =
+    For VarName (IExp ty) (Statements a ty)
+  | DistrPar Level VarName (IExp ty) (Statements a ty)
+  | ForAll Level VarName (IExp ty) (Statements a ty)
+  | SeqWhile (IExp ty) (Statements a ty)
+  | If (IExp ty) (Statements a ty) (Statements a ty)
   | Assign VarName (IExp ty)
   | AssignSub VarName (IExp ty) (IExp ty)
   | Decl VarName (Maybe (IExp ty))
@@ -87,6 +93,6 @@ data Stmt ty =
 data Kernel ty =
   Kernel { kernelName :: String
          , kernelParams :: [VarName]
-         , kernelBody :: [Stmt ty]
+         , kernelBody :: Statements () ty
          }
   deriving (Eq, Show)

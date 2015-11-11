@@ -20,7 +20,7 @@ module Language.GPUIL.Cons (
  mini, maxi,
  
  -- Statements
- for, iff, distrPar, forAll,
+ for, while, iff, distrPar, forAll,
  allocate, allocateVolatile,
  assign, (<==), assignArray,
  syncGlobal, syncLocal,
@@ -48,7 +48,7 @@ import Language.GPUIL.Syntax as AST
 data MState = MState
               { params :: [VarName]
               , varCount :: Int
-              , statements :: [Stmt NoType]
+              , statements :: Statements () NoType
               }
 initialState :: MState
 initialState = MState
@@ -72,9 +72,9 @@ generateKernel name m =
 runProgram :: Program () -> MState -> MState
 runProgram m init' = snd (runState m init')
 
-addStmt :: Stmt NoType -> Program ()
+addStmt :: Statement () NoType -> Program ()
 addStmt stmt =
-  modify (\s -> (s {statements = stmt : statements s }))
+  modify (\s -> (s {statements = (stmt, ()) : statements s }))
 
 newVar :: IType -> String -> Program VarName
 newVar ty name = do
@@ -89,7 +89,7 @@ newVar ty name = do
 
 -- Variable binder. Creates a fresh variable, adds a declaration
 -- w. initialiser and passes it on
-let_ :: String -> IType -> Exp -> Program (Exp)
+let_ :: String -> IType -> Exp -> Program Exp
 let_ name ty e = do
   v <- newVar ty name
   addStmt (Decl v (Just e))
@@ -122,8 +122,14 @@ for :: Exp -> (Exp -> Program ()) -> Program ()
 for ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
-    let body = statements $ runProgram (f (VarE i NoType)) initialState -- Var count should be passed on!
+    let body = statements $ runProgram (f (VarE i NoType)) initialState
+                               -- TODO: Var count should be passed on!
     addStmt $ For i upperbound body)
+
+while :: Exp -> Program () -> Program ()
+while f body = 
+  addStmt (SeqWhile f (statements (runProgram body initialState)))
+                                    -- TODO: Var count should be passed on!
 
 iff :: Exp -> (Program (), Program ()) -> Program ()
 iff cond (f1, f2) =
@@ -236,19 +242,19 @@ cast :: IType -> Exp -> Exp
 cast _ e = e
 
 globalID :: Exp
-globalID = (UnaryOpE GlobalID (IntE 0))
+globalID = GlobalID
 
 localID :: Exp
-localID = (UnaryOpE LocalID (IntE 0))
+localID = LocalID
 
 workgroupID :: Exp
-workgroupID = (UnaryOpE GroupID (IntE 0))
+workgroupID = GroupID
 
 localSize :: Exp
-localSize = (UnaryOpE LocalSize (IntE 0))
+localSize = LocalSize
 
 numWorkgroups :: Exp
-numWorkgroups =  (UnaryOpE NumGroups (IntE 0))
+numWorkgroups =  NumGroups
 
 -----------------
 --  Operators  --

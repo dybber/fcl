@@ -23,7 +23,7 @@ module Language.GPUIL.SmartCons (
  land, lor, xor, sll, srl,
  (&&*), (||*),
 
- ltw, minw, maxw, divw,
+-- ltw, minw, maxw, divw,
  
  -- Statements
  for, iff, --distrPar, forAll,
@@ -64,7 +64,7 @@ newtype Var t = V VarName
 data MState = MState
               { params :: [VarName]
               , varCount :: Int
-              , statements :: [Stmt NoType]
+              , statements :: Statements () NoType
               }
 initialState :: MState
 initialState = MState
@@ -93,9 +93,9 @@ generateKernel name m =
 runProgram :: Program lvl () -> MState -> MState
 runProgram m init' = snd (runState m init')
 
-addStmt :: Stmt NoType -> Program lvl ()
+addStmt :: Statement () NoType -> Program lvl ()
 addStmt stmt =
-  modify (\s -> (s {statements = stmt : statements s }))
+  modify (\s -> (s {statements = (stmt, ()) : statements s }))
 
 newVar :: Type t -> String -> Program lvl VarName
 newVar (T ty) name = do
@@ -244,19 +244,19 @@ cast :: Type t2 -> Exp t1 -> Exp t2
 cast _ (E e) = E e
 
 globalID :: Exp Int
-globalID = E (UnaryOpE GlobalID (IntE 0))
+globalID = E GlobalID
 
 localID :: Exp Int
-localID = E (UnaryOpE LocalID (IntE 0))
+localID = E LocalID
 
 workgroupID :: Exp Int
-workgroupID = E (UnaryOpE GroupID (IntE 0))
+workgroupID = E GroupID
 
 localSize :: Exp Int
-localSize = E (UnaryOpE LocalSize (IntE 0))
+localSize = E LocalSize
 
 numWorkgroups :: Exp Int
-numWorkgroups =  E (UnaryOpE NumGroups (IntE 0))
+numWorkgroups =  E NumGroups
 
 -----------------
 --  Operators  --
@@ -271,14 +271,14 @@ instance Num (Exp Int) where
                               (e0 `gti` 0) ? (1, 0))
   fromInteger = constant . fromIntegral
 
-instance Num (Exp Word32) where
+-- instance Num (Exp Word32) where
   -- (E e0) + (E e1) = E (BinOpE AddI e0 e1)
   -- (E e0) * (E e1) = E (BinOpE MulI e0 e1)
   -- negate (E e0)   = E (UnaryOpE NegateInt e0)
   -- abs (E e0)   = E (UnaryOpE AbsI e0)
   -- signum e0 = (e0 `lti` 0) ? (-1,
   --                             (e0 `gti` 0) ? (1, 0))
-  fromInteger = constant . fromIntegral
+  -- fromInteger = constant . fromIntegral
 
 addi, subi, muli, divi, modi :: Exp Int -> Exp Int -> Exp Int
 (E e0) `addi` (E e1) = E (BinOpE AddI e0 e1)
@@ -330,13 +330,13 @@ srl  (E e0) (E e1) = E (BinOpE Srl e0 e1)
 (E e0) ||* (E e1) = E (BinOpE Or e0 e1)
 
 
-ltw, gtw :: Exp Word32 -> Exp Word32 -> Exp Bool
-ltw  (E e0) (E e1) = undefined
-gtw  (E e0) (E e1) = undefined
+-- ltw, gtw :: Exp Word32 -> Exp Word32 -> Exp Bool
+-- ltw  (E e0) (E e1) = undefined
+-- gtw  (E e0) (E e1) = undefined
 
-divw :: Exp Word32 -> Exp Word32 -> Exp Word32
-divw (E e0) (E e1) = undefined
+-- divw :: Exp Word32 -> Exp Word32 -> Exp Word32
+-- divw (E e0) (E e1) = undefined
 
 
-x `minw` y = (x `ltw` y) ? (x, y)
-x `maxw` y = (x `gtw` y) ? (x, y)
+-- x `minw` y = (x `ltw` y) ? (x, y)
+-- x `maxw` y = (x `gtw` y) ? (x, y)
