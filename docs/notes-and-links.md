@@ -36,3 +36,11 @@ different instructions that performs better.
 Addresses must be aligned.
 
 http://devblogs.nvidia.com/parallelforall/cuda-pro-tip-increase-performance-with-vectorized-memory-access/
+
+
+### Strip-mining
+
+Do the same amount of work using fewer threads
+
+ - Wastes fewer registers (Threads eat registers pretty fast)
+ - which makes it possible to run concurrent workgroups/blocks
