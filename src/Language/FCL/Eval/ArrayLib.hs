@@ -1,5 +1,14 @@
 -- Simple array library using delay-arrays for FCL-interpreter
-module Language.FCL.Eval.ArrayLib where
+module Language.FCL.Eval.ArrayLib
+ (FCLArray,
+  sizeOf,
+  indices,
+  fromList, toList,
+  fromFunction,
+  index, mapA, foldlA,
+  reduceA, joinA, splitA
+ )
+where
 
 data FCLArray a = FCLArray { len :: Int
                            , idx :: Int -> a
@@ -14,8 +23,6 @@ instance Eq a => Eq (FCLArray a) where
 instance Show a => Show (FCLArray a) where
   show = show . toList
 
-
-
 sizeOf :: FCLArray a -> Int
 sizeOf = len
 
@@ -26,6 +33,9 @@ fromList :: [a] -> FCLArray a
 fromList ls = FCLArray { len = length ls
                        , idx = (ls!!)
                        }
+
+fromFunction :: Int -> (Int -> a) -> FCLArray a
+fromFunction = FCLArray
 
 index :: FCLArray a -> Int -> a
 index (FCLArray {idx=f}) = f
