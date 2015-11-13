@@ -66,11 +66,13 @@ generateKernel name m =
   let finalState = runProgram m initialState
   in Kernel { kernelName = name
             , kernelParams = params finalState
-            , kernelBody = convertLoops $ reverse $ statements finalState
+            , kernelBody = convertLoops $ statements finalState
             }
 
 runProgram :: Program () -> MState -> MState
-runProgram m init' = snd (runState m init')
+runProgram m init' =
+  let finalState = execState m init'
+  in finalState { statements = reverse (statements finalState) }
 
 addStmt :: Statement () NoType -> Program ()
 addStmt stmt =
