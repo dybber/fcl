@@ -1,4 +1,4 @@
-module Language.GPUIL.Liveness where
+module Language.GPUIL.Liveness (liveness, LiveInfo) where
 
 import Control.Monad.State
 import Data.Set as Set
@@ -6,14 +6,10 @@ import Data.Set as Set
 import Language.GPUIL.Syntax
 
 -- Collection of live variables
-type Live = Set VarName
-
--- Liveness annotated statements
-type Stmt ty = Statement Live ty
-type Stmts ty = Statements Live ty
+type LiveInfo = Set VarName
 
 -- Arrays accessed in the given expression
-liveInExp :: IExp ty -> Live
+liveInExp :: IExp ty -> LiveInfo
 liveInExp e =
   case e of
     IndexE name e0      -> insert name (liveInExp e0)
@@ -37,12 +33,18 @@ liveInExp e =
     NumGroups           -> empty
     WarpSize            -> empty
 
-type LM a = State Live a
+type LM a = State LiveInfo a
 
-liveness :: Statements a ty -> LM (Stmts ty)
-liveness = liftM reverse . mapM liveStmt . reverse . Prelude.map fst
+startState :: LiveInfo
+startState = Set.empty
 
-liveStmt :: Statement a ty -> LM (Stmt ty, Live)
+liveness :: Statements a ty -> Statements LiveInfo ty
+liveness ss = evalState (liveness' ss) startState
+
+liveness' :: Statements a ty -> LM (Statements LiveInfo ty)
+liveness' = liftM reverse . mapM liveStmt . reverse . Prelude.map fst
+
+liveStmt :: Statement a ty -> LM (Statement LiveInfo ty, LiveInfo)
 liveStmt SyncGlobalMem =
   do liveSet <- get
      return (SyncGlobalMem, liveSet)
@@ -70,28 +72,28 @@ liveStmt (Allocate name size' ty) =
      return (Allocate name size' ty, liveSet)
 liveStmt (If e0 ss_then ss_else) =
   do s <- get
-     let (ss_then', after_then) = runState (liveness ss_then) s
-         (ss_else', after_else) = runState (liveness ss_else) s
+     let (ss_then', after_then) = runState (liveness' ss_then) s
+         (ss_else', after_else) = runState (liveness' ss_else) s
          newLiveSet = after_then `union` after_else
      put newLiveSet
      return (If e0 ss_then' ss_else', newLiveSet)
 liveStmt (For name bound ss) =
-  do ss' <- liveness ss
+  do ss' <- liveness' ss
      modify (union (liveInExp bound))
      newLiveSet <- get
      return (For name bound ss', newLiveSet)
 liveStmt (SeqWhile bound ss) =
-  do ss' <- liveness ss
+  do ss' <- liveness' ss
      modify (union (liveInExp bound))
      newLiveSet <- get
      return (SeqWhile bound ss', newLiveSet)
 liveStmt (ForAll lvl name bound ss) =
-  do ss' <- liveness ss
+  do ss' <- liveness' ss
      modify (union (liveInExp bound))
      newLiveSet <- get
      return (ForAll lvl name bound ss', newLiveSet)
 liveStmt (DistrPar lvl name bound ss) =
-  do ss' <- liveness ss
+  do ss' <- liveness' ss
      modify (union (liveInExp bound))
      newLiveSet <- get
      return (DistrPar lvl name bound ss', newLiveSet)
