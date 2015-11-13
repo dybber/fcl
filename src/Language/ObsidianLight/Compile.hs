@@ -1,6 +1,6 @@
 module Language.ObsidianLight.Compile where
 
-import Language.ObsidianLight.Syntax
+import Language.ObsidianLight.Syntax hiding (Array)
 import Language.GPUIL
 import qualified Data.Map as Map
 
@@ -15,9 +15,10 @@ data Array a = Array { arrayLen :: Exp
 
 data Tagged = TagInt Exp
             | TagBool Exp
+            | TagDouble Exp
             | TagArray (Array Tagged)
             | TagFn (Tagged -> Program Tagged)
-            | TagPair Exp
+            | TagPair Tagged Tagged
 
 type VarEnv = Map.Map VarName Tagged
 
@@ -28,11 +29,12 @@ emptyEnv = Map.empty
 push :: Array a -> Array a
 push arr =
   case arrayFun arr of
-    Pull idx -> arr { arrayFun = Push (\writer -> forAll
-                                                      (arrayLevel arr)
-                                                      (arrayLen arr)
-                                                      (\i -> do value <- idx i
-                                                                writer value i))
+    Pull idx -> arr { arrayFun = Push (\writer ->
+                                          forAll
+                                            (arrayLevel arr)
+                                            (arrayLen arr)
+                                            (\i -> do value <- idx i
+                                                      writer value i))
                     }
     Push _ -> arr
 
@@ -44,24 +46,40 @@ compileBinOp DivI (TagInt i0) (TagInt i1) = TagInt (divi i0 i1)
 compileBinOp ModI (TagInt i0) (TagInt i1) = TagInt (modi i0 i1)
 compileBinOp MinI (TagInt i0) (TagInt i1) = TagInt (mini i0 i1)
 compileBinOp EqI (TagInt i0) (TagInt i1) = TagBool (eqi i0 i1)
-compileBinOp op _ _ = error $ concat ["Unexpected arguments to binary operator ",
-                                      show op,
-                                      ", expecting integer expression."]
+compileBinOp op _ _ =
+  error $ concat ["Unexpected arguments to binary operator ",
+                  show op,
+                  ", expecting integer expression."]
 
 compile :: Map.Map VarName Tagged -> OExp -> Program Tagged
 compile _ (IntScalar i) = return (TagInt (constant i))
-compile _ (BoolScalar i) = return (TagBool (constant i))
+compile _ (DoubleScalar d) = return (TagDouble (constant d))
+compile _ (BoolScalar b) = return (TagBool (constant b))
 compile env (App e0 e1) = do
   v0 <- compile env e0
   case v0 of
     TagFn f -> f =<< compile env e1
     _ -> error "Unexpected value at function position in application"
+compile env (Pair e0 e1) = do
+  v0 <- compile env e0
+  v1 <- compile env e1
+  return (TagPair v0 v1)
+compile env (Proj1E e) = do
+  v <- compile env e
+  case v of
+    TagPair v0 _ -> return v0
+    _ -> error "Projection expects Pair as argument"
+compile env (Proj2E e) = do
+  v <- compile env e
+  case v of
+    TagPair _ v1 -> return v1
+    _ -> error "Projection expects Pair as argument"
 compile env (Var x) =
   case Map.lookup x env of
     Just v -> return v
     Nothing -> error "Variable not defined"
 compile env (Lamb x e) = return . TagFn $ \v -> compile (Map.insert x v env) e
-compile env (Let x e0 e1) = do
+compile env (Let x e0 e1) = do -- TODO: do actual let-declaration (requires type information)
   v0 <- compile env e0
   compile (Map.insert x v0 env) e1
 compile env (BinOp op e0 e1) = do
@@ -134,6 +152,32 @@ compile env (ForceLocal e0) = do
   case v0 of
     TagArray arr -> TagArray `fmap` unsafeWrite arr
     _ -> error "ComputeLocal expects array as argument"
+compile env (Fixpoint e0 e1 e2) = do
+  v0 <- compile env e0
+  v1 <- compile env e1
+  v2 <- compile env e2
+  case (v0, v1) of
+    (TagFn cond, TagFn step) -> do
+      v <- lets "loopVar" v2
+      cond' <- cond v
+      case cond' of
+        TagBool b -> while b (step v >> return ())
+        _ -> error "Conditional in Fixpoint should be boolean typed"  
+      return v
+    _ -> error "ComputeLocal expects array as argument"
+
+lets :: String -> Tagged -> Program Tagged
+lets name s =
+  case s of
+    TagInt x -> TagInt `fmap` (let_ name int x)
+    TagBool x -> TagInt `fmap` (let_ name bool x)
+    TagDouble x -> TagDouble `fmap` (let_ name double x)
+    TagFn _ -> return s
+    TagPair x y -> do x' <- lets name x
+                      y' <- lets name y
+                      return (TagPair x' y')
+    TagArray _ -> undefined -- TODO
+
 
 -- TODO: What will happen with arrays of arrays?
 --
@@ -146,13 +190,15 @@ unsafeWrite arr =
        Push f -> do name <- allocate (arrayElemType parr) (arrayLen parr)
                     f (\(TagInt i) -> assignArray name i)
                     -- TODO ^ This should unpack according elem type, currently only supports integers
+                    --        How do we support arrays of arrays?
                     
                     -- TODO: Also, the "name" tag should be
                     -- "warpIx"/"tid" depending on the level, but
                     -- would be nicer if that could be handled at a
                     -- lower level. Maybe give the level as argument
                     -- to assignArray?
-                    return $ pullFrom name (arrayLen parr) (arrayLevel parr)
+                    syncLocal
+                    return (pullFrom name (arrayLen parr) (arrayLevel parr))
        Pull _ -> error "This should not be possible, array was just converted to push array."
 
 pullFrom :: (VarName, Type) -> Exp -> Level -> Array Tagged
@@ -160,9 +206,9 @@ pullFrom name@(_, ty) n lvl =
   Array { arrayElemType = ty
         , arrayLen = n
         , arrayLevel = lvl
-        , arrayFun = Pull (\i -> return (TagInt $ name ! i))
+        , arrayFun = Pull (\i -> return (TagInt (name ! i)))
                                          -- TODO ^ This should pack
-                                         -- according elem type,
+                                         -- according elem type (ty),
                                          -- currently only supports
                                          -- integers
         }

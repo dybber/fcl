@@ -1,14 +1,30 @@
-module Language.ObsidianLight.Syntax where
+module Language.ObsidianLight.Syntax (
+  OType(..),
+  OExp(..),
+  Level(..),
+  BinOp(..),
+  VarName
+)
+where
 
-import Language.GPUIL.Syntax (Level)
+import Language.GPUIL.Syntax (Level(..))
 
 data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | EqI
   deriving (Eq, Show)
 
 type VarName = String
 
+data OType =
+    IntT
+  | BoolT
+  | DoubleT
+  | FunT OType OType
+  | ProductT OType OType
+  | Array Level OType
+
 data OExp =
     IntScalar Int
+  | DoubleScalar Double
   | BoolScalar Bool
   | BinOp BinOp OExp OExp
 
@@ -30,6 +46,7 @@ data OExp =
   | Generate Level OExp OExp -- mkPull
   | Map OExp OExp
   | ForceLocal OExp -- force
+  deriving (Eq, Show)
 
   -- To be added later!
   -- | Iota OExp
