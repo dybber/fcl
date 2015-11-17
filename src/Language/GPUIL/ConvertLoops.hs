@@ -45,6 +45,7 @@ convertLoop stmt =
   case stmt of
     (ForAll _ _ _ _) -> compileForAll (stmt)
     (For v ty ss) -> [(For v ty (convertLoops ss), ())]
+    (SeqWhile cond ss) -> [(SeqWhile cond (convertLoops ss), ())]
     (If e ss0 ss1) -> [(If e (convertLoops ss0) (convertLoops ss1), ())]
     _ -> [(stmt, ())]
 
@@ -56,16 +57,17 @@ compileForAll (ForAll Warp name ub body) =
       r = (BinOpE ModI ub warpSize)
       x = (BinOpE ModI localID warpSize)
       resetWarpIx = Assign ("warpIx", Int32T) x
+      body' = convertLoops body
       codeQ = For name q ((Assign ("warpIx", Int32T)
                                            (BinOpE AddI
                                                (BinOpE MulI (VarE name NoType) warpSize)
-                                               x), ()) : body)
+                                               x), ()) : body')
       codeR = If (BinOpE LtI x r)
                    ((Assign ("warpIx", Int32T)
                             (BinOpE AddI
                                 (BinOpE MulI q warpSize)
                                 x), ())
-                    : body)
+                    : body')
                    []
   in [(codeQ, ()),
       (resetWarpIx, ()),
@@ -74,16 +76,17 @@ compileForAll (ForAll Warp name ub body) =
 compileForAll (ForAll Block name ub body) =
   let q = (BinOpE DivI ub warpSize)
       resetTid = Assign ("tid", Int32T) localID
+      body' = convertLoops body
       codeQ = For name q ((Assign ("tid", Int32T)
                                            (BinOpE AddI
                                                (BinOpE MulI (VarE name NoType) ub)
-                                               localID), ()) : body)
+                                               localID), ()) : body')
       codeR = If (BinOpE LtI localID ub)
                    ((Assign ("tid", Int32T)
                             (BinOpE AddI
                                 (BinOpE MulI q ub)
                                 localID), ())
-                    : body)
+                    : body')
                    []
   in [(codeQ, ()),
       (resetTid, ()),

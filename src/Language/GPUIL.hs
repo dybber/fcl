@@ -1,9 +1,9 @@
 module Language.GPUIL
 (
   module Language.GPUIL.Cons,
-  Level(..)
+  Level(..), CType,
 )
 where
 
 import Language.GPUIL.Cons
-import Language.GPUIL.Syntax (Level (..))
+import Language.GPUIL.Syntax (Level (..), CType)

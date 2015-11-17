@@ -51,7 +51,7 @@ import Language.GPUIL.Syntax as AST
 -------------------------------
 -- AST nodes w. phantom types
 -------------------------------
-newtype Type t = T IType
+newtype Type t = T CType
 data Pointer t
 
 newtype Exp t = E (IExp NoType)

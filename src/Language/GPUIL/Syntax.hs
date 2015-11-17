@@ -9,16 +9,16 @@ data Attribute =
   | Global
  deriving (Eq, Show, Ord)
           
-data IType =
+data CType =
     Int32T
   | DoubleT
   | BoolT
   | Word8T
   | Word32T
-  | Ptr [Attribute] IType -- ^ Only put attributes on the outermost Ptr, if nested!
+  | Ptr [Attribute] CType -- ^ Only put attributes on the outermost Ptr, if nested!
  deriving (Eq, Show, Ord)
 
-sizeOf :: IType -> Int
+sizeOf :: CType -> Int
 sizeOf Int32T = 4
 sizeOf DoubleT = 8
 sizeOf BoolT = 4 -- we represent bools as uint32
@@ -31,7 +31,7 @@ data NoType = NoType
   deriving (Eq, Show)
 
 -- Variables
-type VarName = (String, IType)
+type VarName = (String, CType)
 
 -- Builtin operators
 data UnaryOp =
@@ -62,7 +62,7 @@ data IExp ty =
   | BinOpE BinOp (IExp ty) (IExp ty)
   | IfE (IExp ty) (IExp ty) (IExp ty) ty
   | IndexE VarName (IExp ty)
-  | CastE IType (IExp ty)
+  | CastE CType (IExp ty)
   | GlobalID | LocalID | GroupID
   | LocalSize | NumGroups | WarpSize
  deriving (Eq, Show)
@@ -83,7 +83,7 @@ data Statement a ty =
   | Decl VarName (Maybe (IExp ty))
   | SyncLocalMem
   | SyncGlobalMem
-  | Allocate VarName (IExp ty) IType -- This should not be here, as
+  | Allocate VarName (IExp ty) CType -- This should not be here, as
                                      -- allocated memory (local and
                                      -- global) should be passed as
                                      -- argument to kernels

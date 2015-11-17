@@ -6,35 +6,35 @@ import Language.FCL.Eval.ArrayLib
 import qualified Language.FCL.Eval.ArrayLib as Arr
 
 -- Evaluation environment
-type VarEnv = Map.Map VarName Value
+type VarEnv ty = Map.Map Variable (Value ty)
 
-data Env = Env { varEnv :: VarEnv }
+data Env ty = Env { varEnv :: VarEnv ty }
   deriving (Eq, Show)
 
-emptyEnv :: Env
+emptyEnv :: Env ty
 emptyEnv = Env { varEnv = Map.empty }
 
-lookupVar :: VarName -> Env -> Maybe Value
+lookupVar :: Variable -> Env ty -> Maybe (Value ty)
 lookupVar x env = Map.lookup x (varEnv env)
 
-insertVar :: VarName -> Value -> Env -> Env
+insertVar :: Variable -> Value ty -> Env ty -> Env ty
 insertVar x v env = env { varEnv = Map.insert x v (varEnv env) }
 
 -- Values
-data Value = LamV Env VarName OExp
+data Value ty = LamV (Env ty) Variable (Exp ty)
               | IntV Int
               | DoubleV Double
-              | PairV Value Value
+              | PairV (Value ty) (Value ty)
               | BoolV Bool
-              | ArrayV (FCLArray Value)
+              | ArrayV (FCLArray (Value ty))
    deriving (Eq, Show)
 
 -- Evaluation of expressions
-eval :: Env -> OExp -> Value
+eval :: Env ty -> Exp ty -> Value ty
 eval _ (IntScalar i) = IntV i
 eval _ (DoubleScalar d) = DoubleV d
 eval _ (BoolScalar b) = BoolV b
-eval env (Var x) =
+eval env (Var x _) =
   case lookupVar x env of
     Just v -> v
     Nothing -> error "using undefined variable"
@@ -47,18 +47,18 @@ eval env (Proj2E e) =
   case eval env e of
     PairV _ v2 -> v2
     _ -> error "Proj2E should be applied to a pair"
-eval env (Cond ec et ef) =
+eval env (Cond ec et ef _) =
   case eval env ec of
     BoolV True -> eval env et
     BoolV False -> eval env ef
     _ -> error "condition expression in if-statement evaluating to non-bool value"
-eval env (Lamb x e) = LamV env x e
+eval env (Lamb x _ e _) = LamV env x e
 eval env (App e1 e2) =
   let v = eval env e2
   in case eval env e1 of
       LamV env' x e -> eval (insertVar x v env') e
       _ -> error "Using non-function value as a function"
-eval env (Let x e ebody) =
+eval env (Let x e ebody _) =
   let v = eval env e
   in eval (insertVar x v env) ebody
 eval env (BinOp op e1 e2) =
@@ -101,26 +101,26 @@ eval env (Fixpoint e0 e1 e2) =
           (eval env e2)
     _ -> error ""
 
-fix :: (Value -> Value) -> (Value -> Value) -> Value -> Value
+fix :: (Value ty -> Value ty) -> (Value ty -> Value ty) -> Value ty -> Value ty
 fix f body x =
   case f x of
     BoolV True -> fix f body (body x)
     BoolV False -> x
     _ -> error "Second argument to fixpoint should return Bool"
 
-unDouble :: String -> Value -> Double
+unDouble :: String -> Value ty -> Double
 unDouble str v =
   case v of
     DoubleV v' -> v'
     _ -> error ("Expecting double in " ++ str)
 
-unBool :: String -> Value -> Bool
+unBool :: String -> Value ty -> Bool
 unBool str v =
   case v of
     BoolV v' -> v'
     _ -> error ("Expecting bool in " ++ str)
 
-unInt :: String -> Value -> Int
+unInt :: String -> Value ty -> Int
 unInt str v =
   case v of
     IntV v' -> v'

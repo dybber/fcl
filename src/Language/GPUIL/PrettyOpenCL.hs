@@ -10,7 +10,7 @@ ppAttr Local = text "__local"
 ppAttr Global = text "__global"
 ppAttr Volatile = text "volatile"
 
-ppType :: IType -> Doc
+ppType :: CType -> Doc
 ppType Int32T       = text "int32"
 ppType DoubleT      = text "double"
 ppType BoolT        = text "bool" -- maybe this should just be uint32?
@@ -141,13 +141,33 @@ ppStmt (Decl n Nothing) =
   ppDecl n :+: char ';'
 ppStmt SyncLocalMem = text "barrier(CLK_LOCAL_MEM_FENCE);"
 ppStmt SyncGlobalMem = text "barrier(CLK_GLOBAL_MEM_FENCE);"
+ppStmt (ForAll lvl n e body) =
+  let var = ppVar n
+  in (text "forall{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
+        :+: var :+: text " < " :+: ppExp e :+: char ';'
+        :+: var :+: text "++) {")
+     :+:
+       indent (ppStmts body)
+     :+:
+     Newline
+     :+:
+     text "}"
 ppStmt (DistrPar _ _ _ _) =
   error $ concat ["Cannot pretty print DistrPar, ",
                   "use `XX.funcYY` to convert to sequential for-loops"]
-ppStmt (ForAll _ _ _ _) =
-  error $ concat ["Cannot pretty print ForAll, ",
-                  "use `XX.funcYY` to convert to sequential for-loops"]
+-- ppStmt (ForAll _ _ _ _) =
+--   error $ concat ["Cannot pretty print ForAll, ",
+--                   "use `XX.funcYY` to convert to sequential for-loops"]
 ppStmt (Allocate _ _ _) = text "// TODO: allocate array" -- TODO
+
+
+ppLevel :: Level -> Doc
+ppLevel Thread = text "thread"
+ppLevel Warp   = text "warp"
+ppLevel Block  = text "block"
+ppLevel Grid   = text "grid"
+
+
 
 ppStmts :: Statements a ty -> Doc
 ppStmts [] = text ""

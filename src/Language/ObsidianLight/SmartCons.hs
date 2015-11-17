@@ -1,82 +1,134 @@
-module Language.ObsidianLight.SmartCons where
+{-# LANGUAGE FlexibleInstances #-}
+module Language.ObsidianLight.SmartCons
+(Type(..),
+ Level(..),
+ Obs, runObs,
+ 
+ constant,
+
+ addi, subi, muli, divi, modi, mini,
+ eqi,
+
+ lam, app, pair, lett, if_, proj1, proj2,
+
+ map, generate, force, index, (!), len, fixpoint,
+
+ compile, Kernel(..), NoType
+
+)
+where
 
 import Control.Monad.State
+import Control.Applicative
+import Prelude hiding (map)
 
 import Language.ObsidianLight.Syntax
+import Language.GPUIL.Syntax (Kernel(..), NoType)
+import Language.ObsidianLight.TypeChecker (typecheck)
+import qualified Language.ObsidianLight.Compile as C (compile)
 
-newtype Exp t = E OExp
+newtype Obs x = Obs (State Int (Exp Untyped))
 
-type M x = State Int x
+runObs :: Obs a -> Exp Untyped
+runObs (Obs m) = evalState m 0
 
-newVar :: M VarName
+compile :: String -> Obs a -> IO (Kernel NoType)
+compile name e = do
+  putStrLn $ "Unfolding Smart constructors: " ++ name
+  let uexp = runObs e
+  print uexp
+  putStrLn $ "Typechecking: " ++ name
+  let (texp, _) = typecheck uexp
+  print texp
+  putStrLn $ "Compiling: " ++ name
+  return (C.compile name texp)
+
+newVar :: State Int String
 newVar = do
   c <- get
   modify (+1)
   return ("x" ++ show c)
 
 class Scalar t where
-  constant :: t -> Exp t
-
+  constant :: t -> Obs t
 instance Scalar Int where
-  constant = E . IntScalar
-
+  constant = Obs . return . IntScalar
 instance Scalar Bool where
-  constant = E . BoolScalar
+  constant = Obs . return . BoolScalar
+instance Scalar Double where
+  constant = Obs . return . DoubleScalar
 
-addi, subi, muli, divi, modi, mini :: Exp Int -> Exp Int -> Exp Int
-(E e0) `addi` (E e1) = E (BinOp AddI e0 e1)
-(E e0) `subi` (E e1) = E (BinOp SubI e0 e1)
-(E e0) `muli` (E e1) = E (BinOp MulI e0 e1)
-(E e0) `divi` (E e1) = E (BinOp DivI e0 e1)
-(E e0) `modi` (E e1) = E (BinOp ModI e0 e1)
-(E e0) `mini` (E e1) = E (BinOp MinI e0 e1)
+addi, subi, muli, divi, modi, mini :: Obs Int -> Obs Int -> Obs Int
+addi (Obs x0) (Obs x1) = Obs (BinOp AddI <$> x0 <*> x1)
+subi (Obs x0) (Obs x1) = Obs (BinOp SubI <$> x0 <*> x1)
+muli (Obs x0) (Obs x1) = Obs (BinOp MulI <$> x0 <*> x1)
+divi (Obs x0) (Obs x1) = Obs (BinOp DivI <$> x0 <*> x1)
+modi (Obs x0) (Obs x1) = Obs (BinOp ModI <$> x0 <*> x1)
+mini (Obs x0) (Obs x1) = Obs (BinOp MinI <$> x0 <*> x1)
 
-eqi :: Exp Int -> Exp Int -> Exp Bool
-(E e0) `eqi` (E e1) = E (BinOp EqI e0 e1)
+absi, signi :: Obs Int -> Obs Int
+absi (Obs x0) = Obs (UnOp AbsI <$> x0)
+signi (Obs x0) = Obs (UnOp SignI <$> x0)
 
+eqi :: Obs Int -> Obs Int -> Obs Bool
+eqi (Obs x0) (Obs x1) = Obs (BinOp EqI <$> x0 <*> x1)
 
-lam :: (Exp a -> Exp b) -> M (Exp (a -> b))
-lam f = do
+instance Num (Obs Int) where
+  (+) = addi
+  (-) = subi
+  (*) = muli
+  abs = absi
+  signum = signi
+  fromInteger = constant . fromInteger
+
+lam :: Type -> (Obs a -> Obs b) -> Obs (a -> b)
+lam ty f = Obs $ do
   x <- newVar
-  let E body = f (E (Var x))
-  return (E (Lamb x body))
+  let Obs body = f (Obs (return (Var x Untyped)))
+  body' <- body
+  return (Lamb x ty body' Untyped)
 
-lett :: Exp a -> (Exp a -> Exp b) -> M (Exp b)
-lett (E e0) e1 = do
+app :: Obs (a -> b) -> Obs a -> Obs b
+app (Obs f) (Obs x) = Obs (App <$> f <*> x)
+
+lett :: Obs a -> (Obs a -> Obs b) -> Obs b
+lett (Obs e0) e1 = Obs $ do
+  e0' <- e0
   x <- newVar
-  let E body = e1 (E (Var x))
-  return (E (Let x e0 body))
+  let Obs body = e1 (Obs (return (Var x Untyped)))
+  body' <- body
+  return (Let x e0' body' Untyped)
 
-app :: Exp (a -> b) -> Exp a -> Exp b
-app (E f) (E x) = E (App f x)
+if_ :: Obs Bool -> Obs t -> Obs t -> Obs t
+if_ (Obs econd) (Obs etrue) (Obs efalse) =
+  Obs (Cond <$> econd <*> etrue <*> efalse <*> pure Untyped)
 
-if_ :: Exp Bool -> Exp t -> Exp t -> Exp t
-if_ (E econd) (E etrue) (E efalse) =
-  E (Cond econd etrue efalse)
+pair :: Obs a -> Obs b -> Obs (a,b)
+pair (Obs e0) (Obs e1) = Obs (Pair <$> e0 <*> e1)
 
-pair :: Exp a -> Exp b -> Exp (a,b)
-pair (E e0) (E e1) = E (Pair e0 e1)
+proj1 :: Obs (a,b) -> Obs a
+proj1 (Obs e) = Obs (Proj1E <$> e)
 
-proj1 :: Exp (a,b) -> Exp a
-proj1 (E e) = E (Proj1E e)
+proj2 :: Obs (a,b) -> Obs b
+proj2 (Obs e) = Obs (Proj2E <$> e)
 
-proj2 :: Exp (a,b) -> Exp b
-proj2 (E e) = E (Proj2E e)
+index :: Obs [a] -> Obs Int -> Obs a
+index (Obs arr) (Obs idx) = Obs (Index <$> arr <*> idx)
 
-index :: Exp [a] -> Exp Int -> Exp a
-index (E arr) (E idx) = E (Index arr idx)
+(!) :: Obs [a] -> Obs Int -> Obs a
+(!) = index
 
-length :: Exp [a] -> Exp Int
-length (E arr) = E (Length arr)
+len :: Obs [a] -> Obs Int
+len (Obs arr) = Obs (Length <$> arr)
 
-map :: Exp (a -> b) -> Exp [a] -> Exp [b]
-map (E f) (E arr) = E (Map f arr)
+map :: Obs (a -> b) -> Obs [a] -> Obs [b]
+map (Obs f) (Obs arr) = Obs (Map <$> f <*> arr)
 
-generate :: Level -> Exp (Int -> a) -> Exp Int -> Exp [a]
-generate lvl (E f) (E n) = E (Generate lvl f n)
+generate :: Level -> Obs Int -> Obs (Int -> a) -> Obs [a]
+generate lvl (Obs n) (Obs f) = Obs (Generate lvl <$> n <*> f)
 
-fix :: Exp (a -> Bool) -> Exp (a -> a) -> Exp a -> Exp a
-fix (E cond) (E body) (E init') = E (Fixpoint cond body init')
+fixpoint :: Obs (a -> Bool) -> Obs (a -> a) -> Obs a -> Obs a
+fixpoint (Obs cond) (Obs body) (Obs init') = Obs (Fixpoint <$> cond <*> body <*> init')
 
-force :: Exp a -> Exp a
-force (E e) = E (ForceLocal e)
+force :: Obs a -> Obs a
+force (Obs e) = Obs (ForceLocal <$> e)

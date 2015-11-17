@@ -24,7 +24,7 @@ import Control.Monad.State
 import Language.GPUIL.Syntax
 import Language.GPUIL.Liveness
 
-type MemMap = Map.Map VarName (AlignedAddress,IType)
+type MemMap = Map.Map VarName (AlignedAddress, CType)
 
 type AlignedAddress = (Address,Address) 
 
