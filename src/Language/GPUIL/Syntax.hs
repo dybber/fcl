@@ -10,21 +10,21 @@ data Attribute =
  deriving (Eq, Show, Ord)
           
 data CType =
-    Int32T
-  | DoubleT
-  | BoolT
-  | Word8T
-  | Word32T
-  | Ptr [Attribute] CType -- ^ Only put attributes on the outermost Ptr, if nested!
+    CInt32
+  | CDouble
+  | CBool
+  | CWord8
+  | CWord32
+  | CPtr [Attribute] CType -- ^ Only put attributes on the outermost CPtr, if nested!
  deriving (Eq, Show, Ord)
 
 sizeOf :: CType -> Int
-sizeOf Int32T = 4
-sizeOf DoubleT = 8
-sizeOf BoolT = 4 -- we represent bools as uint32
-sizeOf Word8T = 1
-sizeOf Word32T = 4
-sizeOf (Ptr _ _) = error "TODO: The device has to be queried for pointer-size"
+sizeOf CInt32 = 4
+sizeOf CDouble = 8
+sizeOf CBool = 4 -- we represent bools as uint32
+sizeOf CWord8 = 1
+sizeOf CWord32 = 4
+sizeOf (CPtr _ _) = error "TODO: The device has to be queried for pointer-size"
 
 -- For untyped terms. They will have type "IExp NoType"
 data NoType = NoType

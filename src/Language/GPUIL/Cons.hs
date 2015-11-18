@@ -3,6 +3,7 @@ module Language.GPUIL.Cons (
   
  -- Types
  int, double, bool, word8, word32, pointer,
+ attrLocal, attrGlobal, attrVolatile,
 
  -- Expressions
  constant, if_, (?), let_, letVar, index, (!), cast,
@@ -38,8 +39,7 @@ module Language.GPUIL.Cons (
  Kernel(..), NoType,
  initialState,
  runProgram,
- addParam,
- generateKernel
+ addParam
 )
 where
 
@@ -47,7 +47,6 @@ import Data.Word (Word32, Word8)
 import Control.Monad.State
 import Control.Monad.Writer
 
--- import Language.GPUIL.ConvertLoops (convertLoops)
 import Language.GPUIL.Syntax as AST
 
 import Prelude hiding (not, floor, exp)
@@ -67,24 +66,20 @@ initialState = MState
 type CExp = IExp NoType
 type Program x = WriterT (Statements () NoType) (State MState) x
 
-generateKernel :: String -> Program () -> Kernel NoType
-generateKernel name m =
-  let (stmts, finalState) = runProgram m initialState
-  in Kernel { kernelName = name
-            , kernelParams = params finalState
---            , kernelBody = convertLoops stmts
-            , kernelBody = stmts
-            }
+runProgram :: Program () -> (Statements () NoType, [VarName], Int)
+runProgram m =
+  let (stmts, finalState) = runProg m initialState
+  in (stmts, reverse $ params finalState, varCount finalState)
 
-runProgram :: Program () -> MState -> (Statements () NoType, MState)
-runProgram m init' =
+runProg :: Program () -> MState -> (Statements () NoType, MState)
+runProg m init' =
   let (stmts, finalState) = runState (execWriterT m) init'
   in (stmts, finalState)
 
 run :: Program () -> Program (Statements () NoType)
 run m = do
   s <- get
-  let (stmts, s') = runProgram m s
+  let (stmts, s') = runProg m s
   put s'
   return stmts
 
@@ -203,22 +198,31 @@ assignArray n e idx = addStmt (AssignSub n idx e)
 --    Types    --
 -----------------
 int :: CType
-int = Int32T
+int = CInt32
 
 double :: CType
-double = DoubleT
+double = CDouble
 
 bool :: CType
-bool = BoolT
+bool = CBool
 
 word8 :: CType
-word8 = Word8T
+word8 = CWord8
 
 word32 :: CType
-word32 = Word32T
+word32 = CWord32
 
 pointer :: [Attribute] -> CType -> CType
-pointer attr t = Ptr attr t
+pointer attr t = CPtr attr t
+
+attrLocal :: Attribute
+attrLocal = Local
+
+attrGlobal :: Attribute
+attrGlobal = Global
+
+attrVolatile :: Attribute
+attrVolatile = Volatile
 
 -----------------
 -- Expressions --
@@ -352,6 +356,8 @@ mini a b = if_ (a `lti` b) a b
 maxi a b = if_ (a `lti` b) b a
 
 signi :: CExp -> CExp
-signi a = if_ (a `eqi` i 0) (i 0) (if_ (a `lti` i 0) (i (-1)) (i 1))
- where i :: Int -> CExp
-       i = constant -- instead of putting type annotations in everywhere
+signi a =
+  let -- instead of putting type annotations in everywhere
+      i :: Int -> CExp
+      i = constant
+  in if_ (a `eqi` i 0) (i 0) (if_ (a `lti` i 0) (i (-1)) (i 1))

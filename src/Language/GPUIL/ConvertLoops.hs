@@ -1,4 +1,7 @@
-module Language.GPUIL.ConvertLoops where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+module Language.GPUIL.ConvertLoops (convert) where
+
+import Control.Monad.State
 
 import Language.GPUIL.Syntax
 
@@ -37,61 +40,81 @@ warpSize = WarpSize
 --                  SyncLocalMem]
 -- compileDistrPar _ = error "DistrPar currently only implemented at warp and block level."
 
-convertLoops :: Statements () NoType -> Statements () NoType
-convertLoops = concatMap (convertLoop . fst)
+type Conv x = State Int x
 
-convertLoop :: Statement () NoType -> Statements () NoType
-convertLoop stmt =
-  case stmt of
-    (ForAll _ _ _ _) -> compileForAll (stmt)
-    (For v ty ss) -> [(For v ty (convertLoops ss), ())]
-    (SeqWhile cond ss) -> [(SeqWhile cond (convertLoops ss), ())]
-    (If e ss0 ss1) -> [(If e (convertLoops ss0) (convertLoops ss1), ())]
-    _ -> [(stmt, ())]
+newVar :: Conv String
+newVar = do
+  count <- get
+  put (count+1)
+  return ("id" ++ show count)
+
+convert :: Int -> Statements () NoType -> (Statements () NoType, Int)
+convert varCount stmts = runState (convertLoops stmts) varCount
+
+convertLoops :: Statements () NoType -> Conv (Statements () NoType)
+convertLoops stmts = liftM concat $ mapM (convertLoop . fst) stmts
+
+convertLoop :: Statement () NoType -> Conv (Statements () NoType)
+convertLoop stmt@(ForAll _ _ _ _) = compileForAll stmt
+convertLoop (For v ty ss) = do
+  ss' <- convertLoops ss
+  return [(For v ty ss', ())]
+convertLoop (SeqWhile cond ss) = do
+  ss' <- convertLoops ss
+  return [(SeqWhile cond ss', ())]
+convertLoop (If e ss0 ss1) =
+  do ss0' <- convertLoops ss0
+     ss1' <- convertLoops ss1
+     return [(If e ss0' ss1', ())]
+convertLoop stmt = return [(stmt, ())]
 
 
-compileForAll :: Statement () NoType -> Statements () NoType
--- TODO: implement specific cases for when "ub" is statically known -- see Obsidian implementation
+compileForAll :: Statement () NoType -> Conv (Statements () NoType)
+--TODO: implement specific cases for when "ub" is statically known -- see Obsidian implementation
 compileForAll (ForAll Warp name ub body) =
-  let q = (BinOpE DivI ub warpSize)
-      r = (BinOpE ModI ub warpSize)
-      x = (BinOpE ModI localID warpSize)
-      resetWarpIx = Assign ("warpIx", Int32T) x
-      body' = convertLoops body
-      codeQ = For name q ((Assign ("warpIx", Int32T)
+  do body' <- convertLoops body
+     let q = (BinOpE DivI ub warpSize)
+         r = (BinOpE ModI ub warpSize)
+         x = (BinOpE ModI localID warpSize)
+         -- TODO: Transform to avoid the warpIx variable, see below for block level
+         resetWarpIx = Assign ("warpIx", CInt32) x
+      
+         codeQ = For name q ((Assign ("warpIx", CInt32)
                                            (BinOpE AddI
                                                (BinOpE MulI (VarE name NoType) warpSize)
                                                x), ()) : body')
-      codeR = If (BinOpE LtI x r)
-                   ((Assign ("warpIx", Int32T)
+         codeR = If (BinOpE LtI x r)
+                   ((Assign ("warpIx", CInt32)
                             (BinOpE AddI
                                 (BinOpE MulI q warpSize)
                                 x), ())
                     : body')
                    []
-  in [(codeQ, ()),
-      (resetWarpIx, ()),
-      (codeR, ()),
-      (resetWarpIx, ())]
-compileForAll (ForAll Block name ub body) =
-  let q = (BinOpE DivI ub warpSize)
-      resetTid = Assign ("tid", Int32T) localID
-      body' = convertLoops body
-      codeQ = For name q ((Assign ("tid", Int32T)
-                                           (BinOpE AddI
-                                               (BinOpE MulI (VarE name NoType) ub)
-                                               localID), ()) : body')
-      codeR = If (BinOpE LtI localID ub)
-                   ((Assign ("tid", Int32T)
-                            (BinOpE AddI
-                                (BinOpE MulI q ub)
-                                localID), ())
+     return [(codeQ, ()),
+             (resetWarpIx, ()),
+             (codeR, ()),
+             (resetWarpIx, ())]
+compileForAll (ForAll Block (name,ty) ub body) =
+  do body' <- convertLoops body
+     loopVar <- newVar
+     let nt = LocalSize
+         q = (BinOpE DivI ub nt)
+         codeQ = For (loopVar,ty) q ((declLoopVar, ()) : body')
+         declLoopVar = Decl (name, ty) (Just (BinOpE AddI
+                                                (BinOpE MulI (VarE (loopVar, ty) NoType) nt)
+                                                localID))
+
+         -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
+         codeR = If (BinOpE LtI localID ub)
+                   ((Decl (name, ty)
+                         (Just ((BinOpE AddI
+                                  (BinOpE MulI q nt)
+                                  localID))), ())
                     : body')
                    []
-  in [(codeQ, ()),
-      (resetTid, ()),
-      (codeR, ()),
-      (resetTid, ())]
+     return [(codeQ, ()),
+             (codeR, ())
+            ]
 compileForAll (ForAll Thread _ _ _) = error "For all on thread-level not currently possible"
 compileForAll (ForAll Grid _ _ _) = error "For all on grid-level not currently possible"
 compileForAll _ = error "compileForAll should only be called with ForAll as argument"

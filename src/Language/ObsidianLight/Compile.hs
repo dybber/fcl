@@ -1,10 +1,10 @@
 module Language.ObsidianLight.Compile where
 
+import qualified Data.Map as Map
 import Control.Monad (liftM)
 
 import Language.ObsidianLight.Syntax
 import Language.GPUIL
-import qualified Data.Map as Map
 
 type PushFn a = ((a -> CExp -> Program ()) -> Program ())
 
@@ -58,18 +58,55 @@ push arr =
                     }
     Push _ -> arr
 
-compileFun :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
+compileFun :: Map.Map Variable Tagged -> Exp Type -> Program ()
+compileFun env (Lamb x (ArrayT lvl ty) e _) = do
+  arrVar <- addParam "arrInput" (convertType ty)
+  lenVar <- addParam "lenInput" int
+  let taggedExp = tagArray ty lvl (var lenVar) arrVar
+  compileFun (Map.insert x taggedExp env) e
 compileFun env (Lamb x ty e _) = do
   v <- addParam "input" (convertType ty)
-  compileFun (Map.insert x (tagExp ty $ var v) env) e
-compileFun env e = comp env e
+  compileFun (Map.insert x (tagExp ty (var v)) env) e
+compileFun env e = do
+  body <- compBody env e
+  case body of
+    TagInt i -> do
+      varOut <- addParam "output" int
+      assign varOut i
+    TagBool b -> do
+      varOut <- addParam "output" bool
+      assign varOut b
+    TagDouble d -> do
+      varOut <- addParam "output" double
+      assign varOut d
+    TagFn _ -> error "compileFun: Cannot return functions"
+    TagPair _ _ -> error "compileFun: TODO return pairs" -- TODO
+    TagArray (Array{arrayElemType = CPtr _ _}) -> 
+      error "compileFun: cannot return array of arrays"
+    TagArray arr -> do
+      varOut <- addParam "arrOutput" (pointer [attrGlobal] (arrayElemType arr))
+      varLen <- addParam "lenOutput" int
+      let f = getPushFn (push arr)
+      f (\(TagInt i) -> assignArray varOut i)
+      assign varLen (arrayLen arr)
+
+tagArray :: Type -> Level -> CExp -> VarName -> Tagged
+tagArray (ArrayT _ _) _ _ _ = error "Kernels can not accept arrays of arrays"
+tagArray (_ :> _) _ _ _     = error "Kernels can not accept arrays of functions"
+tagArray (_ :*: _) _ _ _    = error "Kernels can not accept arrays of tuples"
+tagArray ty lvl len v =
+  TagArray $
+    Array { arrayElemType = convertType ty
+          , arrayLen = len
+          , arrayLevel = lvl
+          , arrayFun = Pull (\ix -> return (TagInt (v ! ix)))
+          }
 
 tagExp :: Type -> CExp -> Tagged
 tagExp IntT e = TagInt e
 tagExp DoubleT e = TagDouble e
-tagExp BoolT e = TagBool e
-tagExp ty e = error ("tagExp: " ++ show ty ++ " -- " ++ show e)
--- TODO
+tagExp BoolT e = TagDouble e
+tagExp _ _ = error "tagExp"
 
 convertType :: Type -> CType
 convertType IntT = int
@@ -79,49 +116,52 @@ convertType (ArrayT _ ty) = pointer [] (convertType ty)
 convertType (_ :> _) = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _) = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 
-
-comp :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
-comp _ (IntScalar i) = return (TagInt (constant i))
-comp _ (DoubleScalar d) = return (TagDouble (constant d))
-comp _ (BoolScalar b) = return (TagBool (constant b))
-comp env (App e0 e1) = do
-  v0 <- comp env e0
+compBody :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
+compBody _ (IntScalar i) = return (TagInt (constant i))
+compBody _ (DoubleScalar d) = return (TagDouble (constant d))
+compBody _ (BoolScalar b) = return (TagBool (constant b))
+compBody env (App e0 e1) = do
+  v0 <- compBody env e0
   case v0 of
-    TagFn f -> f =<< comp env e1
+    TagFn f -> f =<< compBody env e1
     _ -> error "Unexpected value at function position in application"
-comp env (Pair e0 e1) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
+compBody env (Pair e0 e1) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
   return (TagPair v0 v1)
-comp env (Proj1E e) = do
-  v <- comp env e
+compBody env (Proj1E e) = do
+  v <- compBody env e
   case v of
     TagPair v0 _ -> return v0
     _ -> error "Projection expects Pair as argument"
-comp env (Proj2E e) = do
-  v <- comp env e
+compBody env (Proj2E e) = do
+  v <- compBody env e
   case v of
     TagPair _ v1 -> return v1
     _ -> error "Projection expects Pair as argument"
-comp env (Var x _) =
+compBody env (Var x _) =
   case Map.lookup x env of
     Just v -> return v
     Nothing -> error "Variable not defined"
-comp env (Lamb x ty e _) = return . TagFn $ \v -> comp (Map.insert x v env) e
-comp env (Let x e0 e1 _) = do -- TODO: do actual let-declaration (requires type information)
-  v0 <- comp env e0
-  comp (Map.insert x v0 env) e1
-comp env (UnOp op e0) = do
-  v0 <- comp env e0
+compBody env (Lamb x _ e _) =
+  return . TagFn $ \v ->
+    do v' <- lets "v" v
+       compBody (Map.insert x v' env) e
+compBody env (Let x e0 e1 _) = do
+  v0 <- compBody env e0
+  x0 <- lets x v0
+  compBody (Map.insert x x0 env) e1
+compBody env (UnOp op e0) = do
+  v0 <- compBody env e0
   return (compileUnOp op v0)
-comp env (BinOp op e0 e1) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
+compBody env (BinOp op e0 e1) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
   return (compileBinOp op v0 v1)
-comp env (Cond e0 e1 e2 _) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
-  v2 <- comp env e2
+compBody env (Cond e0 e1 e2 _) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
+  v2 <- compBody env e2
   case v0 of
     (TagBool b0) -> case (v1, v2) of
                      (TagInt i1, TagInt i2) -> return . TagInt $ if_ b0 i1 i2
@@ -130,9 +170,9 @@ comp env (Cond e0 e1 e2 _) = do
                      (TagFn _, TagFn _) -> error "TODO: yet to be implemented"
                      (_,_) -> error "branches are differing"
     _ -> error "Expecting boolean expression as conditional argument in branch"
-comp env (Generate lvl e0 e1) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
+compBody env (Generate lvl e0 e1) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
   case (v0, v1) of
     (TagInt e0', TagFn f) ->
       return . TagArray $ Array { arrayElemType = int -- TODO, when type inference is done,
@@ -142,9 +182,9 @@ comp env (Generate lvl e0 e1) = do
                                 , arrayFun = Pull (\i -> f (TagInt i))
                                 }
     _ -> error "Generate expects integer expression as first argument and function as second argument"
-comp env (Map e0 e1) = do
-  f' <- comp env e0
-  e' <- comp env e1
+compBody env (Map e0 e1) = do
+  f' <- compBody env e0
+  e' <- compBody env e1
   case (f', e') of
     (TagFn f, TagArray (Array n ty lvl idx)) ->
       case idx of
@@ -162,14 +202,14 @@ comp env (Map e0 e1) = do
                                                                        writer v ix))
                           }
     _ -> error "Map expects function as first argument and pull array as second argument"
-comp env (Length e0) = do
-  v <- comp env e0
+compBody env (Length e0) = do
+  v <- compBody env e0
   case v of
     TagArray arr -> return $ TagInt (arrayLen arr)
     e -> error $ "Length expects array as argument got " ++ show e
-comp env (Index e0 e1) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
+compBody env (Index e0 e1) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
   case (v0, v1) of
     (TagArray arr, TagInt i) ->
       case arrayFun arr of
@@ -179,15 +219,15 @@ comp env (Index e0 e1) = do
                           Pull idx -> idx i
                           Push _ -> error "Impossible"
     _ -> error "Index expects array and integer argument"
-comp env (ForceLocal e0) = do
-  v0 <- comp env e0
+compBody env (ForceLocal e0) = do
+  v0 <- compBody env e0
   case v0 of
     TagArray arr -> liftM TagArray (unsafeWrite arr)
     _ -> error "ComputeLocal expects array as argument"
-comp env (Fixpoint e0 e1 e2) = do
-  v0 <- comp env e0
-  v1 <- comp env e1
-  v2 <- comp env e2
+compBody env (Fixpoint e0 e1 e2) = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
+  v2 <- compBody env e2
   fixpoint v0 v1 v2
 
 lets :: String -> Tagged -> Program Tagged
@@ -200,7 +240,8 @@ lets name s =
     TagPair x y -> do x' <- lets name x
                       y' <- lets name y
                       return (TagPair x' y')
-    TagArray x -> error "lets TagArray" -- liftM TagArray (let_ name (arrayElemType x) x)
+    TagArray x -> do (n',_) <- letsVar "len" (TagInt (arrayLen x))
+                     return (TagArray x {arrayLen = var n'}) -- TODO: materialize??
 
 letsVar :: String -> Tagged -> Program (VarName, Tagged)
 letsVar name s =
@@ -211,9 +252,9 @@ letsVar name s =
                     return (var0, TagBool (var var0))
     TagDouble x -> do var0 <- letVar name int x
                       return (var0, TagDouble (var var0))
-    TagFn _ -> error "letsVar TagFn"
-    TagPair x y -> error "letsVar TagPair"
-    TagArray x -> error "letsVar TagArray" -- liftM TagArray (let_ name (arrayElemType x) x)
+    TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
+    TagPair _ _ -> error "letsVar TagPair" -- TODO
+    TagArray _ -> error "letsVar TagArray" -- TODO
 
 getPushFn :: Array a -> PushFn a
 getPushFn (Array {arrayFun = Push f }) = f
@@ -221,10 +262,10 @@ getPushFn _ = error ""
 
 unBool :: Tagged -> CExp
 unBool (TagBool e) = e
-unBool _ = error ""
+unBool _ = error "expected bool"
 unArray :: Tagged -> Array Tagged
 unArray (TagArray e) = e
-unArray _ = error ""
+unArray _ = error "expected array"
 
 fixpoint :: Tagged -> Tagged -> Tagged -> Program Tagged
 fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
@@ -290,7 +331,7 @@ unsafeWrite arr =
        Pull _ -> error "This should not be possible, array was just converted to push array."
 
 pullFrom :: VarName -> CExp -> Level -> Array Tagged
-pullFrom name@(_, ty) n lvl =
+pullFrom name@(_, CPtr _ ty) n lvl =
   Array { arrayElemType = ty
         , arrayLen = n
         , arrayLevel = lvl

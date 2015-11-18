@@ -11,13 +11,13 @@ ppAttr Global = text "__global"
 ppAttr Volatile = text "volatile"
 
 ppType :: CType -> Doc
-ppType Int32T       = text "int32"
-ppType DoubleT      = text "double"
-ppType BoolT        = text "bool" -- maybe this should just be uint32?
-ppType Word8T       = text "uint8"
-ppType Word32T      = text "uint32"
-ppType (Ptr [] t)   = ppType t :+: char '*'
-ppType (Ptr attr t) =
+ppType CInt32        = text "int"
+ppType CDouble       = text "double"
+ppType CBool         = text "bool" -- maybe this should just be uint32?
+ppType CWord8        = text "uchar"
+ppType CWord32       = text "uint"
+ppType (CPtr [] t)   = ppType t :+: char '*'
+ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
 
 ppVar :: VarName -> Doc
@@ -50,7 +50,7 @@ ppExp NumGroups = text "get_num_groups(0)"
 ppUnaryOp :: UnaryOp -> IExp ty -> Doc
 ppUnaryOp op e =
   case op of
-   I2D -> ppExp (CastE DoubleT e)
+   I2D -> ppExp (CastE CDouble e)
    _ -> name :+: parens (ppExp e)
   where
      name =
@@ -101,7 +101,7 @@ ppStmt :: Statement a ty -> Doc
 ppStmt (For n e body) =
   let var = ppVar n
   in (text "for (int " :+: var :+: text " = 0; "
-        :+: var :+: text " < " :+: ppExp e :+: char ';'
+        :+: var :+: text " < " :+: ppExp e :+: text "; "
         :+: var :+: text "++) {")
      :+:
        indent (ppStmts body)
@@ -182,7 +182,7 @@ ppParamList = sep (char ',') . map ppDecl
 ppKernel :: Kernel ty -> Doc
 ppKernel k =
   text "#define _WARPSIZE 32" :+: Newline :+:
-  text "_kernel void " :+: text (kernelName k) :+: parens (ppParamList (kernelParams k))
+  text "__kernel void " :+: text (kernelName k) :+: parens (ppParamList (kernelParams k))
   :+: text " {" :+:
     indent (ppStmts (kernelBody k))
   :+: Newline

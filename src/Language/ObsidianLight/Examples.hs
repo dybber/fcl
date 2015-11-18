@@ -1,9 +1,7 @@
 module Language.ObsidianLight.Examples where
 
--- import Language.GPUIL (generateKernel, Level(..))
-import Language.GPUIL.PrettyLib (render)
-import Language.GPUIL.PrettyOpenCL (ppKernel)
--- import Language.ObsidianLight.Compile
+import Language.GPUIL (renderKernel)
+
 import Language.ObsidianLight.SmartCons
 import Prelude hiding (map, splitAt, zipWith)
 
@@ -21,12 +19,23 @@ zipWith lvl f a1 a2 =
 -- Split an array at a given point
 splitAt :: Level -> Obs Int -> Obs [a] -> Obs ([a], [a])
 splitAt lvl n arr =
-  let lhs = generate lvl n (lam IntT (arr !))
-      rhs = generate lvl (len arr - n) (lam IntT (\x -> arr ! (x + n)))
-  in pair lhs rhs
+  lett n $ \n' ->
+    pair
+      (generate lvl n' (lam IntT (arr !)))
+      (generate lvl (len arr - n') (lam IntT (\x -> arr ! (x + n'))))
 
 halve :: Level -> Obs [a] -> Obs ([a], [a])
 halve lvl arr = splitAt lvl (len arr `divi` constant 2) arr
+
+evenOdds :: Level -> Obs [a] -> Obs ([a], [a])
+evenOdds lvl arr =
+  let n :: Obs Int
+      n  = len arr
+  in
+    lett (n `divi` 2) $ \n2 ->
+      pair
+        (generate lvl (n-n2) (lam IntT (\ix -> arr ! (constant 2*ix))))
+        (generate lvl n2     (lam IntT (\ix -> arr ! (constant 2*ix + constant 1))))
 
 add :: Obs (Int -> Int -> Int)
 add = lam IntT (\x -> lam IntT (\y -> addi x y))
@@ -34,10 +43,11 @@ add = lam IntT (\x -> lam IntT (\y -> addi x y))
 --------------------
 -- Basic examples --
 --------------------
-mapIota1000 :: Obs [Int]
+mapIota1000 :: Obs (Int -> [Int])
 mapIota1000 =
-  let g = lam IntT (\x -> constant 20000 + x)
-  in map g (iota (constant 1000))
+  lam IntT $ \n ->
+    let g = lam IntT (\x -> constant 20000 + x)
+    in map g (iota n)
 
 mapForceMap :: Obs [Int]
 mapForceMap =
@@ -56,8 +66,25 @@ red1 :: Obs (a -> a -> a) -> Obs [a] -> Obs [a]
 red1 f array =
   let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
       step = lam (ArrayT Block IntT) $
+               \arr -> lett (evenOdds Block arr) (\y -> zipWith Block f (proj1 y) (proj2 y))
+  in fixpoint cond step array
+
+-- The array will first materialized before looping
+red2 :: Obs (a -> a -> a) -> Obs [a] -> Obs [a]
+red2 f array =
+  let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
+      step = lam (ArrayT Block IntT) $
                \arr -> lett (halve Block arr) (\y -> zipWith Block f (proj1 y) (proj2 y))
   in fixpoint cond step array
+
+-- Here we take one step before starting the loop, to do some actual
+-- work before materialization.
+red2_1 :: Obs (a -> a -> a) -> Obs [a] -> Obs [a]
+red2_1 f array =
+  let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
+      step = lam (ArrayT Block IntT) $
+               \arr -> lett (halve Block arr) (\y -> zipWith Block f (proj1 y) (proj2 y))
+  in fixpoint cond step (step `app` array)
 
 compileAndPrint :: String -> Obs a -> IO ()
 compileAndPrint name e = do
@@ -65,11 +92,15 @@ compileAndPrint name e = do
   putStrLn "Output:"
   print kernel
   putStrLn ""
-  putStrLn (render 4 2 (ppKernel kernel))
+  putStrLn (renderKernel kernel)
 
 test_mapIota :: IO ()
-test_mapIota = compileAndPrint "mapIota" (force mapIota1000)
+test_mapIota = compileAndPrint "mapIota" mapIota1000
 test_mapForceMap :: IO ()
-test_mapForceMap = compileAndPrint "mapForceMap" (force mapForceMap)
+test_mapForceMap = compileAndPrint "mapForceMap" mapForceMap
 testred1 :: IO ()
 testred1 = compileAndPrint "red1" (lam (ArrayT Block IntT) (red1 add))
+testred2 :: IO ()
+testred2 = compileAndPrint "red2" (lam (ArrayT Block IntT) (red2 add))
+testred2_1 :: IO ()
+testred2_1 = compileAndPrint "red2_1" (lam (ArrayT Block IntT) (red2_1 add))

@@ -34,13 +34,13 @@ runObs (Obs m) = evalState m 0
 
 compile :: String -> Obs a -> IO (Kernel NoType)
 compile name e = do
-  putStrLn $ "Unfolding Smart constructors: " ++ name
+  putStrLn ("Unfolding Smart constructors: " ++ name)
   let uexp = runObs e
   print uexp
-  putStrLn $ "Typechecking: " ++ name
+  putStrLn ("Typechecking: " ++ name)
   let (texp, _) = typecheck uexp
   print texp
-  putStrLn $ "Compiling: " ++ name
+  putStrLn ("Compiling: " ++ name)
   return (C.compile name texp)
 
 newVar :: State Int String

@@ -16,13 +16,18 @@ data Doc = Text String
 
 render :: Int -> Int -> Doc -> String
 render startIndent indentWidth r =
-  let loop _ a (Text s) = s : a
-      loop n a Newline = ('\n' : replicate (n*indentWidth) ' ') : a
+  let mkIndent :: Int -> String
+      mkIndent n = replicate (n*indentWidth) ' '
+      
+      loop :: Int -> [String] -> Doc -> [String]
+      loop _ a (Text s) = s : a
+      loop n a Newline = ('\n' : mkIndent n) : a
       loop n a (Indent d) = loop (n+1) a d
       loop n a (r1 :+: r2) = loop n (loop n a r1) r2
       loop n a (r1 :<>: r2) = loop n (" " : (loop n a r1)) r2
       loop n a (Par e) = loop n a (char '(' :+: e :+: char ')')
-  in concat (reverse (loop startIndent [] r))
+  in concat (mkIndent startIndent : reverse (loop startIndent [] r))
+     
 
 indent :: Doc -> Doc
 indent = Indent
