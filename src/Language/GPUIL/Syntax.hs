@@ -94,5 +94,25 @@ data Kernel ty =
   Kernel { kernelName :: String
          , kernelParams :: [VarName]
          , kernelBody :: Statements () ty
+         , kernelSharedMem :: Maybe (IExp ty)
          }
   deriving (Eq, Show)
+
+
+isScalar :: IExp ty -> Bool
+isScalar (IntE _)    = True
+isScalar (DoubleE _) = True
+isScalar (BoolE _)   = True 
+isScalar (Word8E _)  = True
+isScalar (Word32E _) = True
+isScalar _           = False
+
+isVar :: IExp ty -> Bool
+isVar (VarE _ _) = True
+isVar GlobalID   = True
+isVar LocalID    = True
+isVar GroupID    = True
+isVar LocalSize  = True
+isVar NumGroups  = True
+isVar WarpSize   = True
+isVar _          = False

@@ -77,9 +77,21 @@ mapIndex lvl a = generate lvl (len a) $
 double :: Obs ([Int] -> [Int])
 double =
   lam (ArrayT Block IntT) $ \arr ->
-    let g = lam (ArrayT Block IntT)
-              (\part -> (map (lam IntT (\x -> 2 * x)) part))
-    in concat (map g (splitUp (constant 512) arr))
+    let mapmult2 :: Obs ([Int] -> [Int])
+        mapmult2 = lam (ArrayT Block IntT)
+                    (\part -> (map (lam IntT (\x -> 2 * x)) part))
+    in concat (map mapmult2 (splitUp (constant 512) arr))
+
+doubleForceDouble :: Obs ([Int] -> [Int])
+doubleForceDouble =
+  lam (ArrayT Block IntT) $ \arr ->
+    let mapmult2 :: Obs ([Int] -> [Int])
+        mapmult2 = lam (ArrayT Block IntT)
+                       (\part -> (map (lam IntT (\x -> 2 * x)) part))
+        mapmult2_twice = lam (ArrayT Block IntT)
+                             (\array -> mapmult2 `app` (force (mapmult2 `app` array)))
+    in concat (map mapmult2_twice (splitUp (constant 512) arr))
+
 
 -- Reduction examples from Obsidian
 
@@ -121,7 +133,9 @@ test_mapIota = compileAndPrint "mapIota" mapIota1000
 test_mapForceMap :: IO ()
 test_mapForceMap = compileAndPrint "mapForceMap" mapForceMap
 testdouble :: IO ()
-testdouble = compileAndPrint "double0" double --
+testdouble = compileAndPrint "double0" double
+testdouble2 :: IO ()
+testdouble2 = compileAndPrint "doubleForceDouble0" doubleForceDouble
 testred1 :: IO ()
 testred1 = compileAndPrint "red1" (lam (ArrayT Block IntT) (red1 add))
 testred2 :: IO ()

@@ -201,7 +201,11 @@ compBody env (Map e0 e1) = do
                           , arrayFun = Push (\writer -> g (\e ix -> do v <- f e
                                                                        writer v ix))
                           }
-    _ -> error "Map expects function as first argument and pull array as second argument"
+    _ -> error $ concat ["Map expects function as first argument and",
+                         "pull array as second argument, got:\n    ",
+                         show f',
+                         "\nand\n    ",
+                         show e']
 compBody env (Length e0) = do
   v <- compBody env e0
   case v of

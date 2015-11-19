@@ -2,7 +2,7 @@
 
    Original code by Joel Svensson 2012, 2013 
 -} 
-module Language
+module Language.GPUIL.Memory
        (MemMap,
         Memory,
         size, 
@@ -192,7 +192,7 @@ memMap nonfreeable (x:xs) =
      memMap nonfreeable xs
   where 
     process :: (Statement LiveInfo ty, LiveInfo) -> M ()
-    process (Allocate name (Word32E size') t,_) = allocate name size' >> return () -- TODO
+    process (Allocate name (Word32E size') ty,_) = allocate name size' >> return () -- TODO
           -- TODO: other cases
     process (For _ _ im, alive)       = memMap (nonfreeable `Set.union` alive) im
     process (SeqWhile _ im,_)         = memMap nonfreeable im

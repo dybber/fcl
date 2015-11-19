@@ -13,7 +13,7 @@ liveInExp :: IExp ty -> LiveInfo
 liveInExp e =
   case e of
     IndexE name e0      -> insert name (liveInExp e0)
-    VarE name@(_, Ptr _ _) _ -> singleton name
+    VarE name@(_, CPtr _ _) _ -> singleton name
     VarE _ _            -> empty
     -- Recursive
     UnaryOpE _ e0       -> liveInExp e0

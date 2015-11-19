@@ -169,7 +169,7 @@ ppStmt (DistrPar lvl n e body) =
 -- ppStmt (ForAll _ _ _ _) =
 --   error $ concat ["Cannot pretty print ForAll, ",
 --                   "use `XX.funcYY` to convert to sequential for-loops"]
-ppStmt (Allocate _ _ _) = text "// TODO: allocate array" -- TODO
+ppStmt (Allocate _ _ _) = text ""
 
 
 ppLevel :: Level -> Doc
