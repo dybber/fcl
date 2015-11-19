@@ -110,6 +110,11 @@ check env (ForceLocal e0) =
   in case ty0 of
        ArrayT lvl ty0' -> (ForceLocal e0', ArrayT lvl ty0')
        _ -> error "Expect array as argument"
+check env (Concat e0) =
+  let (e0', ty0) = check env e0
+  in case ty0 of
+       ArrayT lvlouter (ArrayT _ bty) -> (Concat e0', ArrayT lvlouter bty)
+       _ -> error "Expect array as argument"
 
 checkBinOp :: BinOp -> Type -> Type -> Type
 checkBinOp AddI IntT IntT = IntT

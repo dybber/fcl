@@ -60,7 +60,7 @@ push arr =
 
 compileFun :: Map.Map Variable Tagged -> Exp Type -> Program ()
 compileFun env (Lamb x (ArrayT lvl ty) e _) = do
-  arrVar <- addParam "arrInput" (convertType ty)
+  arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType ty))
   lenVar <- addParam "lenInput" int
   let taggedExp = tagArray ty lvl (var lenVar) arrVar
   compileFun (Map.insert x taggedExp env) e
@@ -229,6 +229,33 @@ compBody env (Fixpoint e0 e1 e2) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   fixpoint v0 v1 v2
+compBody env (Concat e0) = do
+  v0 <- compBody env e0
+  case v0 of
+    TagArray arr ->
+      case arrayFun arr of
+        Push _ -> error "concat only works when the outer function is a pull array (TODO!)"
+        Pull idx -> do
+          arr0 <- idx (constant (0 :: Int)) -- TODO: this is bad
+          let n = arrayLen arr
+          let rn = case arr0 of
+                     TagArray (Array {arrayLen = l}) -> l
+                     _ -> error "Concat does not work with empty arrays of arrays"
+          return . TagArray $ Array { arrayElemType = arrayElemType arr
+                                    , arrayLen = n `muli` rn
+                                    , arrayLevel = arrayLevel arr
+                                    , arrayFun = 
+                                      Push (\writer -> distrPar Block n $ \bix -> do
+                                                arrp <- idx bix
+                                                let writer' a ix = writer a ((bix `muli` rn) `addi` ix)
+                                                case arrp of
+                                                  TagArray arrp' ->
+                                                    case push arrp' of
+                                                      (Array {arrayFun = Push p }) -> p writer'
+                                                      _ -> error "Concat only works with inner-arrays of type push"
+                                                  _ -> error "Should not happen")
+                                    }
+    _ -> error "Concat should be given an array as first argument"
 
 lets :: String -> Tagged -> Program Tagged
 lets name s =
@@ -341,7 +368,7 @@ pullFrom name@(_, CPtr _ ty) n lvl =
                                          -- currently only supports
                                          -- integers
         }
-
+pullFrom _ _ _ = error "pullFrom: must be applied to pointer-typed variable"
 
 compileBinOp :: BinOp -> Tagged -> Tagged -> Tagged
 compileBinOp AddI (TagInt i0) (TagInt i1) = TagInt (addi i0 i1)

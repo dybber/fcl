@@ -152,9 +152,20 @@ ppStmt (ForAll lvl n e body) =
      Newline
      :+:
      text "}"
-ppStmt (DistrPar _ _ _ _) =
-  error $ concat ["Cannot pretty print DistrPar, ",
-                  "use `XX.funcYY` to convert to sequential for-loops"]
+ppStmt (DistrPar lvl n e body) =
+  let var = ppVar n
+  in (text "distrpar{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
+        :+: var :+: text " < " :+: ppExp e :+: char ';'
+        :+: var :+: text "++) {")
+     :+:
+       indent (ppStmts body)
+     :+:
+     Newline
+     :+:
+     text "}"
+-- ppStmt (DistrPar _ _ _ _) =
+--   error $ concat ["Cannot pretty print DistrPar, ",
+--                   "use `XX.funcYY` to convert to sequential for-loops"]
 -- ppStmt (ForAll _ _ _ _) =
 --   error $ concat ["Cannot pretty print ForAll, ",
 --                   "use `XX.funcYY` to convert to sequential for-loops"]

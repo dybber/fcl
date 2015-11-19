@@ -56,6 +56,7 @@ convertLoops stmts = liftM concat $ mapM (convertLoop . fst) stmts
 
 convertLoop :: Statement () NoType -> Conv (Statements () NoType)
 convertLoop stmt@(ForAll _ _ _ _) = compileForAll stmt
+convertLoop stmt@(DistrPar _ _ _ _) = compileDistrPar stmt
 convertLoop (For v ty ss) = do
   ss' <- convertLoops ss
   return [(For v ty ss', ())]
@@ -94,19 +95,19 @@ compileForAll (ForAll Warp name ub body) =
              (resetWarpIx, ()),
              (codeR, ()),
              (resetWarpIx, ())]
-compileForAll (ForAll Block (name,ty) ub body) =
+compileForAll (ForAll Block name ub body) =
   do body' <- convertLoops body
      loopVar <- newVar
      let nt = LocalSize
          q = (BinOpE DivI ub nt)
-         codeQ = For (loopVar,ty) q ((declLoopVar, ()) : body')
-         declLoopVar = Decl (name, ty) (Just (BinOpE AddI
-                                                (BinOpE MulI (VarE (loopVar, ty) NoType) nt)
+         codeQ = For (loopVar,CInt32) q ((declLoopVar, ()) : body')
+         declLoopVar = Decl name (Just (BinOpE AddI
+                                                (BinOpE MulI (VarE (loopVar, CInt32) NoType) nt)
                                                 localID))
 
          -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
          codeR = If (BinOpE LtI localID ub)
-                   ((Decl (name, ty)
+                   ((Decl name
                          (Just ((BinOpE AddI
                                   (BinOpE MulI q nt)
                                   localID))), ())
@@ -119,3 +120,24 @@ compileForAll (ForAll Thread _ _ _) = error "For all on thread-level not current
 compileForAll (ForAll Grid _ _ _) = error "For all on grid-level not currently possible"
 compileForAll _ = error "compileForAll should only be called with ForAll as argument"
 
+compileDistrPar :: Statement () NoType -> Conv (Statements () NoType)
+compileDistrPar (DistrPar Block name ub body) =
+  do body' <- convertLoops body
+     loopVar <- newVar
+     let blocksQ = BinOpE DivI ub NumGroups
+         blocksR = BinOpE ModI ub NumGroups
+         codeQ = For (loopVar, CInt32) blocksQ bodyQ
+         bodyQ = (Decl name (Just (BinOpE AddI (BinOpE MulI GroupID blocksQ)
+                                              (VarE (loopVar, CInt32) NoType))),())
+                 : body' ++ [(SyncLocalMem, ())]
+         codeR = If (BinOpE LtI GroupID blocksR)
+                    ((Decl name (Just (BinOpE AddI (BinOpE MulI NumGroups blocksQ)
+                                               GroupID)),()) : body' ++ [(SyncLocalMem, ())])
+                    []
+
+     return [(codeQ, ()),
+             (codeR,())]
+compileDistrPar (DistrPar Warp _ _ _) = error "compileDistrPar: Warp level DistrPar not yet implemented"
+compileDistrPar (DistrPar Thread _ _ _) = error "compileDistrPar: Thread level DistrPar not yet implemented"
+compileDistrPar (DistrPar Grid _ _ _) = error "compileDistrPar: Grid level DistrPar not yet implemented"
+compileDistrPar _ = error "compileDistrPar should only be called with DistrPar as argument"

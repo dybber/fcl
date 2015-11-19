@@ -55,6 +55,7 @@ data Exp ty =
   | Generate Level (Exp ty) (Exp ty) -- mkPull
   | Map (Exp ty) (Exp ty)
   | ForceLocal (Exp ty) -- force
+  | Concat (Exp ty)
   deriving (Eq, Show)
 
   -- To be added later!
@@ -109,3 +110,4 @@ typeOf (Map e0 e1) =
     (_ :> ty1, ArrayT lvl _) -> ArrayT lvl ty1
     _ -> error "typeOf: Map"
 typeOf (ForceLocal e0) = typeOf e0
+typeOf (Concat e0) = ArrayT undefined (typeOf e0)

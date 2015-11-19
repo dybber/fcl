@@ -11,7 +11,7 @@ module Language.ObsidianLight.SmartCons
 
  lam, app, pair, lett, if_, proj1, proj2,
 
- map, generate, force, index, (!), len, fixpoint,
+ map, generate, force, index, (!), len, fixpoint, concat,
 
  compile, Kernel(..), NoType
 
@@ -20,7 +20,7 @@ where
 
 import Control.Monad.State
 import Control.Applicative
-import Prelude hiding (map)
+import Prelude hiding (map, concat)
 
 import Language.ObsidianLight.Syntax
 import Language.GPUIL.Syntax (Kernel(..), NoType)
@@ -129,6 +129,9 @@ generate lvl (Obs n) (Obs f) = Obs (Generate lvl <$> n <*> f)
 
 fixpoint :: Obs (a -> Bool) -> Obs (a -> a) -> Obs a -> Obs a
 fixpoint (Obs cond) (Obs body) (Obs init') = Obs (Fixpoint <$> cond <*> body <*> init')
+
+concat :: Obs [[a]] -> Obs [a]
+concat (Obs arr) = Obs (Concat <$> arr)
 
 force :: Obs a -> Obs a
 force (Obs e) = Obs (ForceLocal <$> e)

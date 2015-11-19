@@ -3,7 +3,7 @@ module Language.ObsidianLight.Examples where
 import Language.GPUIL (renderKernel)
 
 import Language.ObsidianLight.SmartCons
-import Prelude hiding (map, splitAt, zipWith)
+import Prelude hiding (map, splitAt, zipWith, concat)
 
 -------------
 -- Prelude --
@@ -37,6 +37,19 @@ evenOdds lvl arr =
         (generate lvl (n-n2) (lam IntT (\ix -> arr ! (constant 2*ix))))
         (generate lvl n2     (lam IntT (\ix -> arr ! (constant 2*ix + constant 1))))
 
+splitUp :: Obs Int -> Obs [a] -> Obs [[a]]
+splitUp n arr {-(Pull m ixf)-} =
+  generate Block (len arr `divi` n) $
+    lam IntT (\i ->
+      generate Block n
+        (lam IntT (\j -> arr ! ((i * n) + j))))
+
+coalesce :: Obs Int -> Obs [a] -> Obs [[a]]
+coalesce n arr =
+  generate Block s $ lam IntT $ \i ->
+    generate Block n $ lam IntT $ \j -> arr ! (i + (s * j))
+  where s = len arr `divi` n
+
 add :: Obs (Int -> Int -> Int)
 add = lam IntT (\x -> lam IntT (\y -> addi x y))
 
@@ -58,6 +71,15 @@ mapForceMap =
 mapIndex :: Level -> Obs [Int] -> Obs [Int]
 mapIndex lvl a = generate lvl (len a) $
                     lam IntT (\ix -> (a ! ix) `divi` constant 17)
+
+
+-- Distribute examples
+double :: Obs ([Int] -> [Int])
+double =
+  lam (ArrayT Block IntT) $ \arr ->
+    let g = lam (ArrayT Block IntT)
+              (\part -> (map (lam IntT (\x -> 2 * x)) part))
+    in concat (map g (splitUp (constant 512) arr))
 
 -- Reduction examples from Obsidian
 
@@ -98,6 +120,8 @@ test_mapIota :: IO ()
 test_mapIota = compileAndPrint "mapIota" mapIota1000
 test_mapForceMap :: IO ()
 test_mapForceMap = compileAndPrint "mapForceMap" mapForceMap
+testdouble :: IO ()
+testdouble = compileAndPrint "double0" double --
 testred1 :: IO ()
 testred1 = compileAndPrint "red1" (lam (ArrayT Block IntT) (red1 add))
 testred2 :: IO ()
