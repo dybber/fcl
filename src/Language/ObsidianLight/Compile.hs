@@ -240,7 +240,8 @@ compBody env (Concat e0) = do
       case arrayFun arr of
         Push _ -> error "concat only works when the outer function is a pull array (TODO!)"
         Pull idx -> do
-          arr0 <- idx (constant (0 :: Int)) -- TODO: this is bad
+          arr0 <- (idx (constant (0 :: Int)))
+          -- let arr0 = evalProgram (idx (constant (0 :: Int))) -- TODO: this is bad! Maybe shapes in outermost array?
           let n = arrayLen arr
           let rn = case arr0 of
                      TagArray (Array {arrayLen = l}) -> l
@@ -309,18 +310,22 @@ fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
      f (\(TagInt i) -> assignArray var_array i)
      syncLocal
 
-     -- Loop using the the same array
+     -- Loop using the same array
      let vararr = arr { arrayFun = Pull (\ix -> return (TagInt (index var_array ix)))
                       , arrayLen = var var_len
                       }
      cond' <- liftM unBool (cond (TagArray vararr))
-     while (Language.GPUIL.not cond') $
+     (var_cond,_) <- letsVar "cond" (TagBool cond')
+     while (Language.GPUIL.not (var var_cond)) $
        do -- step
           arr' <- liftM unArray (step (TagArray vararr))
           assign var_len (arrayLen arr')
-          let f' = getPushFn $ push (arr' {arrayLen = var var_len})
+          let new_arr = push (arr' {arrayLen = var var_len})
+          let f' = getPushFn new_arr
           -- materialize before next iteration
           f' (\(TagInt i) -> assignArray var_array i)
+          cond' <- liftM unBool (cond (TagArray new_arr))
+          assign var_cond cond'
      return (TagArray vararr)
 fixpoint (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v
