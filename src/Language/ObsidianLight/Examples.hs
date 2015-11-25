@@ -101,9 +101,9 @@ red1 f array =
   let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
       step = lam (ArrayT Block IntT) $
                \arr -> lett (evenOdds Block arr) (\y -> zipWith Block f (proj1 y) (proj2 y))
-  in fixpoint cond step array
+  in concat (map (lam (ArrayT Block IntT) (\arr -> fixpoint cond step arr)) (splitUp (constant 512) array))
 
--- The array will first materialized before looping
+-- The array will be materialized before looping
 red2 :: Obs (a -> a -> a) -> Obs [a] -> Obs [a]
 red2 f array =
   let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
@@ -118,7 +118,9 @@ red2_1 f array =
   let cond = lam (ArrayT Block IntT) (\arr -> constant 1 `eqi` len arr)
       step = lam (ArrayT Block IntT) $
                \arr -> lett (halve Block arr) (\y -> zipWith Block f (proj1 y) (proj2 y))
-  in fixpoint cond step (step `app` array)
+  in concat (map (lam (ArrayT Block IntT)
+                  (\arr -> fixpoint cond step (step `app` arr)))
+             (splitUp (constant 512) array))
 
 compileAndPrint :: String -> Obs a -> IO ()
 compileAndPrint name e = do

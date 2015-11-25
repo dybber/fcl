@@ -17,7 +17,7 @@ foldVar :: (Show ty, Eq ty) => Env ty -> VarName -> VarName
 foldVar env x =
   case Map.lookup x env of
     Just (VarE y _)  -> y
-    Nothing -> x
+    _ -> x
 
 foldExp :: (Show ty, Eq ty) => Env ty -> IExp ty -> IExp ty
 foldExp env e =
@@ -33,10 +33,10 @@ foldExp env e =
     LocalSize  -> e
     NumGroups  -> e
     WarpSize   -> e
-    VarE x _  ->
-      case Map.lookup x env of
-        Just v  -> v
-        Nothing -> e
+    VarE x _  -> e
+      -- case Map.lookup x env of
+      --   Just v  -> v
+      --   Nothing -> e
     CastE _ e0  -> foldExp env e0
     IndexE var e0 -> IndexE (foldVar env var) (foldExp env e0)
     IfE e0 e1 e2 ty -> foldIf (foldExp env e0) (foldExp env e1) (foldExp env e2) ty
@@ -54,6 +54,9 @@ foldIf e0 e1 e2 ty = IfE e0 e1 e2 ty
 -- TODO: nested ifs
 
 foldUnOp :: UnaryOp -> IExp ty -> IExp ty
+foldUnOp Not (BoolE True) = BoolE False
+foldUnOp Not (BoolE False) = BoolE True
+foldUnOp Not (UnaryOpE Not e) = e
 foldUnOp op e = UnaryOpE op e
 -- TODO
 
@@ -75,7 +78,19 @@ foldBinOp MulI (IntE 1) e1 = e1
 foldBinOp MulI e0 (IntE 1) = e0
 foldBinOp MulI (IntE 0) _ = IntE 0
 foldBinOp MulI _ (IntE 0) = IntE 0
+
+foldBinOp DivI (IntE v0) (IntE v1) = IntE (v0 `div` v1)
+foldBinOp DivI (IntE 0) _ = IntE 0
+foldBinOp DivI e0 (IntE 1) = e0
+
+foldBinOp ModI (IntE v0) (IntE v1) = IntE (v0 `mod` v1)
+foldBinOp ModI _ (IntE 1) = IntE 0
+
+foldBinOp EqI (IntE v0) (IntE v1) | v0 == v1  = BoolE True
+                                  | otherwise = BoolE False
+
 foldBinOp op e0 e1 = BinOpE op e0 e1
+
 
 
 constantFold :: (Show ty, Eq ty) => Env ty -> Statements a ty -> Statements a ty
@@ -108,7 +123,7 @@ constantFold environment stmts = evalState (liftM concat $ mapM process stmts) e
    process (Decl v (Just e),i) =
      do env <- get
         let e' = foldExp env e
-        if isScalar e' || isVar e'
+        if isScalar e' -- || isVar e'
           then do put (Map.insert v e' env)
                   return []
           else return [(Decl v (Just e'), i)]
@@ -120,3 +135,4 @@ constantFold environment stmts = evalState (liftM concat $ mapM process stmts) e
                                 return [(Assign (foldVar env v) (foldExp env e), i)]
    process (AssignSub v e0 e1, i) = do env <- get
                                        return [(AssignSub (foldVar env v) (foldExp env e0) (foldExp env e1), i)]
+   process (Comment msg, i) = return [(Comment msg, i)]

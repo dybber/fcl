@@ -83,11 +83,8 @@ data Statement a ty =
   | Decl VarName (Maybe (IExp ty))
   | SyncLocalMem
   | SyncGlobalMem
-  | Allocate VarName (IExp ty) CType -- This should not be here, as
-                                     -- allocated memory (local and
-                                     -- global) should be passed as
-                                     -- argument to kernels
-                                     -- Just trying to emulate Obsidian for now
+  | Comment String
+  | Allocate VarName (IExp ty) CType
  deriving (Eq, Show)
 
 data Kernel ty =

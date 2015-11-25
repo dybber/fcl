@@ -30,7 +30,7 @@ module Language.GPUIL.Cons (
  for, while, iff, distrPar, forAll,
  allocate, allocateVolatile,
  assign, (<==), assignArray,
- syncGlobal, syncLocal,
+ syncGlobal, syncLocal, comment,
 
  -- Monad
  VarName,
@@ -39,6 +39,7 @@ module Language.GPUIL.Cons (
  Kernel(..), NoType,
  initialState,
  runProgram,
+ evalProgram,
  addParam
 )
 where
@@ -66,6 +67,7 @@ initialState = MState
 type CExp = IExp NoType
 type Program x = WriterT (Statements () NoType) (State MState) x
 
+
 runProgram :: Program () -> (Statements () NoType, [VarName], Int)
 runProgram m =
   let (stmts, finalState) = runProg m initialState
@@ -75,6 +77,11 @@ runProg :: Program () -> MState -> (Statements () NoType, MState)
 runProg m init' =
   let (stmts, finalState) = runState (execWriterT m) init'
   in (stmts, finalState)
+
+-- This is weird!
+evalProgram :: Program a -> a
+evalProgram m = fst (evalState (runWriterT m) initialState)
+
 
 run :: Program () -> Program (Statements () NoType)
 run m = do
@@ -119,6 +126,10 @@ addParam name ty = do
 
 var :: VarName -> CExp
 var v = VarE v NoType
+
+comment :: String -> Program ()
+comment msg = addStmt (Comment msg)
+
 ----------------
 -- Statements --
 ----------------
@@ -162,7 +173,6 @@ forAll lvl ub f = do
     body <- run (f (VarE i NoType))
     addStmt $ ForAll lvl i upperbound body)
 
-
 allocate :: CType -> CExp -> Program VarName
 allocate ty n = do
   arr <- newVar (pointer [] ty) "arr"
@@ -174,8 +184,6 @@ allocateVolatile ty n = do
   arr <- newVar (pointer [Volatile] ty) "i"
   addStmt $ Allocate arr n ty
   return arr
-
-
 
 -- assign variable, and add to current list of operators
 assign :: VarName -> CExp -> Program ()
