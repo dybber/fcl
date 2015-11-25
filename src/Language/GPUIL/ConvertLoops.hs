@@ -100,20 +100,22 @@ compileForAll (ForAll Block name ub body) =
      loopVar <- newVar
      let nt = LocalSize
          q = (BinOpE DivI ub nt)
+         r = (BinOpE ModI ub nt)
          codeQ = For (loopVar,CInt32) q ((declLoopVar, ()) : body')
          declLoopVar = Decl name (Just (BinOpE AddI
                                                 (BinOpE MulI (VarE (loopVar, CInt32) NoType) nt)
                                                 localID))
 
          -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
-         codeR = If (BinOpE LtI localID ub)
+         codeR = If (BinOpE LtI localID r)
                    ((Decl name
                          (Just ((BinOpE AddI
                                   (BinOpE MulI q nt)
                                   localID))), ())
                     : body')
                    []
-     return [(codeQ, ()),
+     return [(Comment "ForAll", ()),
+             (codeQ, ()),
              (codeR, ())
             ]
 compileForAll (ForAll Thread _ _ _) = error "For all on thread-level not currently possible"
