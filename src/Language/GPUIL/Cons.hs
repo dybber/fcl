@@ -2,7 +2,7 @@
 module Language.GPUIL.Cons (
   
  -- Types
- int, double, bool, word8, word32, pointer,
+ int, double, bool, word8, word32, word64, pointer,
  attrLocal, attrGlobal, attrVolatile,
 
  -- Expressions
@@ -36,7 +36,7 @@ module Language.GPUIL.Cons (
  VarName,
  CExp,
  Program,
- Kernel(..), NoType,
+ Kernel(..),
  initialState,
  runProgram,
  evalProgram,
@@ -64,16 +64,16 @@ initialState = MState
                , varCount = 0
                } 
 
-type CExp = IExp NoType
-type Program x = WriterT (Statements () NoType) (State MState) x
+type CExp = IExp
+type Program x = WriterT (Statements ()) (State MState) x
 
 
-runProgram :: Program () -> (Statements () NoType, [VarName], Int)
+runProgram :: Program () -> (Statements (), [VarName], Int)
 runProgram m =
   let (stmts, finalState) = runProg m initialState
   in (stmts, reverse $ params finalState, varCount finalState)
 
-runProg :: Program () -> MState -> (Statements () NoType, MState)
+runProg :: Program () -> MState -> (Statements (), MState)
 runProg m init' =
   let (stmts, finalState) = runState (execWriterT m) init'
   in (stmts, finalState)
@@ -83,14 +83,14 @@ evalProgram :: Program a -> a
 evalProgram m = fst (evalState (runWriterT m) initialState)
 
 
-run :: Program () -> Program (Statements () NoType)
+run :: Program () -> Program (Statements ())
 run m = do
   s <- get
   let (stmts, s') = runProg m s
   put s'
   return stmts
 
-addStmt :: Statement () NoType -> Program ()
+addStmt :: Statement () -> Program ()
 addStmt stmt = tell [(stmt,())]
 
 newVar :: CType -> String -> Program VarName
@@ -109,13 +109,13 @@ newVar ty name = do
 let_ :: String -> CType -> CExp -> Program CExp
 let_ name ty e = do
   v <- newVar ty name
-  addStmt (Decl v (Just e))
-  return (VarE v NoType)
+  addStmt (Decl v e)
+  return (VarE v)
 
 letVar :: String -> CType -> CExp -> Program VarName
 letVar name ty e = do
   v <- newVar ty name
-  addStmt (Decl v (Just e))
+  addStmt (Decl v e)
   return v
 
 addParam :: String -> CType -> Program VarName
@@ -125,7 +125,7 @@ addParam name ty = do
   return v
 
 var :: VarName -> CExp
-var v = VarE v NoType
+var v = VarE v
 
 comment :: String -> Program ()
 comment msg = addStmt (Comment msg)
@@ -143,7 +143,7 @@ for :: CExp -> (CExp -> Program ()) -> Program ()
 for ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
-    body <- run (f (VarE i NoType))
+    body <- run (f (VarE i))
                                -- TODO: Var count should be passed on!
     addStmt $ For i upperbound body)
 
@@ -163,26 +163,26 @@ distrPar :: Level -> CExp -> (CExp -> Program ()) -> Program ()
 distrPar lvl ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
-    body <- run (f (VarE i NoType))
+    body <- run (f (VarE i))
     addStmt $ DistrPar lvl i upperbound body)
 
 forAll :: Level -> CExp -> (CExp -> Program ()) -> Program ()
 forAll lvl ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
-    body <- run (f (VarE i NoType))
+    body <- run (f (VarE i))
     addStmt $ ForAll lvl i upperbound body)
 
 allocate :: CType -> CExp -> Program VarName
 allocate ty n = do
   arr <- newVar (pointer [] ty) "arr"
-  addStmt $ Allocate arr n ty
+  addStmt $ Allocate arr n
   return arr
 
 allocateVolatile :: CType -> CExp -> Program VarName
 allocateVolatile ty n = do
   arr <- newVar (pointer [Volatile] ty) "i"
-  addStmt $ Allocate arr n ty
+  addStmt $ Allocate arr n
   return arr
 
 -- assign variable, and add to current list of operators
@@ -220,6 +220,9 @@ word8 = CWord8
 word32 :: CType
 word32 = CWord32
 
+word64 :: CType
+word64 = CWord64
+
 pointer :: [Attribute] -> CType -> CType
 pointer attr t = CPtr attr t
 
@@ -255,7 +258,7 @@ instance Scalar Word8 where
 
 if_ :: CExp -> CExp -> CExp -> CExp
 if_ econd etrue efalse =
-  IfE econd etrue efalse NoType
+  IfE econd etrue efalse
 
 (?) :: CExp -> (CExp, CExp) -> CExp
 econd ? (e0,e1) = if_ econd e0 e1

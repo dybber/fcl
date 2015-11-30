@@ -6,22 +6,23 @@ where
 
 import Data.Maybe
 import Control.Monad.State
-
-
-
 import Language.GPUIL.Syntax
 
-type Bytes   = IExp NoType
+type Bytes   = IExp
 
-memoryMap :: Statements a NoType -> (Statements a NoType, Maybe Bytes)
+sbase :: IExp
+sbase = (VarE ("sbase", CPtr [Local] CWord8))
+
+memoryMap :: Statements a -> (Statements a, Maybe Bytes)
 memoryMap stmts = runState (memMap stmts) Nothing
 
-memMap :: Statements a NoType -> State (Maybe Bytes) (Statements a NoType)
+memMap :: Statements a -> State (Maybe Bytes) (Statements a)
 memMap stmts = mapM go stmts
   where
-   go :: (Statement a NoType, a) -> State (Maybe Bytes) (Statement a NoType, a)
-   go (Allocate name size' ty,i) = do offset <- allocate (BinOpE MulI size' (IntE (sizeOf ty)))
-                                      return $ (Decl name (Just (CastE ty (BinOpE AddI (VarE ("sbase", CWord8) NoType) offset))), i)
+   go :: (Statement a, a) -> State (Maybe Bytes) (Statement a, a)
+   go (Allocate name@(_,ty@(CPtr _ bty)) size',i) =
+     do offset <- allocate (BinOpE MulI size' (IntE (sizeOf bty)))
+        return $ (Decl name (CastE ty (BinOpE AddPtr sbase offset)), i)
    go (For n e body, i)           = do body' <- memMap body
                                        return (For n e body', i)
    go (SeqWhile e body, i)        = do body' <- memMap body
@@ -38,29 +39,3 @@ allocate bytes = do
   let offset = fromMaybe (IntE 0) used
   put (Just (BinOpE AddI offset bytes))
   return offset
-
--- memoryMap :: Statements a NoType -> (Statements a NoType, Bytes)
--- memoryMap stmts = runState (allocate stmts) (IntE 0)
-
--- allocate :: Statements a NoType -> State Bytes (Statements a NoType)
--- allocate stmts = mapM go stmts
---   where
---    go :: (Statement a NoType,a) -> State Bytes (Statement a NoType,a)
---    go (Allocate name size ty,i) =
---      do used <- get
---         let newoffset = BinOpE AddI used size
---         put newoffset
---         return $ (Decl name (Just (CastE ty (BinOpE AddI (VarE ("sbase", CWord8) NoType) used))),
---                   i)
---    go (For n e body,i)             = do body' <- allocate body
---                                         return (For n e body',i)
---    go (SeqWhile e body,i)          = do body' <- allocate body
---                                         return (SeqWhile e body',i)
---    go (ForAll lvl n e body,i)      = do body' <- allocate body
---                                         return (ForAll lvl n e body',i)
---    go (DistrPar Warp n e body,i)   = do body' <- allocate body
---                                         return (DistrPar Warp n e body',i)
---    go (DistrPar Block n e body,i)  = do body' <- allocate body
---                                         return (DistrPar Block n e body',i)
---    go stmt = return stmt
-

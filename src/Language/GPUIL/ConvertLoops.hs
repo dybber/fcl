@@ -5,7 +5,7 @@ import Control.Monad.State
 
 import Language.GPUIL.Syntax
 
-localID, warpSize :: IExp NoType
+localID, warpSize :: IExp
 localID = LocalID
 warpSize = WarpSize
 
@@ -48,13 +48,13 @@ newVar = do
   put (count+1)
   return ("id" ++ show count)
 
-convert :: Int -> Statements () NoType -> (Statements () NoType, Int)
+convert :: Int -> Statements () -> (Statements (), Int)
 convert varCount stmts = runState (convertLoops stmts) varCount
 
-convertLoops :: Statements () NoType -> Conv (Statements () NoType)
+convertLoops :: Statements () -> Conv (Statements ())
 convertLoops stmts = liftM concat $ mapM (convertLoop . fst) stmts
 
-convertLoop :: Statement () NoType -> Conv (Statements () NoType)
+convertLoop :: Statement () -> Conv (Statements ())
 convertLoop stmt@(ForAll _ _ _ _) = compileForAll stmt
 convertLoop stmt@(DistrPar _ _ _ _) = compileDistrPar stmt
 convertLoop (For v ty ss) = do
@@ -70,7 +70,7 @@ convertLoop (If e ss0 ss1) =
 convertLoop stmt = return [(stmt, ())]
 
 
-compileForAll :: Statement () NoType -> Conv (Statements () NoType)
+compileForAll :: Statement () -> Conv (Statements ())
 --TODO: implement specific cases for when "ub" is statically known -- see Obsidian implementation
 compileForAll (ForAll Warp name ub body) =
   do body' <- convertLoops body
@@ -82,7 +82,7 @@ compileForAll (ForAll Warp name ub body) =
       
          codeQ = For name q ((Assign ("warpIx", CInt32)
                                            (BinOpE AddI
-                                               (BinOpE MulI (VarE name NoType) warpSize)
+                                               (BinOpE MulI (VarE name) warpSize)
                                                x), ()) : body')
          codeR = If (BinOpE LtI x r)
                    ((Assign ("warpIx", CInt32)
@@ -102,16 +102,16 @@ compileForAll (ForAll Block name ub body) =
          q = (BinOpE DivI ub nt)
          r = (BinOpE ModI ub nt)
          codeQ = For (loopVar,CInt32) q ((declLoopVar, ()) : body')
-         declLoopVar = Decl name (Just (BinOpE AddI
-                                                (BinOpE MulI (VarE (loopVar, CInt32) NoType) nt)
-                                                localID))
+         declLoopVar = Decl name (BinOpE AddI
+                                         (BinOpE MulI (VarE (loopVar, CInt32)) nt)
+                                         localID)
 
          -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
          codeR = If (BinOpE LtI localID r)
                    ((Decl name
-                         (Just ((BinOpE AddI
+                         ((BinOpE AddI
                                   (BinOpE MulI q nt)
-                                  localID))), ())
+                                  localID)), ())
                     : body')
                    []
      return [(Comment "ForAll", ()),
@@ -122,19 +122,19 @@ compileForAll (ForAll Thread _ _ _) = error "For all on thread-level not current
 compileForAll (ForAll Grid _ _ _) = error "For all on grid-level not currently possible"
 compileForAll _ = error "compileForAll should only be called with ForAll as argument"
 
-compileDistrPar :: Statement () NoType -> Conv (Statements () NoType)
+compileDistrPar :: Statement () -> Conv (Statements ())
 compileDistrPar (DistrPar Block name ub body) =
   do body' <- convertLoops body
      loopVar <- newVar
      let blocksQ = BinOpE DivI ub NumGroups
          blocksR = BinOpE ModI ub NumGroups
          codeQ = For (loopVar, CInt32) blocksQ bodyQ
-         bodyQ = (Decl name (Just (BinOpE AddI (BinOpE MulI GroupID blocksQ)
-                                              (VarE (loopVar, CInt32) NoType))),())
+         bodyQ = (Decl name (BinOpE AddI (BinOpE MulI GroupID blocksQ)
+                                              (VarE (loopVar, CInt32))),())
                  : body' ++ [(SyncLocalMem, ())]
          codeR = If (BinOpE LtI GroupID blocksR)
-                    ((Decl name (Just (BinOpE AddI (BinOpE MulI NumGroups blocksQ)
-                                               GroupID)),()) : body' ++ [(SyncLocalMem, ())])
+                    ((Decl name (BinOpE AddI (BinOpE MulI NumGroups blocksQ)
+                                               GroupID),()) : body' ++ [(SyncLocalMem, ())])
                     []
 
      return [(codeQ, ()),

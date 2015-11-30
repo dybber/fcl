@@ -13,7 +13,7 @@ module Language.ObsidianLight.SmartCons
 
  map, generate, force, index, (!), len, fixpoint, concat,
 
- compile, Kernel(..), NoType
+ compile, Kernel(..)
 
 )
 where
@@ -23,7 +23,7 @@ import Control.Applicative
 import Prelude hiding (map, concat)
 
 import Language.ObsidianLight.Syntax
-import Language.GPUIL.Syntax (Kernel(..), NoType)
+import Language.GPUIL.Syntax (Kernel(..))
 import Language.ObsidianLight.TypeChecker (typecheck)
 import qualified Language.ObsidianLight.Compile as C (compile)
 
@@ -32,7 +32,7 @@ newtype Obs x = Obs (State Int (Exp Untyped))
 runObs :: Obs a -> Exp Untyped
 runObs (Obs m) = evalState m 0
 
-compile :: String -> Obs a -> IO (Kernel NoType)
+compile :: String -> Obs a -> IO Kernel
 compile name e = do
   putStrLn ("Unfolding Smart constructors: " ++ name)
   let uexp = runObs e
@@ -41,7 +41,7 @@ compile name e = do
   let (texp, _) = typecheck uexp
   print texp
   putStrLn ("Compiling: " ++ name)
-  return (C.compile name texp)
+  C.compile name texp
 
 newVar :: State Int String
 newVar = do

@@ -115,13 +115,13 @@ newVar (T ty) name = do
 let_ :: String -> Type t -> Exp t -> Program lvl (Exp t)
 let_ name ty (E e) = do
   v <- newVar ty name
-  addStmt (Decl v (Just e))
+  addStmt (Decl v e)
   return (E (VarE v NoType))
 
 letVar :: String -> Type t -> Exp t -> Program lvl (Var t)
 letVar name ty (E e) = do
   v <- newVar ty name
-  addStmt (Decl v (Just e))
+  addStmt (Decl v e)
   return (V v)
 
 addParam :: String -> Type t -> Program lvl (Var t)
@@ -189,22 +189,22 @@ assignArray (V n) (E idx) (E e) = addStmt (AssignSub n idx e)
 --    Types    --
 -----------------
 int :: Type Int
-int = T Int32T
+int = T CInt32
 
 double :: Type Double
-double = T DoubleT
+double = T CDouble
 
 bool :: Type Bool
-bool = T BoolT
+bool = T CBool
 
 word8 :: Type Word8
-word8 = T Word8T
+word8 = T CWord8
 
 word32 :: Type Word32
-word32 = T Word32T
+word32 = T CWord32
 
 pointer :: [Attribute] -> Type t ->  Type (Pointer t)
-pointer attr (T t) = T (Ptr attr t)
+pointer attr (T t) = T (CPtr attr t)
 
 -----------------
 -- Expressions --

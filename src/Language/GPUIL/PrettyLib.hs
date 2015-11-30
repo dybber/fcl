@@ -49,8 +49,8 @@ text = Text
 char :: Char -> Doc
 char c = Text [c]
 
-int :: Int -> Doc
-int = Text . show
+int :: (Show a, Integral a) => a -> Doc
+int x = Text (show (fromIntegral x :: Integer))
 
 double :: Double -> Doc
 double = Text . show

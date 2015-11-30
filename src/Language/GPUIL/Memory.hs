@@ -22,7 +22,7 @@ import qualified Data.Set as Set
 import Control.Monad.State
 
 import Language.GPUIL.Syntax
-import Language.GPUIL.Liveness
+import Language.GPUIL.Analysis.Liveness
 
 type MemMap = Map.Map VarName (AlignedAddress, CType)
 

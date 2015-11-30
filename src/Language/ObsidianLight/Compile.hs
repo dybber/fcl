@@ -42,7 +42,7 @@ type VarEnv = Map.Map Variable Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compile :: String -> Exp Type -> Kernel NoType
+compile :: String -> Exp Type -> IO Kernel
 compile name e = generateKernel name (compileFun emptyEnv e >> return ())
 
 -- Convert pull arrays to push arrays
@@ -280,9 +280,9 @@ letsVar name s =
   case s of
     TagInt x -> do var0 <- letVar name int x
                    return (var0, TagInt (var var0))
-    TagBool x -> do var0 <- letVar name int x
+    TagBool x -> do var0 <- letVar name bool x
                     return (var0, TagBool (var var0))
-    TagDouble x -> do var0 <- letVar name int x
+    TagDouble x -> do var0 <- letVar name double x
                       return (var0, TagDouble (var var0))
     TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
     TagPair _ _ -> error "letsVar TagPair" -- TODO
@@ -324,8 +324,8 @@ fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
           let f' = getPushFn new_arr
           -- materialize before next iteration
           f' (\(TagInt i) -> assignArray var_array i)
-          cond' <- liftM unBool (cond (TagArray new_arr))
-          assign var_cond cond'
+          cond'' <- liftM unBool (cond (TagArray new_arr))
+          assign var_cond cond''
      return (TagArray vararr)
 fixpoint (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v

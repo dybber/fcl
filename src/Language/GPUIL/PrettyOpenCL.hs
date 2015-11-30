@@ -16,6 +16,7 @@ ppType CDouble       = text "double"
 ppType CBool         = text "bool" -- maybe this should just be uint32?
 ppType CWord8        = text "uchar"
 ppType CWord32       = text "uint"
+ppType CWord64       = text "ulong"
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
@@ -23,21 +24,22 @@ ppType (CPtr attr t) =
 ppVar :: VarName -> Doc
 ppVar (v,_) = text v
 
-ppExp :: IExp ty -> Doc
+ppExp :: IExp -> Doc
 ppExp (IntE c) = int c
 ppExp (DoubleE c) = double c
 ppExp (BoolE True) = text "true"
 ppExp (BoolE False) = text "false"
-ppExp (Word8E c) = int (fromIntegral c)
-ppExp (Word32E c) = int (fromIntegral c)
-ppExp (VarE n _) = ppVar n
+ppExp (Word8E c) = int c
+ppExp (Word32E c) = int c
+ppExp (Word64E c) = int c
+ppExp (VarE n) = ppVar n
 ppExp (UnaryOpE op e) = ppUnaryOp op e
 ppExp (BinOpE op e0 e1) = parens $ ppBinOp op (ppExp e0) (ppExp e1)
-ppExp (IfE e0 e1 e2 _) = parens (ppExp e0 :<>: char '?' :<>:
-                                 ppExp e1 :<>: char ':' :<>:
-                                 ppExp e2)
+ppExp (IfE e0 e1 e2) = parens (ppExp e0 :<>: char '?' :<>:
+                               ppExp e1 :<>: char ':' :<>:
+                               ppExp e2)
 ppExp (IndexE n e) = ppVar n :<>: brackets (ppExp e)
-ppExp (CastE t e) = parens (ppType t) :<>: ppExp e
+ppExp (CastE t e) = parens (parens (ppType t) :<>: ppExp e)
 ppExp GlobalID = text "get_global_id(0)"
 ppExp LocalID = text "get_local_id(0)"
 ppExp GroupID = text "get_group_id(0)"
@@ -47,7 +49,7 @@ ppExp NumGroups = text "get_num_groups(0)"
 
 --ppExp (CallFunE n e) = text n :<>: parens (sep (char ',') $ map ppExp e)
 
-ppUnaryOp :: UnaryOp -> IExp ty -> Doc
+ppUnaryOp :: UnaryOp -> IExp -> Doc
 ppUnaryOp op e =
   case op of
    I2D -> ppExp (CastE CDouble e)
@@ -70,6 +72,7 @@ ppUnaryOp op e =
 ppBinOp :: BinOp -> Doc -> Doc -> Doc
 ppBinOp AddI d0 d1 = d0 :<>: char '+' :<>: d1
 ppBinOp AddD d0 d1 = d0 :<>: char '+' :<>: d1
+ppBinOp AddPtr d0 d1 = d0 :<>: char '+' :<>: d1
 ppBinOp SubI d0 d1 = d0 :<>: char '-' :<>: d1
 ppBinOp SubD d0 d1 = d0 :<>: char '-' :<>: d1
 ppBinOp MulI d0 d1 = d0 :<>: char '*' :<>: d1
@@ -97,7 +100,7 @@ ppBinOp Xor  d0 d1 = d0 :<>: text "^" :<>: d1
 ppBinOp Sll  d0 d1 = d0 :<>: text "<<" :<>: d1
 ppBinOp Srl  d0 d1 = d0 :<>: text ">>" :<>: d1
 
-ppStmt :: Statement a ty -> Doc
+ppStmt :: Statement a -> Doc
 ppStmt (For n e body) =
   let var = ppVar n
   in (text "for (int " :+: var :+: text " = 0; "
@@ -135,10 +138,8 @@ ppStmt (Assign n e) =
   ppVar n :+: text " = " :+: unpar(ppExp e) :+: char ';'
 ppStmt (AssignSub n e_idx e) =
   ppVar n :+: brackets (ppExp e_idx) :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt (Decl n (Just e)) =
+ppStmt (Decl n e) =
   ppDecl n :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt (Decl n Nothing) =
-  ppDecl n :+: char ';'
 ppStmt SyncLocalMem = text "barrier(CLK_LOCAL_MEM_FENCE);"
 ppStmt SyncGlobalMem = text "barrier(CLK_GLOBAL_MEM_FENCE);"
 ppStmt (ForAll lvl n e body) =
@@ -169,7 +170,7 @@ ppStmt (DistrPar lvl n e body) =
 -- ppStmt (ForAll _ _ _ _) =
 --   error $ concat ["Cannot pretty print ForAll, ",
 --                   "use `XX.funcYY` to convert to sequential for-loops"]
-ppStmt (Allocate (name,_) _ _) = text ("// allocate " ++ name)
+ppStmt (Allocate (name,_) _) = text ("// allocate " ++ name)
 ppStmt (Comment msg) = text ("// " ++ msg)
 
 
@@ -181,7 +182,7 @@ ppLevel Grid   = text "grid"
 
 
 
-ppStmts :: Statements a ty -> Doc
+ppStmts :: Statements a -> Doc
 ppStmts [] = text ""
 ppStmts ((s, _) : ss) =  Newline :+: ppStmt s :+: ppStmts ss
 
@@ -191,7 +192,7 @@ ppDecl (n@(_,t)) = ppType t :+: text " " :+: ppVar n
 ppParamList :: [VarName] -> Doc
 ppParamList = sep (char ',') . map ppDecl
 
-ppKernel :: Kernel ty -> Doc
+ppKernel :: Kernel -> Doc
 ppKernel k =
   text "#define _WARPSIZE 32" :+: Newline :+:
   text "__kernel void " :+: text (kernelName k) :+: parens (ppParamList (kernelParams k))
