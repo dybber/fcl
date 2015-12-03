@@ -1,10 +1,13 @@
-module Language.GPUIL.Liveness
-  (liveness,
-   LiveInfo)
-where
+module Language.GPUIL.Analysis.Liveness (liveness) where
 
-import Control.Monad.State
-import Data.Set as Set
+
+import qualified Data.Map as Map
+import Data.Map (Map)
+import qualified Data.Set as Set
+import Data.Set (Set)
+
+import Language.GPUIL.Analysis.Dataflow
+import Language.GPUIL.Analysis.Graph
 
 import Language.GPUIL.Syntax
 
@@ -15,88 +18,90 @@ type LiveInfo = Set VarName
 liveInExp :: IExp -> LiveInfo
 liveInExp e =
   case e of
-    IndexE name e0      -> insert name (liveInExp e0)
-    VarE name@(_, CPtr _ _) -> singleton name
-    VarE _            -> empty
+    IndexE name e0      -> Set.insert name (liveInExp e0)
+    VarE name@(_, CPtr _ _) -> Set.singleton name
+    VarE _            -> Set.empty
     -- Recursive
     UnaryOpE _ e0       -> liveInExp e0
-    BinOpE _ e0 e1      -> liveInExp e0 `union` liveInExp e1
-    IfE e0 e1 e2        -> liveInExp e0 `union` liveInExp e1 `union` liveInExp e2
+    BinOpE _ e0 e1      -> liveInExp e0 `Set.union` liveInExp e1
+    IfE e0 e1 e2        -> liveInExp e0 `Set.union` liveInExp e1 `Set.union` liveInExp e2
     CastE _ e0          -> liveInExp e0
     -- Scalars and constants
-    IntE _              -> empty
-    DoubleE _           -> empty
-    BoolE _             -> empty
-    Word8E _            -> empty
-    Word32E _           -> empty
-    Word64E _           -> empty
-    GlobalID            -> empty
-    LocalID             -> empty
-    GroupID             -> empty
-    LocalSize           -> empty
-    NumGroups           -> empty
-    WarpSize            -> empty
+    IntE _              -> Set.empty
+    DoubleE _           -> Set.empty
+    BoolE _             -> Set.empty
+    Word8E _            -> Set.empty
+    Word32E _           -> Set.empty
+    Word64E _           -> Set.empty
+    GlobalID            -> Set.empty
+    LocalID             -> Set.empty
+    GroupID             -> Set.empty
+    LocalSize           -> Set.empty
+    NumGroups           -> Set.empty
+    WarpSize            -> Set.empty
 
-type LM a = State LiveInfo a
+type LiveMap = Map Label (Set VarName)
 
-startState :: LiveInfo
-startState = Set.empty
+expLiveMap :: Label -> [IExp] -> LiveMap
+expLiveMap lbl es = Map.singleton lbl (foldl Set.union Set.empty (map liveInExp es))
 
-liveness :: Statements a -> Statements LiveInfo
-liveness ss = evalState (liveness' ss) startState
+unionMaps :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b)
+unionMaps = Map.unionWith (Set.union)
 
-liveness' :: Statements a -> LM (Statements LiveInfo)
-liveness' = liftM reverse . mapM liveStmt . reverse . Prelude.map fst
+singleton :: k -> a -> Map k (Set a)
+singleton lbl v = Map.singleton lbl (Set.singleton v)
 
-liveStmt :: Statement a -> LM (Statement LiveInfo, LiveInfo)
-liveStmt SyncGlobalMem =
-  do liveSet <- get
-     return (SyncGlobalMem, liveSet)
-liveStmt SyncLocalMem =
-  do liveSet <- get
-     return (SyncLocalMem, liveSet)
-liveStmt (Decl name e0) =
-  do modify (union (liveInExp e0))
-     liveSet <- get
-     return (Decl name e0, liveSet)
-liveStmt (Assign name e0) =
-  do modify (union (insert name (liveInExp e0)))
-     liveSet <- get
-     return (Assign name e0, liveSet)
-liveStmt (AssignSub name e0 idx) =
-  do modify (union (insert name (liveInExp e0 `union` liveInExp idx)))
-     liveSet <- get
-     return (AssignSub name e0 idx, liveSet)
-liveStmt (Allocate name size') =
-  do modify (delete name)
-     liveSet <- get
-     return (Allocate name size', liveSet)
-liveStmt (If e0 ss_then ss_else) =
-  do s <- get
-     let (ss_then', after_then) = runState (liveness' ss_then) s
-         (ss_else', after_else) = runState (liveness' ss_else) s
-         newLiveSet = after_then `union` after_else
-     put newLiveSet
-     return (If e0 ss_then' ss_else', newLiveSet)
-liveStmt (For name bound ss) =
-  do ss' <- liveness' ss
-     modify (union (liveInExp bound))
-     newLiveSet <- get
-     return (For name bound ss', newLiveSet)
-liveStmt (SeqWhile bound ss) =
-  do ss' <- liveness' ss
-     modify (union (liveInExp bound))
-     newLiveSet <- get
-     return (SeqWhile bound ss', newLiveSet)
-liveStmt (ForAll lvl name bound ss) =
-  do ss' <- liveness' ss
-     modify (union (liveInExp bound))
-     newLiveSet <- get
-     return (ForAll lvl name bound ss', newLiveSet)
-liveStmt (DistrPar lvl name bound ss) =
-  do ss' <- liveness' ss
-     modify (union (liveInExp bound))
-     newLiveSet <- get
-     return (DistrPar lvl name bound ss', newLiveSet)
-liveStmt (Comment s) = do ss <- get
-                          return (Comment s, ss)
+-- gens and kills for reaching definitions
+gensLiveness :: [Statement Label] -> LiveMap
+gensLiveness stmts = liveMany stmts
+  where
+    liveMany :: [Statement Label] -> LiveMap
+    liveMany ss = foldl unionMaps Map.empty (map go ss)
+    
+    go (For _ e ss lbl)        = unionMaps (expLiveMap lbl [e]) (liveMany ss)
+    go (ForAll _ _ e ss lbl)   = unionMaps (expLiveMap lbl [e]) (liveMany ss)
+    go (DistrPar _ _ e ss lbl) = unionMaps (expLiveMap lbl [e]) (liveMany ss)
+    go (If e ss0 ss1 lbl)      = unionMaps (expLiveMap lbl [e]) (liveMany (ss0 ++ ss1))
+    go (SeqWhile e ss lbl)     = unionMaps (expLiveMap lbl [e]) (liveMany ss)
+    go (Assign _ e lbl)        = expLiveMap lbl [e]
+    go (AssignSub _ e0 e1 lbl) = expLiveMap lbl [e0,e1]
+    go (Decl _ e lbl)          = expLiveMap lbl [e]
+    go _                       = Map.empty
+
+killsLiveness :: [Statement Label] -> LiveMap
+killsLiveness stmts = foldl unionMaps Map.empty (map go stmts)
+  where
+    go (For v _ ss lbl)        = foldl unionMaps (singleton lbl v) (map go ss)
+    go (ForAll _ v _ ss lbl)   = foldl unionMaps (singleton lbl v) (map go ss)
+    go (DistrPar _ v _ ss lbl) = foldl unionMaps (singleton lbl v) (map go ss)
+    go (If _ ss0 ss1 _)        = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
+    go (SeqWhile _ ss _)       = foldl unionMaps Map.empty (map go ss)
+    go (Assign v _ lbl)        = singleton lbl v
+    go (AssignSub v _ _ lbl)   = singleton lbl v
+    go (Decl v _ lbl)          = singleton lbl v
+    go _                       = Map.empty
+
+lkup :: Ord a => a -> Map a (Set b) -> Set b
+lkup x m =
+  case Map.lookup x m of
+    Just x'  -> x'
+    Nothing -> Set.empty
+
+liveness :: [Statement Label]
+         -> Graph Label
+         -> (Map Label (Set VarName),
+             Map Label (Set VarName))
+liveness stmts graph =
+  let
+    gen = gensLiveness stmts
+    kill = killsLiveness stmts
+
+    -- Update in set to be union of all out-sets of predecessors
+    updateIn outMap n =
+      lkup n gen `Set.union` (lkup n outMap `Set.difference` lkup n kill)
+
+    -- Update outset by removing killset and adding gen
+    updateOut inMap n =
+      Set.fold (\p s -> Set.union s (lkup p inMap)) Set.empty (successors n graph)
+
+  in backwardAnalysis updateIn updateOut graph

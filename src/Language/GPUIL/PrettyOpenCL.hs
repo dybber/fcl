@@ -101,7 +101,7 @@ ppBinOp Sll  d0 d1 = d0 :<>: text "<<" :<>: d1
 ppBinOp Srl  d0 d1 = d0 :<>: text ">>" :<>: d1
 
 ppStmt :: Statement a -> Doc
-ppStmt (For n e body) =
+ppStmt (For n e body _) =
   let var = ppVar n
   in (text "for (int " :+: var :+: text " = 0; "
         :+: var :+: text " < " :+: ppExp e :+: text "; "
@@ -112,7 +112,7 @@ ppStmt (For n e body) =
      Newline
      :+:
      text "}"
-ppStmt (SeqWhile e body) =
+ppStmt (SeqWhile e body _) =
      (text "while (" :+: ppExp e :+: text ") {")
      :+:
        indent (ppStmts body)
@@ -120,13 +120,13 @@ ppStmt (SeqWhile e body) =
      Newline
      :+:
      text "}"
-ppStmt (If e ss_true []) =
+ppStmt (If e ss_true [] _) =
   text "if " :+: parens (ppExp e) :+: text " {"
   :+:
     indent (ppStmts ss_true)
     :+: Newline :+:
   text "}"
-ppStmt (If e ss_true ss_false) =
+ppStmt (If e ss_true ss_false _) =
   text "if " :+: parens (ppExp e) :+: text " {" :+:
     indent (ppStmts ss_true)
     :+: Newline :+: 
@@ -134,15 +134,15 @@ ppStmt (If e ss_true ss_false) =
     indent (ppStmts ss_false)
     :+: Newline :+:
   text "}"
-ppStmt (Assign n e) =
+ppStmt (Assign n e _) =
   ppVar n :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt (AssignSub n e_idx e) =
+ppStmt (AssignSub n e_idx e _) =
   ppVar n :+: brackets (ppExp e_idx) :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt (Decl n e) =
+ppStmt (Decl n e _) =
   ppDecl n :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt SyncLocalMem = text "barrier(CLK_LOCAL_MEM_FENCE);"
-ppStmt SyncGlobalMem = text "barrier(CLK_GLOBAL_MEM_FENCE);"
-ppStmt (ForAll lvl n e body) =
+ppStmt (SyncLocalMem _) = text "barrier(CLK_LOCAL_MEM_FENCE);"
+ppStmt (SyncGlobalMem _) = text "barrier(CLK_GLOBAL_MEM_FENCE);"
+ppStmt (ForAll lvl n e body _) =
   let var = ppVar n
   in (text "forall{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
         :+: var :+: text " < " :+: ppExp e :+: char ';'
@@ -153,7 +153,7 @@ ppStmt (ForAll lvl n e body) =
      Newline
      :+:
      text "}"
-ppStmt (DistrPar lvl n e body) =
+ppStmt (DistrPar lvl n e body _) =
   let var = ppVar n
   in (text "distrpar{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
         :+: var :+: text " < " :+: ppExp e :+: char ';'
@@ -170,8 +170,8 @@ ppStmt (DistrPar lvl n e body) =
 -- ppStmt (ForAll _ _ _ _) =
 --   error $ concat ["Cannot pretty print ForAll, ",
 --                   "use `XX.funcYY` to convert to sequential for-loops"]
-ppStmt (Allocate (name,_) _) = text ("// allocate " ++ name)
-ppStmt (Comment msg) = text ("// " ++ msg)
+ppStmt (Allocate (name,_) _ _) = text ("// allocate " ++ name)
+ppStmt (Comment msg _) = text ("// " ++ msg)
 
 
 ppLevel :: Level -> Doc
@@ -182,9 +182,9 @@ ppLevel Grid   = text "grid"
 
 
 
-ppStmts :: Statements a -> Doc
+ppStmts :: [Statement a] -> Doc
 ppStmts [] = text ""
-ppStmts ((s, _) : ss) =  Newline :+: ppStmt s :+: ppStmts ss
+ppStmts (s : ss) =  Newline :+: ppStmt s :+: ppStmts ss
 
 ppDecl :: VarName -> Doc
 ppDecl (n@(_,t)) = ppType t :+: text " " :+: ppVar n

@@ -26,15 +26,15 @@ generateKernel name m = do
   tc params' stmts'
   let (stmts'', _) = convert varCount stmts'
   tc params' stmts''
-  let stmts''' = optimise stmts''
+  let stmts''' = optimise 10 stmts''
   tc params' stmts'''
   return (Kernel { kernelName = name
                  , kernelParams = params'
-                 , kernelBody = stmts'''
+                 , kernelBody = removeLabels stmts'''
                  , kernelSharedMem = fmap optimiseExp used
                  })
 
-tc :: [VarName] -> Statements a -> IO ()
+tc :: [VarName] -> [Statement a] -> IO ()
 tc params stmts =
   case typeCheck params stmts of
     Success   -> return ()

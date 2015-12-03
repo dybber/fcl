@@ -48,98 +48,97 @@ newVar = do
   put (count+1)
   return ("id" ++ show count)
 
-convert :: Int -> Statements () -> (Statements (), Int)
+convert :: Int -> [Statement ()] -> ([Statement ()], Int)
 convert varCount stmts = runState (convertLoops stmts) varCount
 
-convertLoops :: Statements () -> Conv (Statements ())
-convertLoops stmts = liftM concat $ mapM (convertLoop . fst) stmts
+convertLoops :: [Statement ()] -> Conv [Statement ()]
+convertLoops stmts = liftM concat $ mapM convertLoop stmts
 
-convertLoop :: Statement () -> Conv (Statements ())
-convertLoop stmt@(ForAll _ _ _ _) = compileForAll stmt
-convertLoop stmt@(DistrPar _ _ _ _) = compileDistrPar stmt
-convertLoop (For v ty ss) = do
+convertLoop :: Statement () -> Conv [Statement ()]
+convertLoop stmt@(ForAll _ _ _ _ _) = compileForAll stmt
+convertLoop stmt@(DistrPar _ _ _ _ _) = compileDistrPar stmt
+convertLoop (For v ty ss _) = do
   ss' <- convertLoops ss
-  return [(For v ty ss', ())]
-convertLoop (SeqWhile cond ss) = do
+  return [For v ty ss' ()]
+convertLoop (SeqWhile cond ss _) = do
   ss' <- convertLoops ss
-  return [(SeqWhile cond ss', ())]
-convertLoop (If e ss0 ss1) =
+  return [SeqWhile cond ss' ()]
+convertLoop (If e ss0 ss1 _) =
   do ss0' <- convertLoops ss0
      ss1' <- convertLoops ss1
-     return [(If e ss0' ss1', ())]
-convertLoop stmt = return [(stmt, ())]
+     return [If e ss0' ss1' ()]
+convertLoop stmt = return [stmt]
 
-
-compileForAll :: Statement () -> Conv (Statements ())
+compileForAll :: Statement () -> Conv [Statement ()]
 --TODO: implement specific cases for when "ub" is statically known -- see Obsidian implementation
-compileForAll (ForAll Warp name ub body) =
+compileForAll (ForAll Warp name ub body _) =
   do body' <- convertLoops body
      let q = (BinOpE DivI ub warpSize)
          r = (BinOpE ModI ub warpSize)
          x = (BinOpE ModI localID warpSize)
          -- TODO: Transform to avoid the warpIx variable, see below for block level
-         resetWarpIx = Assign ("warpIx", CInt32) x
+         resetWarpIx = Assign ("warpIx", CInt32) x ()
       
          codeQ = For name q ((Assign ("warpIx", CInt32)
                                            (BinOpE AddI
                                                (BinOpE MulI (VarE name) warpSize)
-                                               x), ()) : body')
+                                               x) ()) : body') ()
          codeR = If (BinOpE LtI x r)
                    ((Assign ("warpIx", CInt32)
                             (BinOpE AddI
                                 (BinOpE MulI q warpSize)
-                                x), ())
+                                x) ())
                     : body')
-                   []
-     return [(codeQ, ()),
-             (resetWarpIx, ()),
-             (codeR, ()),
-             (resetWarpIx, ())]
-compileForAll (ForAll Block name ub body) =
+                   [] ()
+     return [codeQ,
+             resetWarpIx,
+             codeR,
+             resetWarpIx]
+compileForAll (ForAll Block name ub body _) =
   do body' <- convertLoops body
      loopVar <- newVar
      let nt = LocalSize
          q = (BinOpE DivI ub nt)
          r = (BinOpE ModI ub nt)
-         codeQ = For (loopVar,CInt32) q ((declLoopVar, ()) : body')
+         codeQ = For (loopVar,CInt32) q (declLoopVar : body') ()
          declLoopVar = Decl name (BinOpE AddI
                                          (BinOpE MulI (VarE (loopVar, CInt32)) nt)
-                                         localID)
+                                         localID) ()
 
          -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
          codeR = If (BinOpE LtI localID r)
                    ((Decl name
                          ((BinOpE AddI
                                   (BinOpE MulI q nt)
-                                  localID)), ())
+                                  localID)) ())
                     : body')
-                   []
-     return [(Comment "ForAll", ()),
-             (codeQ, ()),
-             (codeR, ())
+                   [] ()
+     return [Comment "ForAll" (),
+             codeQ,
+             codeR
             ]
-compileForAll (ForAll Thread _ _ _) = error "For all on thread-level not currently possible"
-compileForAll (ForAll Grid _ _ _) = error "For all on grid-level not currently possible"
+compileForAll (ForAll Thread _ _ _ _) = error "For all on thread-level not currently possible"
+compileForAll (ForAll Grid _ _ _ _) = error "For all on grid-level not currently possible"
 compileForAll _ = error "compileForAll should only be called with ForAll as argument"
 
-compileDistrPar :: Statement () -> Conv (Statements ())
-compileDistrPar (DistrPar Block name ub body) =
+compileDistrPar :: Statement () -> Conv [Statement ()]
+compileDistrPar (DistrPar Block name ub body ()) =
   do body' <- convertLoops body
      loopVar <- newVar
      let blocksQ = BinOpE DivI ub NumGroups
          blocksR = BinOpE ModI ub NumGroups
-         codeQ = For (loopVar, CInt32) blocksQ bodyQ
+         codeQ = For (loopVar, CInt32) blocksQ bodyQ ()
          bodyQ = (Decl name (BinOpE AddI (BinOpE MulI GroupID blocksQ)
-                                              (VarE (loopVar, CInt32))),())
-                 : body' ++ [(SyncLocalMem, ())]
+                                              (VarE (loopVar, CInt32))) ())
+                 : body' ++ [SyncLocalMem ()]
          codeR = If (BinOpE LtI GroupID blocksR)
                     ((Decl name (BinOpE AddI (BinOpE MulI NumGroups blocksQ)
-                                               GroupID),()) : body' ++ [(SyncLocalMem, ())])
-                    []
+                                               GroupID) ()) : body' ++ [SyncLocalMem ()])
+                    [] ()
 
-     return [(codeQ, ()),
-             (codeR,())]
-compileDistrPar (DistrPar Warp _ _ _) = error "compileDistrPar: Warp level DistrPar not yet implemented"
-compileDistrPar (DistrPar Thread _ _ _) = error "compileDistrPar: Thread level DistrPar not yet implemented"
-compileDistrPar (DistrPar Grid _ _ _) = error "compileDistrPar: Grid level DistrPar not yet implemented"
+     return [codeQ,
+             codeR]
+compileDistrPar (DistrPar Warp _ _ _ _) = error "compileDistrPar: Warp level DistrPar not yet implemented"
+compileDistrPar (DistrPar Thread _ _ _ _) = error "compileDistrPar: Thread level DistrPar not yet implemented"
+compileDistrPar (DistrPar Grid _ _ _ _) = error "compileDistrPar: Grid level DistrPar not yet implemented"
 compileDistrPar _ = error "compileDistrPar should only be called with DistrPar as argument"

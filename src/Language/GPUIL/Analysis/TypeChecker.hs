@@ -12,7 +12,7 @@ import Control.Monad (when, foldM_)
 
 data Status = Success | Error String
 
-typeCheck :: [VarName] -> Statements a -> Status
+typeCheck :: [VarName] -> [Statement a] -> Status
 typeCheck params stmts = runErr $ checkStmts (initEnv params) stmts
 
 newtype Env = Env (Map.Map String CType)
@@ -51,22 +51,22 @@ runErr e =
 throw :: String -> Err a
 throw = Left
 
-checkStmts :: Env -> Statements a -> Err ()
-checkStmts env stmts = foldM_ checkStmt env (map fst stmts)
+checkStmts :: Env -> [Statement a] -> Err ()
+checkStmts env stmts = foldM_ checkStmt env stmts
 
 checkStmt :: Env -> Statement a -> Err Env
-checkStmt env (If e0 ss0 ss1) =
+checkStmt env (If e0 ss0 ss1 _) =
   do ty0 <- checkExp env e0
      when (ty0 /= CBool) $ throw "First conditional argument should be boolean"
      checkStmts env ss0
      checkStmts env ss1
      return env
-checkStmt env (Assign var e0) =
+checkStmt env (Assign var e0 _) =
   do tyVar <- checkVar env var
      ty0 <- checkExp env e0
      when (tyVar /= ty0) $ throw "Types does not match in assignment"
      return env
-checkStmt env (AssignSub var e0 e1) =
+checkStmt env (AssignSub var e0 e1 _) =
   do tyVar <- checkVar env var
      ty0 <- checkExp env e0
      ty1 <- checkExp env e1
@@ -75,36 +75,36 @@ checkStmt env (AssignSub var e0 e1) =
                                 | otherwise -> throw "Types does not match in assignment"
        (CPtr _ _, _, _) -> throw "Subscript should be integer typed"
        _ -> throw "Subscript assignment to non-array value"
-checkStmt env (Decl var@(x,ty) e0) =
+checkStmt env (Decl var@(x,ty) e0 _) =
   do ty0 <- checkExp env e0
      when (ty0 /= ty) $ throw $ "Right hand side in declaration of " ++ x ++ " , does not match declared type."
      addVar env var
-checkStmt env SyncLocalMem = return env
-checkStmt env SyncGlobalMem = return env
-checkStmt env (Comment _) = return env
-checkStmt env (Allocate var e0) =
+checkStmt env (SyncLocalMem _) = return env
+checkStmt env (SyncGlobalMem _) = return env
+checkStmt env (Comment _ _) = return env
+checkStmt env (Allocate var e0 _) =
   do ty0 <- checkExp env e0
      when (ty0 /= CInt32) $ throw "Size of allocation should be specified as an integer"
      addVar env var
-checkStmt env (For var@(_,ty) e0 ss) =
+checkStmt env (For var@(_,ty) e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= ty || ty /= CInt32) $ throw "Loop variable should be integer"
      newEnv <- addVar env var
      checkStmts newEnv ss
      return env
-checkStmt env (ForAll _ var@(_,ty) e0 ss) =
+checkStmt env (ForAll _ var@(_,ty) e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= ty || ty /= CInt32) $ throw "Loop variable should be integer"
      newEnv <- addVar env var
      checkStmts newEnv ss
      return env
-checkStmt env (DistrPar _ var@(_,ty) e0 ss) =
+checkStmt env (DistrPar _ var@(_,ty) e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= ty || ty /= CInt32) $ throw "Loop variable should be integer"
      newEnv <- addVar env var
      checkStmts newEnv ss
      return env
-checkStmt env (SeqWhile e0 ss) =
+checkStmt env (SeqWhile e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= CBool) $ throw "Loop variable should be bool in while-loop"
      checkStmts env ss

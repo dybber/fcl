@@ -65,15 +65,15 @@ initialState = MState
                } 
 
 type CExp = IExp
-type Program x = WriterT (Statements ()) (State MState) x
+type Program x = WriterT ([Statement ()]) (State MState) x
 
 
-runProgram :: Program () -> (Statements (), [VarName], Int)
+runProgram :: Program () -> ([Statement ()], [VarName], Int)
 runProgram m =
   let (stmts, finalState) = runProg m initialState
   in (stmts, reverse $ params finalState, varCount finalState)
 
-runProg :: Program () -> MState -> (Statements (), MState)
+runProg :: Program () -> MState -> ([Statement ()], MState)
 runProg m init' =
   let (stmts, finalState) = runState (execWriterT m) init'
   in (stmts, finalState)
@@ -83,7 +83,7 @@ evalProgram :: Program a -> a
 evalProgram m = fst (evalState (runWriterT m) initialState)
 
 
-run :: Program () -> Program (Statements ())
+run :: Program () -> Program ([Statement ()])
 run m = do
   s <- get
   let (stmts, s') = runProg m s
@@ -91,7 +91,7 @@ run m = do
   return stmts
 
 addStmt :: Statement () -> Program ()
-addStmt stmt = tell [(stmt,())]
+addStmt stmt = tell [stmt]
 
 newVar :: CType -> String -> Program VarName
 newVar ty name = do
@@ -109,13 +109,13 @@ newVar ty name = do
 let_ :: String -> CType -> CExp -> Program CExp
 let_ name ty e = do
   v <- newVar ty name
-  addStmt (Decl v e)
+  addStmt (Decl v e ())
   return (VarE v)
 
 letVar :: String -> CType -> CExp -> Program VarName
 letVar name ty e = do
   v <- newVar ty name
-  addStmt (Decl v e)
+  addStmt (Decl v e ())
   return v
 
 addParam :: String -> CType -> Program VarName
@@ -128,7 +128,7 @@ var :: VarName -> CExp
 var v = VarE v
 
 comment :: String -> Program ()
-comment msg = addStmt (Comment msg)
+comment msg = addStmt (Comment msg ())
 
 ----------------
 -- Statements --
@@ -145,62 +145,62 @@ for ub f = do
   let_ "ub" int ub >>= (\upperbound -> do
     body <- run (f (VarE i))
                                -- TODO: Var count should be passed on!
-    addStmt $ For i upperbound body)
+    addStmt $ For i upperbound body ())
 
 while :: CExp -> Program () -> Program ()
 while f body = do
   body' <- run body
-  addStmt (SeqWhile f body')
+  addStmt (SeqWhile f body' ())
                                     -- TODO: Var count should be passed on!
 
 iff :: CExp -> (Program (), Program ()) -> Program ()
 iff cond (f1, f2) = do
   f1' <- run f1
   f2' <- run f2
-  addStmt (If cond f1' f2')
+  addStmt (If cond f1' f2' ())
 
 distrPar :: Level -> CExp -> (CExp -> Program ()) -> Program ()
 distrPar lvl ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
     body <- run (f (VarE i))
-    addStmt $ DistrPar lvl i upperbound body)
+    addStmt $ DistrPar lvl i upperbound body ())
 
 forAll :: Level -> CExp -> (CExp -> Program ()) -> Program ()
 forAll lvl ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\upperbound -> do
     body <- run (f (VarE i))
-    addStmt $ ForAll lvl i upperbound body)
+    addStmt $ ForAll lvl i upperbound body ())
 
 allocate :: CType -> CExp -> Program VarName
 allocate ty n = do
   arr <- newVar (pointer [] ty) "arr"
-  addStmt $ Allocate arr n
+  addStmt $ Allocate arr n ()
   return arr
 
 allocateVolatile :: CType -> CExp -> Program VarName
 allocateVolatile ty n = do
   arr <- newVar (pointer [Volatile] ty) "i"
-  addStmt $ Allocate arr n
+  addStmt $ Allocate arr n ()
   return arr
 
 -- assign variable, and add to current list of operators
 assign :: VarName -> CExp -> Program ()
-assign n e = addStmt (Assign n e)
+assign n e = addStmt (Assign n e ())
 
 (<==) :: VarName -> CExp -> Program ()
 n <== e = assign n e
 
 syncGlobal :: Program ()
-syncGlobal =  addStmt SyncGlobalMem
+syncGlobal =  addStmt (SyncGlobalMem ())
 
 syncLocal :: Program ()
-syncLocal =  addStmt SyncLocalMem
+syncLocal =  addStmt (SyncLocalMem ())
 
 -- assign to an array
 assignArray :: VarName -> CExp -> CExp -> Program ()
-assignArray n e idx = addStmt (AssignSub n idx e)
+assignArray n e idx = addStmt (AssignSub n idx e ())
 
 -----------------
 --    Types    --
