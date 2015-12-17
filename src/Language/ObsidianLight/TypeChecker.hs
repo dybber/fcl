@@ -42,7 +42,9 @@ check env (App e0 e1) =
       (e1', ty1) = check env e1
   in case ty0 of
        ty1' :> ty2 | ty1 == ty1' -> (App e0' e1', ty2)
-                   | otherwise -> error "Argument type does not match parameter type in function call"
+                   | otherwise -> error $ concat ["Argument type does not match parameter type in function call.\n",
+                                                  "Expected: ", show ty1', "\n",
+                                                  "Got: ", show ty1, "\n"]
        _ -> error "Non-function type in function position of application"
 check env (Cond e0 e1 e2 _) =
   let (e0', ty0) = check env e0
@@ -109,12 +111,29 @@ check env (ForceLocal e0) =
   let (e0', ty0) = check env e0
   in case ty0 of
        ArrayT lvl ty0' -> (ForceLocal e0', ArrayT lvl ty0')
-       _ -> error "Expect array as argument"
-check env (Concat e0) =
+       _ -> error "Typechecking force: Expecting array as argument"
+check env (Vec es _) =
+  let (es', tys') = unzip $ map (check env) es
+  in case tys' of
+       [] -> error "Empty lists not supported before type inference is implemented"
+       (ty:tys) -> if and (map (== ty) tys)
+                   then (Vec es' (ArrayT Block ty), ArrayT Block ty)
+                   else error "Differing element types in literal vector"
+check env (Concat e0 e1) =
   let (e0', ty0) = check env e0
-  in case ty0 of
-       ArrayT lvlouter (ArrayT _ bty) -> (Concat e0', ArrayT lvlouter bty)
-       _ -> error "Expect array as argument"
+      (e1', ty1) = check env e1
+  in case (ty0, ty1) of
+       (IntT, ArrayT lvlouter (ArrayT _ bty)) -> (Concat e0' e1', ArrayT lvlouter bty)
+       _ -> error "Typechecking concat: Expecting array as argument"
+check env (Assemble e0 e1 e2) =
+  let (e0', ty0) = check env e0
+      (e1', ty1) = check env e1
+      (e2', ty2) = check env e2
+  in case (ty0, ty1, ty2) of
+       (IntT, (IntT :*: IntT) :> IntT, ArrayT lvlouter (ArrayT _ bty)) -> (Assemble e0' e1' e2',
+                                                                           ArrayT lvlouter bty)
+       (IntT, _, ArrayT _ (ArrayT _ _)) -> error ("Second argument to assemble not of type int*int -> int, got: " ++ show ty1)
+       _ -> error "Typechecking assemble: Expecting array as argument"
 
 checkBinOp :: BinOp -> Type -> Type -> Type
 checkBinOp AddI IntT IntT = IntT

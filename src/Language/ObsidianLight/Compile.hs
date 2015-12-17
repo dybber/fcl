@@ -85,10 +85,12 @@ compileFun env e = do
       error "compileFun: cannot return array of arrays"
     TagArray arr -> do
       varOut <- addParam "arrOutput" (pointer [attrGlobal] (arrayElemType arr))
-      varLen <- addParam "lenOutput" int
+      varLen <- addParam "lenOutput" (pointer [attrGlobal] int)
       let f = getPushFn (push arr)
-      f (\(TagInt i) -> assignArray varOut i)
-      assign varLen (arrayLen arr)
+      f (\x -> case x of
+                 TagInt i -> assignArray varOut i
+                 t -> error (show t))
+      assignArray varLen (arrayLen arr) (constant (0 :: Int))
 
 tagArray :: Type -> Level -> CExp -> VarName -> Tagged
 tagArray (ArrayT _ _) _ _ _ = error "Kernels can not accept arrays of arrays"
@@ -117,9 +119,9 @@ convertType (_ :> _) = error "convertType: functions can not be used as argument
 convertType (_ :*: _) = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 
 compBody :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
-compBody _ (IntScalar i) = return (TagInt (constant i))
+compBody _ (IntScalar i)    = return (TagInt (constant i))
 compBody _ (DoubleScalar d) = return (TagDouble (constant d))
-compBody _ (BoolScalar b) = return (TagBool (constant b))
+compBody _ (BoolScalar b)   = return (TagBool (constant b))
 compBody env (App e0 e1) = do
   v0 <- compBody env e0
   case v0 of
@@ -145,8 +147,8 @@ compBody env (Var x _) =
     Nothing -> error "Variable not defined"
 compBody env (Lamb x _ e _) =
   return . TagFn $ \v ->
-    do v' <- lets "v" v
-       compBody (Map.insert x v' env) e
+    do --v' <- lets "v" v
+       compBody (Map.insert x v env) e
 compBody env (Let x e0 e1 _) = do
   v0 <- compBody env e0
   x0 <- lets x v0
@@ -189,13 +191,13 @@ compBody env (Map e0 e1) = do
     (TagFn f, TagArray (Array n ty lvl idx)) ->
       case idx of
         Pull g -> return $ TagArray $
-                    Array { arrayElemType = ty -- TODO this seems wrong, find the correct return type
+                    Array { arrayElemType = ty -- TODO this is wrong, find the correct return type
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Pull (\x -> g x >>= f)
                           }
         Push g -> return . TagArray $
-                    Array { arrayElemType = ty -- TODO this seems wrong
+                    Array { arrayElemType = ty -- TODO this is wrong
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Push (\writer -> g (\e ix -> do v <- f e
@@ -233,19 +235,15 @@ compBody env (Fixpoint e0 e1 e2) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   fixpoint v0 v1 v2
-compBody env (Concat e0) = do
+compBody env (Concat i e0) = do
+  vi <- compBody env i
   v0 <- compBody env e0
-  case v0 of
-    TagArray arr ->
+  case (vi, v0) of
+    (TagInt rn, TagArray arr) ->
       case arrayFun arr of
         Push _ -> error "concat only works when the outer function is a pull array (TODO!)"
         Pull idx -> do
-          arr0 <- (idx (constant (0 :: Int)))
-          -- let arr0 = evalProgram (idx (constant (0 :: Int))) -- TODO: this is bad! Maybe shapes in outermost array?
           let n = arrayLen arr
-          let rn = case arr0 of
-                     TagArray (Array {arrayLen = l}) -> l
-                     _ -> error "Concat does not work with empty arrays of arrays"
           return . TagArray $ Array { arrayElemType = arrayElemType arr
                                     , arrayLen = n `muli` rn
                                     , arrayLevel = arrayLevel arr
@@ -260,7 +258,36 @@ compBody env (Concat e0) = do
                                                       _ -> error "Concat only works with inner-arrays of type push"
                                                   _ -> error "Should not happen")
                                     }
-    _ -> error "Concat should be given an array as first argument"
+    _ -> error "Concat should be given an integer and an array"
+compBody env (Assemble i f e0) = do
+  vi <- compBody env i
+  vf <- compBody env f
+  v0 <- compBody env e0
+  case (vi, vf, v0) of
+    (TagInt rn, TagFn ff, TagArray arr) ->
+      case arrayFun arr of
+        Push _ -> error "Assemble only works when the outer function is a pull array (TODO!)"
+        Pull idx -> do
+          let n = arrayLen arr
+          return . TagArray $ Array { arrayElemType = arrayElemType arr
+                                    , arrayLen = n `muli` rn
+                                    , arrayLevel = arrayLevel arr
+                                    , arrayFun = 
+                                      Push (\writer -> distrPar Block n $ \bix -> do
+                                                arrp <- idx bix
+                                                let writer' a ix = do ix' <- ff (TagPair (TagInt bix) (TagInt ix))
+                                                                      case ix' of
+                                                                        TagInt ix'' -> writer a ix''
+                                                                        _ -> error "Function argument to Assemble should return an integer value"
+                                                case arrp of
+                                                  TagArray arrp' ->
+                                                    case push arrp' of
+                                                      (Array {arrayFun = Push p }) -> p writer'
+                                                      _ -> error "Assemble only works with inner-arrays of type push"
+                                                  _ -> error "Should not happen")
+                                    }
+    _ -> error "Assemble should be given an integer, a function and an array."
+
 
 lets :: String -> Tagged -> Program Tagged
 lets name s =
@@ -324,6 +351,7 @@ fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
           let f' = getPushFn new_arr
           -- materialize before next iteration
           f' (\(TagInt i) -> assignArray var_array i)
+          syncLocal
           cond'' <- liftM unBool (cond (TagArray new_arr))
           assign var_cond cond''
      return (TagArray vararr)

@@ -14,7 +14,7 @@ import Language.GPUIL.Syntax (Level(..))
 data UnOp = AbsI | SignI
   deriving (Show, Eq)
 
-data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | EqI
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
   deriving (Eq, Show)
 
 type Variable = String
@@ -38,6 +38,7 @@ data Exp ty =
   | UnOp UnOp (Exp ty)
   | BinOp BinOp (Exp ty) (Exp ty)
   | Var Variable ty
+  | Vec [Exp ty] ty
   | Lamb Variable Type (Exp ty) ty
   | Let Variable (Exp ty) (Exp ty) ty
   | App (Exp ty) (Exp ty)
@@ -55,7 +56,8 @@ data Exp ty =
   | Generate Level (Exp ty) (Exp ty) -- mkPull
   | Map (Exp ty) (Exp ty)
   | ForceLocal (Exp ty) -- force
-  | Concat (Exp ty)
+  | Concat (Exp ty) (Exp ty)
+  | Assemble (Exp ty) (Exp ty) (Exp ty)
   deriving (Eq, Show)
 
   -- To be added later!
@@ -110,4 +112,17 @@ typeOf (Map e0 e1) =
     (_ :> ty1, ArrayT lvl _) -> ArrayT lvl ty1
     _ -> error "typeOf: Map"
 typeOf (ForceLocal e0) = typeOf e0
-typeOf (Concat e0) = ArrayT undefined (typeOf e0)
+typeOf (Concat _ e0) =
+  case typeOf e0 of
+    ArrayT _ t -> t
+    _ -> error "typeOf: Concat given non-array as third argument"
+typeOf (Assemble _ _ e0) =
+  case typeOf e0 of
+    ArrayT _ t -> t
+    _ -> error "typeOf: Assemble given non-array as third argument"
+typeOf (Vec [] _) = error "Cannot type empty list"
+typeOf (Vec es _) =
+  let (t:ts) = map typeOf es
+  in if and $ zipWith (==) (t:ts) ts
+       then ArrayT undefined t
+       else error ""

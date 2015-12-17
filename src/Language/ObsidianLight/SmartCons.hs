@@ -2,46 +2,31 @@
 module Language.ObsidianLight.SmartCons
 (Type(..),
  Level(..),
+ Untyped,
  Obs, runObs,
  
- constant,
+ constant, fromList,
 
  addi, subi, muli, divi, modi, mini,
- eqi,
+ andi, xori, shiftLi, shiftRi,
+ eqi, neqi,
 
- lam, app, pair, lett, if_, proj1, proj2,
+ lam, app, pair, lett, if_, fst, snd,
 
- map, generate, force, index, (!), len, fixpoint, concat,
-
- compile, Kernel(..)
-
+ map, generate, force, index, (!), len, fixpoint, concat, assemble
 )
 where
 
 import Control.Monad.State
 import Control.Applicative
-import Prelude hiding (map, concat)
+import Prelude hiding (map, concat, fst, snd)
 
 import Language.ObsidianLight.Syntax
-import Language.GPUIL.Syntax (Kernel(..))
-import Language.ObsidianLight.TypeChecker (typecheck)
-import qualified Language.ObsidianLight.Compile as C (compile)
 
 newtype Obs x = Obs (State Int (Exp Untyped))
 
 runObs :: Obs a -> Exp Untyped
 runObs (Obs m) = evalState m 0
-
-compile :: String -> Obs a -> IO Kernel
-compile name e = do
-  putStrLn ("Unfolding Smart constructors: " ++ name)
-  let uexp = runObs e
-  print uexp
-  putStrLn ("Typechecking: " ++ name)
-  let (texp, _) = typecheck uexp
-  print texp
-  putStrLn ("Compiling: " ++ name)
-  C.compile name texp
 
 newVar :: State Int String
 newVar = do
@@ -58,6 +43,13 @@ instance Scalar Bool where
 instance Scalar Double where
   constant = Obs . return . DoubleScalar
 
+fromList :: [Obs a] -> Obs [a]
+fromList arr =
+  Obs $ do
+    xs <- mapM unObs arr
+    return (Vec xs Untyped)
+ where unObs (Obs a) = a
+
 addi, subi, muli, divi, modi, mini :: Obs Int -> Obs Int -> Obs Int
 addi (Obs x0) (Obs x1) = Obs (BinOp AddI <$> x0 <*> x1)
 subi (Obs x0) (Obs x1) = Obs (BinOp SubI <$> x0 <*> x1)
@@ -66,12 +58,20 @@ divi (Obs x0) (Obs x1) = Obs (BinOp DivI <$> x0 <*> x1)
 modi (Obs x0) (Obs x1) = Obs (BinOp ModI <$> x0 <*> x1)
 mini (Obs x0) (Obs x1) = Obs (BinOp MinI <$> x0 <*> x1)
 
+andi, xori, shiftLi, shiftRi :: Obs Int -> Obs Int -> Obs Int
+andi (Obs x0) (Obs x1) = Obs (BinOp AndI <$> x0 <*> x1)
+xori (Obs x0) (Obs x1) = Obs (BinOp XorI <$> x0 <*> x1)
+shiftLi (Obs x0) (Obs x1) = Obs (BinOp ShiftLI <$> x0 <*> x1)
+shiftRi (Obs x0) (Obs x1) = Obs (BinOp ShiftRI <$> x0 <*> x1)
+
+
 absi, signi :: Obs Int -> Obs Int
 absi (Obs x0) = Obs (UnOp AbsI <$> x0)
 signi (Obs x0) = Obs (UnOp SignI <$> x0)
 
-eqi :: Obs Int -> Obs Int -> Obs Bool
+neqi, eqi :: Obs Int -> Obs Int -> Obs Bool
 eqi (Obs x0) (Obs x1) = Obs (BinOp EqI <$> x0 <*> x1)
+neqi (Obs x0) (Obs x1) = Obs (BinOp NeqI <$> x0 <*> x1)
 
 instance Num (Obs Int) where
   (+) = addi
@@ -106,17 +106,18 @@ if_ (Obs econd) (Obs etrue) (Obs efalse) =
 pair :: Obs a -> Obs b -> Obs (a,b)
 pair (Obs e0) (Obs e1) = Obs (Pair <$> e0 <*> e1)
 
-proj1 :: Obs (a,b) -> Obs a
-proj1 (Obs e) = Obs (Proj1E <$> e)
+fst :: Obs (a,b) -> Obs a
+fst (Obs e) = Obs (Proj1E <$> e)
 
-proj2 :: Obs (a,b) -> Obs b
-proj2 (Obs e) = Obs (Proj2E <$> e)
+snd :: Obs (a,b) -> Obs b
+snd (Obs e) = Obs (Proj2E <$> e)
 
 index :: Obs [a] -> Obs Int -> Obs a
 index (Obs arr) (Obs idx) = Obs (Index <$> arr <*> idx)
 
 (!) :: Obs [a] -> Obs Int -> Obs a
 (!) = index
+
 
 len :: Obs [a] -> Obs Int
 len (Obs arr) = Obs (Length <$> arr)
@@ -130,8 +131,11 @@ generate lvl (Obs n) (Obs f) = Obs (Generate lvl <$> n <*> f)
 fixpoint :: Obs (a -> Bool) -> Obs (a -> a) -> Obs a -> Obs a
 fixpoint (Obs cond) (Obs body) (Obs init') = Obs (Fixpoint <$> cond <*> body <*> init')
 
-concat :: Obs [[a]] -> Obs [a]
-concat (Obs arr) = Obs (Concat <$> arr)
+concat :: Obs Int -> Obs [[a]] -> Obs [a]
+concat (Obs i) (Obs arr) = Obs (Concat <$> i <*> arr)
+
+assemble :: Obs Int -> Obs ((Int, Int) -> Int) -> Obs [[a]] -> Obs [a]
+assemble (Obs i) (Obs f) (Obs arr) = Obs (Assemble <$> i <*> f <*> arr)
 
 force :: Obs a -> Obs a
 force (Obs e) = Obs (ForceLocal <$> e)

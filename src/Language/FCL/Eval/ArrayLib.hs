@@ -30,9 +30,13 @@ indices :: FCLArray a -> [Int]
 indices arr = [0..len arr-1]
 
 fromList :: [a] -> FCLArray a
-fromList ls = FCLArray { len = length ls
-                       , idx = (ls!!)
-                       }
+fromList ls =
+  let n = length ls
+  in FCLArray { len = n
+              , idx = \i -> if i < n
+                              then ls !! i
+                              else error ("Array index out of bounds. N=" ++ show n ++ " got index " ++ show i)
+              }
 
 fromFunction :: Int -> (Int -> a) -> FCLArray a
 fromFunction = FCLArray
