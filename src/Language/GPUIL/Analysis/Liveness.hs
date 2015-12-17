@@ -19,8 +19,8 @@ liveInExp :: IExp -> LiveInfo
 liveInExp e =
   case e of
     IndexE name e0      -> Set.insert name (liveInExp e0)
-    VarE name@(_, CPtr _ _) -> Set.singleton name
-    VarE _            -> Set.empty
+--    VarE (_, CPtr _ _)  -> Set.empty
+    VarE name           -> Set.singleton name
     -- Recursive
     UnaryOpE _ e0       -> liveInExp e0
     BinOpE _ e0 e1      -> liveInExp e0 `Set.union` liveInExp e1
@@ -96,12 +96,19 @@ liveness stmts graph =
     gen = gensLiveness stmts
     kill = killsLiveness stmts
 
-    -- Update in set to be union of all out-sets of predecessors
+    -- Update in set by removing killset and adding gen
     updateIn outMap n =
       lkup n gen `Set.union` (lkup n outMap `Set.difference` lkup n kill)
 
-    -- Update outset by removing killset and adding gen
+    -- Update out set to be union of all in-sets of successors
     updateOut inMap n =
       Set.fold (\p s -> Set.union s (lkup p inMap)) Set.empty (successors n graph)
 
   in backwardAnalysis updateIn updateOut graph
+
+ss0 = addLabels  [Decl ("a",CInt32) (IntE 0) (),
+                  Decl ("b",CInt32) (IntE 512) (),
+                  Decl ("c",CInt32) (VarE ("a",CInt32)) (),
+                  Decl ("a",CInt32) (IntE 17) ()]
+g = makeFlowGraph ss0
+(in_,out_) = liveness ss0 g

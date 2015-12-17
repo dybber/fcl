@@ -10,7 +10,7 @@ import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
--- Remember to check that writes to pointers are not removed
+-- TODO: Remember to check that writes to pointers are not removed
 
 deadCodeElimination :: [Statement Label]
                     -> Map Label (Set VarName)
@@ -20,9 +20,11 @@ deadCodeElimination stmts liveOutMap =
     canElim :: Label -> VarName -> Bool
     canElim lbl var =
       case Map.lookup lbl liveOutMap of
-        Just liveVars -> Set.member var liveVars
-        Nothing -> error ("No liveness information for this statement: " ++ show lbl)
+        Just liveVars -> not (Set.member var liveVars)
+        Nothing -> error "No liveness information for this statement."
 
+    elimStmt (Assign (_, CPtr _ _) _ lbl) = False
+    elimStmt (Decl (_, CPtr _ _) _ lbl) = False
     elimStmt (Assign v _ lbl) = canElim lbl v
     elimStmt (Decl v _ lbl) = canElim lbl v
     elimStmt _ = False
@@ -42,17 +44,3 @@ filterStmt p (stmt:rest)
                     If e ss0 ss1 lbl -> If e (filterStmt p ss0) (filterStmt p ss1) lbl
                     ss' -> ss'
       in stmt' : filterStmt p rest
-                    
-
-    -- -- replace variables if they are constant
-    -- rep :: Label -> IExp -> IExp
-    -- rep lbl e@(VarE v) =
-    --   case isConstant v lbl of
-    --     Nothing -> e
-    --     Just e' -> e'
-    -- rep lbl (UnaryOpE op e0) = UnaryOpE op (rep lbl e0)
-    -- rep lbl (BinOpE op e0 e1) = BinOpE op (rep lbl e0) (rep lbl e1)
-    -- rep lbl (IfE e0 e1 e2) = IfE (rep lbl e0) (rep lbl e1) (rep lbl e2)
-    -- rep lbl (IndexE v e) = IndexE v (rep lbl e)
-    -- rep lbl (CastE v e) = CastE v (rep lbl e)
-    -- rep _ e = e

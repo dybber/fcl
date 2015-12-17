@@ -38,7 +38,7 @@ checkVar (Env env) (x,ty) =
                                ,") at definition (variable "
                                , x
                                , ")"])
-    Nothing -> fail "Variable not defined"
+    Nothing -> throw ("Typechecking error: Variable not defined: " ++ x)
 
 type Err a = Either String a
 
@@ -64,7 +64,7 @@ checkStmt env (If e0 ss0 ss1 _) =
 checkStmt env (Assign var e0 _) =
   do tyVar <- checkVar env var
      ty0 <- checkExp env e0
-     when (tyVar /= ty0) $ throw "Types does not match in assignment"
+     when (tyVar /= ty0) $ throw ("Types does not match in assignment " ++ show var)
      return env
 checkStmt env (AssignSub var e0 e1 _) =
   do tyVar <- checkVar env var

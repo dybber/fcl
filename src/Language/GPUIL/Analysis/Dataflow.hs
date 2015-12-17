@@ -57,61 +57,41 @@ addEdgesM list = modify (addEdges list)
 
 makeFlowGraph :: [Statement Label] -> Graph Label
 makeFlowGraph stmts =
-  let start = Label 0
-      dummyExit = Label (-1)
-      empty = emptyGraph start dummyExit
-  in execState (buildGraphLs stmts [start]) empty
-
-setExitM :: lbl -> State (Graph lbl) ()
-setExitM lbl = modify (setExitNode lbl)
+  let root = Label 0
+      empty = emptyGraph root root -- start with root and exit on the same node
+  in execState (buildGraphLs stmts [root]) empty
 
 buildGraphLs :: [Statement Label] -> [Label] -> State (Graph Label) [Label]
 buildGraphLs [] preds = return preds
-buildGraphLs (s:ss) preds = do 
-  preds' <- buildGraph s preds
-  setExitM (labelOf s) -- keep updating the exitNode until we reach the very end
-  buildGraphLs ss preds'
+buildGraphLs (s:ss) preds =
+  let setExitM :: lbl -> State (Graph lbl) ()
+      setExitM lbl = modify (setExitNode lbl)
+  in do preds' <- buildGraph s preds
+        setExitM (labelOf s) -- keep updating the exitNode until we reach the very end
+        buildGraphLs ss preds'
+
+mkLoop :: [Statement Label] -> Label -> [Label] -> State (Graph Label) [Label]
+mkLoop ss lbl preds = 
+  do end0 <- buildGraphLs ss [lbl]
+     addEdgesM [(p, lbl) | p <- preds ++ end0]
+     return [lbl]
 
 buildGraph :: Statement Label -> [Label] -> State (Graph Label) [Label]
+buildGraph (For _ _ ss0 lbl) preds        = mkLoop ss0 lbl preds
+buildGraph (ForAll _ _ _ ss0 lbl) preds   = mkLoop ss0 lbl preds
+buildGraph (DistrPar _ _ _ ss0 lbl) preds = mkLoop ss0 lbl preds
+buildGraph (SeqWhile _ ss0 lbl) preds     = mkLoop ss0 lbl preds
 buildGraph (If _ ss0 ss1 lbl) preds =
   do addEdgesM [(p, lbl) | p <- preds]
      end0 <- buildGraphLs ss0 [lbl]
      end1 <- buildGraphLs ss1 [lbl]
      return (end0 ++ end1)
-buildGraph (For _ _ ss0 lbl) preds =
-  do end0 <- buildGraphLs ss0 [lbl]
-     addEdgesM [(p, lbl) | p <- preds ++ end0]
-     if not (null ss0)
-        then addEdgesM [(p, (labelOf (head ss0))) | p <- end0]
-        else return ()
-     return [lbl] -- end0 
-buildGraph (ForAll _ _ _ ss0 lbl) preds =
-  do end0 <- buildGraphLs ss0 [lbl]
-     addEdgesM [(p, lbl) | p <- preds ++ end0]
-     if not (null ss0)
-        then addEdgesM [(p, (labelOf (head ss0))) | p <- end0]
-        else return ()
-     return [lbl] -- end0
-buildGraph (DistrPar _ _ _ ss0 lbl) preds =
-  do end0 <- buildGraphLs ss0 [lbl]
-     addEdgesM [(p, lbl) | p <- preds ++ end0]
-     if not (null ss0)
-        then addEdgesM [(p, (labelOf (head ss0))) | p <- end0]
-        else return ()
-     return [lbl] -- end0
-buildGraph (SeqWhile _ ss0 lbl) preds =
-  do end0 <- buildGraphLs ss0 [lbl]
-     addEdgesM [(p, lbl) | p <- preds ++ end0]
-     -- if not (null ss0)
-     --    then addEdgesM [(p, (labelOf (head ss0))) | p <- end0]
-     --    else return ()
-     return [lbl] -- end0
 buildGraph stmt preds =
   do let lbl = labelOf stmt
      addEdgesM [(p, lbl) | p <- preds]
      return [lbl]
 
--- TODO: eliminate code duplication
+-- TODO: eliminate code duplication below
 
 -- Using work-list algorithm
 forwardAnalysis :: Eq a =>
@@ -143,7 +123,39 @@ forwardAnalysis updateIn updateOut graph =
     initWorklist = nodes graph -- dfs graph (startNode graph)
   in loop initIn initOut initWorklist
 
--- Using work-list algorithm
+-- This does not currently work. Stops too early
+-- TODO fix!
+-- -- Using work-list algorithm
+-- backwardAnalysis :: Eq a =>
+--                    (Map Label (Set a) -> Label -> Set a)
+--                 -> (Map Label (Set a) -> Label -> Set a)
+--                 -> Graph Label
+--                 -> (Map Label (Set a),
+--                     Map Label (Set a))
+-- backwardAnalysis updateIn updateOut graph =
+--   let
+--     loop inMap outMap [] = (inMap, outMap)
+--     loop inMap outMap (w:newWL) =
+--           let out =
+--                 case Map.lookup w outMap of
+--                   Just x'  -> x'
+--                   Nothing -> Set.empty
+
+--               in'  = updateIn outMap w
+--               inMap' = Map.insert w in' inMap
+
+--               out' = updateOut inMap' w
+--               outMap' = Map.insert w out' outMap
+--           in if out /= out'
+--                then loop inMap' outMap' (newWL `Data.List.union` (Set.toList (predecessors w graph)))
+--                else loop inMap' outMap' newWL
+
+--     initIn = Map.empty
+--     initOut = Map.empty
+--     initWorklist = reverse $ nodes graph -- dfsBackwards graph (exitNode graph)
+--   in loop initIn initOut initWorklist
+
+-- Slower but works
 backwardAnalysis :: Eq a =>
                    (Map Label (Set a) -> Label -> Set a)
                 -> (Map Label (Set a) -> Label -> Set a)
@@ -154,21 +166,21 @@ backwardAnalysis updateIn updateOut graph =
   let
     loop inMap outMap [] = (inMap, outMap)
     loop inMap outMap (w:newWL) =
-          let out =
-                case Map.lookup w outMap of
-                  Just x'  -> x'
-                  Nothing -> Set.empty
-
-              in'  = updateIn outMap w
+          let in'  = updateIn outMap w
               inMap' = Map.insert w in' inMap
 
               out' = updateOut inMap' w
               outMap' = Map.insert w out' outMap
-          in if out /= out'
-               then loop inMap' outMap' (newWL `Data.List.union` (Set.toList (predecessors w graph)))
-               else loop inMap' outMap' newWL
+          in loop inMap' outMap' newWL
 
     initIn = Map.empty
     initOut = Map.empty
-    initWorklist = nodes graph -- dfsBackwards graph (exitNode graph)
-  in loop initIn initOut initWorklist
+    initWorklist = reverse $ nodes graph -- dfsBackwards graph (exitNode graph)
+
+    fixp in_ out_ =
+      let (in', out') = loop in_ out_ initWorklist
+      in if in' /= in_ || out_ /= out'
+           then fixp in' out'
+           else (in_, out_)
+    
+  in fixp initIn initOut
