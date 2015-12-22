@@ -14,29 +14,53 @@ Library
 
   HS-source-dirs: src
 
-  exposed-modules: Language.FCL.Syntax
+  exposed-modules: Language.FCL
+                   Language.FCL.Syntax
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
-                   Language.FCL.TypeInference
+                   Language.FCL.Compile
+                   Language.FCL.TypeChecker
+                   Language.FCL.SmartCons
+                   Language.FCL.Library
+
+                   Language.GPUIL
+                   Language.GPUIL.Syntax
+                   Language.GPUIL.Cons
+                   Language.GPUIL.SmartCons
+                   Language.GPUIL.ConvertLoops
+                   Language.GPUIL.SimpleAllocator
+                   Language.GPUIL.PrettyLib
+                   Language.GPUIL.PrettyOpenCL
+                   Language.GPUIL.Analysis
+                   Language.GPUIL.Analysis.Graph
+                   Language.GPUIL.Analysis.Dataflow
+                   Language.GPUIL.Analysis.Liveness
+                   Language.GPUIL.Analysis.ReachingDefs
+                   Language.GPUIL.Analysis.Test
+                   Language.GPUIL.Analysis.TypeChecker
+                   Language.GPUIL.Optimise
+                   Language.GPUIL.Optimise.ConstantFold
+                   Language.GPUIL.Optimise.ConstantPropagation
+                   Language.GPUIL.Optimise.DeadCodeElimination
 
   Default-Language: Haskell2010
   GHC-Options: -Wall
   GHC-prof-options: -fprof-auto
 
-Test-suite fcl-unit-test
-  Type:                 exitcode-stdio-1.0
-  Main-is:              Main.hs
-  Hs-Source-Dirs:       test
-  other-modules:        FCLTest_Eval
-                        FCLTest_TypeInference
-                        FCLGen_Syntax
-  Default-Language:     Haskell2010
-  Build-Depends:        Cabal >= 1.20.0
-                      , HUnit >= 1.2
-                      , QuickCheck == 2.8.*
-                      , base
-                      , fcl
-                      , random >= 1.0.1
-                      , test-framework >= 0.4.0
-                      , test-framework-hunit
-                      , test-framework-quickcheck2
+-- Test-suite fcl-unit-test
+--   Type:                 exitcode-stdio-1.0
+--   Main-is:              Main.hs
+--   Hs-Source-Dirs:       test
+--   other-modules:        FCLTest_Eval
+--                         FCLTest_TypeInference
+--                         FCLGen_Syntax
+--   Default-Language:     Haskell2010
+--   Build-Depends:        Cabal >= 1.20.0
+--                       , HUnit >= 1.2
+--                       , QuickCheck == 2.8.*
+--                       , base
+--                       , fcl
+--                       , random >= 1.0.1
+--                       , test-framework >= 0.4.0
+--                       , test-framework-hunit
+--                       , test-framework-quickcheck2
