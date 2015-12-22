@@ -1,6 +1,6 @@
-module Language.ObsidianLight.Library where
+module Language.FCL.Library where
 
-import Language.ObsidianLight.SmartCons
+import Language.FCL.SmartCons
 import Prelude hiding (map, splitAt, zipWith, concat, fst, snd)
 
 -------------

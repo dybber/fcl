@@ -1,16 +1,16 @@
-module Language.ObsidianLight
- ( module Language.ObsidianLight.SmartCons,
-   module Language.ObsidianLight.Library,
+module Language.FCL
+ ( module Language.FCL.SmartCons,
+   module Language.FCL.Library,
    compile, compileAndPrint, eval, Kernel(..), E.Value(..)
  ) 
 where
 
-import Language.ObsidianLight.SmartCons
-import Language.ObsidianLight.Library
+import Language.FCL.SmartCons
+import Language.FCL.Library
 
-import qualified Language.ObsidianLight.Eval        as E (interp, emptyEnv, Value(..))
-import qualified Language.ObsidianLight.TypeChecker as T (typecheck)
-import qualified Language.ObsidianLight.Compile     as C (compile)
+import qualified Language.FCL.Eval        as E (interp, emptyEnv, Value(..))
+import qualified Language.FCL.TypeChecker as T (typecheck)
+import qualified Language.FCL.Compile     as C (compile)
 
 import Language.GPUIL.Syntax (Kernel(..))
 import Language.GPUIL (renderKernel)

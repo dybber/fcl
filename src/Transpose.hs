@@ -1,6 +1,6 @@
 module Transpose where
 
-import Language.ObsidianLight
+import Language.FCL
 import Prelude hiding (map, splitAt, zipWith, concat, fst, snd, reverse)
 
 transpose :: Obs (Int -> Int -> [Int] -> [Int])
@@ -37,7 +37,7 @@ splitGrid splitSize rows cols elems  =
 
       mkTile :: Obs Int -> Obs Int -> Obs [Int]
       mkTile p q =
-        generate Block (splitSize*splitSize)
+        generate Block tileSize
            (lam IntT (\k -> let i = k `divi` splitSize -- row in inner array
                                 j = k `modi` splitSize -- column in inner array
                             in elems ! (p*m*tileSize + q*splitSize + m*splitSize*i + j)))

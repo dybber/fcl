@@ -1,8 +1,8 @@
-module Language.ObsidianLight.TypeChecker
+module Language.FCL.TypeChecker
  (typecheck)
 where
 
-import Language.ObsidianLight.Syntax
+import Language.FCL.Syntax
 import qualified Data.Map as Map
 
 type Env = Map.Map Variable Type

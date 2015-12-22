@@ -1,9 +1,9 @@
-module Language.ObsidianLight.Eval where
+module Language.FCL.Eval where
 
 import qualified Data.Map as Map
 import Data.Bits ((.&.), xor, shiftL, shiftR)
 
-import Language.ObsidianLight.Syntax
+import Language.FCL.Syntax
 import Language.FCL.Eval.ArrayLib
 import qualified Language.FCL.Eval.ArrayLib as Arr
 

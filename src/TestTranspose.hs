@@ -1,5 +1,5 @@
 
-import Language.ObsidianLight
+import Language.FCL
 import Prelude hiding (map, splitAt, zipWith, concat, fst, snd, reverse)
 import qualified Prelude
 import Transpose

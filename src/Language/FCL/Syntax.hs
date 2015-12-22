@@ -1,4 +1,4 @@
-module Language.ObsidianLight.Syntax (
+module Language.FCL.Syntax (
   Type(..),
   Exp(..),
   Level(..),

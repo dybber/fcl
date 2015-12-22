@@ -1,7 +1,7 @@
 module Reduce where
 
 
-import Language.ObsidianLight
+import Language.FCL
 
 import Prelude hiding (map, splitAt, zipWith, concat, fst, snd)
 

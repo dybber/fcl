@@ -1,9 +1,9 @@
-module Language.ObsidianLight.Compile where
+module Language.FCL.Compile where
 
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
-import Language.ObsidianLight.Syntax
+import Language.FCL.Syntax
 import Language.GPUIL
 
 type PushFn a = ((a -> CExp -> Program ()) -> Program ())

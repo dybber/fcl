@@ -1,6 +1,6 @@
 module TestEval where
 
-import Language.ObsidianLight
+import Language.FCL
 import Prelude hiding (map, splitAt, zipWith, concat)
 import qualified Prelude
 

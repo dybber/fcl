@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-module Language.ObsidianLight.SmartCons
+module Language.FCL.SmartCons
 (Type(..),
  Level(..),
  Untyped,
@@ -21,7 +21,7 @@ import Control.Monad.State
 import Control.Applicative
 import Prelude hiding (map, concat, fst, snd)
 
-import Language.ObsidianLight.Syntax
+import Language.FCL.Syntax
 
 newtype Obs x = Obs (State Int (Exp Untyped))
 
