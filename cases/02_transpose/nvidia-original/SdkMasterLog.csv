@@ -1,0 +1,10 @@
+oclTranspose-Outer-simple copy, Throughput = 4.6236 GB/s, Time = 0.00363 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-shared memory copy, Throughput = 2.1559 GB/s, Time = 0.00778 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-uncoalesced copy, Throughput = 1.5844 GB/s, Time = 0.01059 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-naive, Throughput = 2.2367 GB/s, Time = 0.00750 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-optimized, Throughput = 1.5152 GB/s, Time = 0.01107 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-simple copy, Throughput = 4.5971 GB/s, Time = 0.00365 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-shared memory copy, Throughput = 2.0887 GB/s, Time = 0.00803 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-uncoalesced copy, Throughput = 1.5199 GB/s, Time = 0.01104 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-naive, Throughput = 2.2459 GB/s, Time = 0.00747 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256
+oclTranspose-Outer-optimized, Throughput = 1.4818 GB/s, Time = 0.01132 s, Size = 4194304 fp32 elements, NumDevsUsed = 1, Workgroup = 256

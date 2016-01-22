@@ -1,4 +1,10 @@
-# pragma OPENCL EXTENSION cl_intel_printf :enable
+
+// Direct translation of CUDA version from NVIDIA blogpost
+// http://devblogs.nvidia.com/parallelforall/using-shared-memory-cuda-cc/
+// https://github.com/parallel-forall/code-samples/blob/master/series/cuda-cpp/shared-memory/shared-memory.cu
+
+// Original Copyright notice from NVIDIA, see LICENSE file
+// (compilation errors if inserted in this file)
 
 __kernel void staticReverse(__global int *d, const int n)
 {

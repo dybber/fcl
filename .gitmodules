@@ -1,3 +1,6 @@
 [submodule "cases/Obsidian"]
 	path = obsidian-experiments/Obsidian
 	url = git@github.com:svenssonjoel/Obsidian
+[submodule "microcl"]
+	path = microcl
+	url = git@github.com:dybber/microcl.git
