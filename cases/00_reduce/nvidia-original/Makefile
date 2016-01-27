@@ -1,5 +1,5 @@
-INCLUDEDIR = -I../shared/nvidia-opencl/include -Isrc
-LIBDIR = -L../shared/nvidia-opencl/lib
+INCLUDEDIR = -I../../shared/nvidia-opencl/include -Isrc
+LIBDIR = -L../../shared/nvidia-opencl/lib
 CFLAGS=-Wall -m64 -O3 -DUNIX
 LIB= -lshrUtils -loclUtils -lOpenCL
 
