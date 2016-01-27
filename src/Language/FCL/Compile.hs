@@ -117,6 +117,7 @@ convertType BoolT = bool
 convertType (ArrayT _ ty) = pointer [] (convertType ty)
 convertType (_ :> _) = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _) = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
+convertType (TyVar _) = error "convertType: All type variables should have been resolved by now"
 
 compBody :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
 compBody _ (IntScalar i)    = return (TagInt (constant i))
@@ -144,7 +145,7 @@ compBody env (Proj2E e) = do
 compBody env (Var x _) =
   case Map.lookup x env of
     Just v -> return v
-    Nothing -> error "Variable not defined"
+    Nothing -> error ("Compile: Variable not defined: " ++ x)
 compBody env (Lamb x _ e _) =
   return . TagFn $ \v ->
     do --v' <- lets "v" v

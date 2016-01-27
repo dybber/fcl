@@ -1,0 +1,31 @@
+fun reduceAddi = reduce addi
+
+// TODO: selecting work group size and other launch parameters
+// TODO: add timing statements
+// TODO later: add mmap/unmap
+
+schedule main () {
+  device dev0 = getBestDevice()
+  kernel red = mkKernel(reduceAddi)
+
+  log("Read data")
+  array<int> input = readIntCSV("testdata0.csv")
+
+  log("data to device")
+  devarray<int> a = toDevice(dev0,input)
+  log("do reduction")
+  while(length(a) > 1) {
+    log("call reduce kernel")
+    call(red,a)
+  }
+
+  log("data to host")
+  array<int> b = toHost(a)
+
+  log("release everything")
+  releaseHostMemory(input)
+  releaseDeviceMemory(a)
+  releaseHostMemory(b)
+  releaseKernel(red)
+  releaseDevice(dev0)
+}

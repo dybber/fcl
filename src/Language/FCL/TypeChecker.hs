@@ -10,9 +10,22 @@ type Env = Map.Map Variable Type
 emptyEnv :: Env
 emptyEnv = Map.empty
 
-typecheck :: Exp ty -> (Exp Type, Type)
-typecheck = check emptyEnv
+typecheck :: Prog ty -> (Exp Type, Type)
+typecheck = typecheckProg emptyEnv
 
+typecheckProg :: Env -> Prog ty -> (Exp Type, Type)
+typecheckProg _   [] = (Var "main" (IntT :> IntT), IntT :> IntT)
+typecheckProg env (d:ds) =
+  let (x, e, ty) = typecheckDef env d
+      (rest, ty_rest) = typecheckProg (Map.insert x ty env) ds
+  in (Let x e rest ty_rest, ty_rest)
+
+-- TODO check annotations against definitions
+typecheckDef :: Env -> Definition ty -> (Variable, Exp Type, Type)
+typecheckDef env (Definition v _ e) =
+  let (ety, ty) = (check env e)
+  in (v, ety, ty)
+  
 check :: Env -> Exp ty -> (Exp Type, Type)
 check _ (IntScalar v) = (IntScalar v, IntT)
 check _ (DoubleScalar v) = (DoubleScalar v, DoubleT)
@@ -29,7 +42,7 @@ check env (BinOp op e0 e1) =
 check env (Var x _) =
   case (Map.lookup x env) of
     Just ty_env -> (Var x ty_env, ty_env)
-    Nothing     -> error "Unbound variable"
+    Nothing     -> error ("Unbound variable " ++ x)
 check env (Lamb x ty e _) =
   let (e', ty') = check (Map.insert x ty env) e
   in (Lamb x ty e' ty', ty :> ty')
@@ -143,6 +156,7 @@ checkBinOp DivI IntT IntT = IntT
 checkBinOp ModI IntT IntT = IntT
 checkBinOp MinI IntT IntT = IntT
 checkBinOp EqI  IntT IntT = BoolT
+checkBinOp NeqI IntT IntT = BoolT
 checkBinOp op   _    _    = error ("checkBinOp: Illegal arguments to built-in operator " ++ show op)
 
 checkUnOp :: UnOp -> Type -> Type

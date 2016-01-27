@@ -6,15 +6,18 @@ module Language.FCL.Syntax (
   BinOp(..),
   Variable,
   typeOf,
-  Untyped(Untyped)
+  Untyped(Untyped),
+  Definition(..),
+  Prog,
 ) where
 
 import Language.GPUIL.Syntax (Level(..))
 
-data UnOp = AbsI | SignI
+data UnOp = AbsI | SignI | NegateI
   deriving (Show, Eq)
 
-data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
+           | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
   deriving (Eq, Show)
 
 type Variable = String
@@ -26,10 +29,16 @@ data Type =
     IntT
   | BoolT
   | DoubleT
+  | TyVar String
   | Type :> Type
   | Type :*: Type
   | ArrayT Level Type
  deriving (Eq, Show)
+
+type Prog ty = [Definition ty]
+
+data Definition ty = Definition Variable (Maybe Type) (Exp ty)
+ deriving Show
 
 data Exp ty =
     IntScalar Int

@@ -43,6 +43,12 @@ unpar d = d
 brackets :: Doc -> Doc
 brackets d = char '[' :+: d :+: char ']'
 
+braces :: Doc -> Doc
+braces d = char '{' :+: d :+: char '}'
+
+quote :: Doc -> Doc
+quote d = char '"' :+: d :+: char '"'
+
 text :: String -> Doc
 text = Text
 

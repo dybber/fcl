@@ -11,15 +11,17 @@ Library
                , base >= 4 && < 4.8
                , containers >= 0.5
                , mtl >= 2.1
+               , parsec >= 3.1.5
 
   HS-source-dirs: src
 
   exposed-modules: Language.FCL
                    Language.FCL.Syntax
+                   Language.FCL.Parser
+                   Language.FCL.TypeChecker
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
-                   Language.FCL.TypeChecker
                    Language.FCL.SmartCons
                    Language.FCL.Library
 
@@ -46,6 +48,20 @@ Library
   Default-Language: Haskell2010
   GHC-Options: -Wall
   GHC-prof-options: -fprof-auto
+
+Executable fcl
+  Main-is: src/Main.hs
+
+  Build-depends: base >= 4 && < 4.8,
+                 array >= 0.4,
+                 mtl >= 2.2.1,
+                 containers,
+                 fcl
+
+  Default-Language:   Haskell2010
+
+  Ghc-Options:        -Wall
+
 
 -- Test-suite fcl-unit-test
 --   Type:                 exitcode-stdio-1.0

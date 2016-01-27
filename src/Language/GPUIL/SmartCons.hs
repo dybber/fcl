@@ -54,7 +54,7 @@ import Language.GPUIL.Syntax as AST
 newtype Type t = T CType
 data Pointer t
 
-newtype Exp t = E (IExp NoType)
+newtype Exp t = E IExp
 newtype Var t = V VarName
 
 
@@ -64,7 +64,7 @@ newtype Var t = V VarName
 data MState = MState
               { params :: [VarName]
               , varCount :: Int
-              , statements :: Statements () NoType
+              , statements :: [Statement ()]
               }
 initialState :: MState
 initialState = MState
@@ -82,7 +82,7 @@ type Grid  = Step Block
 
 type Program lvl x = State MState x
 
-generateKernel :: String -> Program lvl () -> Kernel NoType
+generateKernel :: String -> Program lvl () -> Kernel
 generateKernel name m =
   let finalState = runProgram m initialState
   in Kernel { kernelName = name
@@ -95,9 +95,9 @@ runProgram m init' =
   let finalState = execState m init'
   in finalState { statements = reverse (statements finalState) }
 
-addStmt :: Statement () NoType -> Program lvl ()
+addStmt :: Statement () -> Program lvl ()
 addStmt stmt =
-  modify (\s -> (s {statements = (stmt, ()) : statements s }))
+  modify (\s -> (s {statements = stmt : statements s }))
 
 newVar :: Type t -> String -> Program lvl VarName
 newVar (T ty) name = do
@@ -115,13 +115,13 @@ newVar (T ty) name = do
 let_ :: String -> Type t -> Exp t -> Program lvl (Exp t)
 let_ name ty (E e) = do
   v <- newVar ty name
-  addStmt (Decl v e)
-  return (E (VarE v NoType))
+  addStmt (Decl v e ())
+  return (E (VarE v))
 
 letVar :: String -> Type t -> Exp t -> Program lvl (Var t)
 letVar name ty (E e) = do
   v <- newVar ty name
-  addStmt (Decl v e)
+  addStmt (Decl v e ())
   return (V v)
 
 addParam :: String -> Type t -> Program lvl (Var t)
@@ -131,7 +131,7 @@ addParam name ty = do
   return (V v)
 
 var :: Var t -> Exp t
-var (V v) = (E (VarE v NoType))
+var (V v) = (E (VarE v))
 ----------------
 -- Statements --
 ----------------
@@ -145,13 +145,13 @@ for :: Exp Int -> (Exp Int -> Program lvl ()) -> Program lvl ()
 for ub f = do
   i <- newVar int "i"
   let_ "ub" int ub >>= (\(E upperbound) -> do
-    let body = statements $ runProgram (f (E $ VarE i NoType)) initialState
-    addStmt $ For i upperbound body)
+    let body = statements $ runProgram (f (E $ VarE i)) initialState
+    addStmt $ For i upperbound body ())
 
 iff :: Exp Bool -> (Program lvl (), Program lvl ()) -> Program lvl ()
 iff (E cond) (f1, f2) =
   addStmt $ If cond (statements $ runProgram f1 initialState)
-                    (statements $ runProgram f2 initialState)
+                    (statements $ runProgram f2 initialState) ()
 
 -- distrPar :: Level -> Exp Int -> (Exp Int -> Program ()) -> Program ()
 -- distrPar lvl ub f = do
@@ -170,20 +170,20 @@ iff (E cond) (f1, f2) =
 
 -- assign variable, and add to current list of operators
 assign :: Var t -> Exp t -> Program Thread ()
-assign (V n) (E e) = addStmt (Assign n e)
+assign (V n) (E e) = addStmt (Assign n e ())
 
 (<==) :: Var t -> Exp t -> Program Thread ()
 n <== e = assign n e
 
 syncGlobal :: Program lvl ()
-syncGlobal =  addStmt SyncLocalMem
+syncGlobal =  addStmt (SyncLocalMem ())
 
 syncLocal :: Program lvl ()
-syncLocal =  addStmt SyncGlobalMem
+syncLocal =  addStmt (SyncGlobalMem ())
 
 -- assign to an array
 assignArray :: Var (Pointer t) -> Exp Int -> Exp t -> Program Thread ()
-assignArray (V n) (E idx) (E e) = addStmt (AssignSub n idx e)
+assignArray (V n) (E idx) (E e) = addStmt (AssignSub n idx e ())
 
 -----------------
 --    Types    --
@@ -229,7 +229,7 @@ instance Scalar Word8 where
 
 if_ :: Exp Bool -> Exp t -> Exp t -> Exp t
 if_ (E econd) (E etrue) (E efalse) =
-  E (IfE econd etrue efalse NoType)
+  E (IfE econd etrue efalse)
 
 (?) :: Exp Bool -> (Exp t, Exp t) -> Exp t
 econd ? (e0,e1) = if_ econd e0 e1
