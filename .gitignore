@@ -5,3 +5,8 @@ dist/
 cabal.sandbox.config
 *.a
 *.o
+cases/00_reduce/OpenCL/reduce
+cases/01_reverse/OpenCL/reverse
+cases/02_transpose/OpenCL/transpose
+cases/03_copy/OpenCL/copy
+playground/

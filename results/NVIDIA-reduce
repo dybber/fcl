@@ -1,0 +1,76 @@
+./oclReduction --type=int --kernel=0
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 131072 blocks
+
+oclReduction, Throughput = 28.2545 GB/s, Time = 0.00238 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=1
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 131072 blocks
+
+oclReduction, Throughput = 44.8052 GB/s, Time = 0.00150 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=2
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 131072 blocks
+
+oclReduction, Throughput = 53.2393 GB/s, Time = 0.00126 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=3
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 65536 blocks
+
+oclReduction, Throughput = 92.5253 GB/s, Time = 0.00073 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=4
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 65536 blocks
+
+oclReduction, Throughput = 127.5299 GB/s, Time = 0.00053 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=5
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 65536 blocks
+
+oclReduction, Throughput = 139.5776 GB/s, Time = 0.00048 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128
+
+./oclReduction --type=int --kernel=6
+====================================
+
+Reducing array of type int.
+GeForce GTX 780 Ti
+ 16777216 elements
+ 128 threads (max)
+ 64 blocks
+
+oclReduction, Throughput = 96.6133 GB/s, Time = 0.00069 s, Size = 16777216 Elements, NumDevsUsed = 1, Workgroup = 128

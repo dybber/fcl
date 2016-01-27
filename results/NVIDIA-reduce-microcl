@@ -1,0 +1,50 @@
+GeForce GTX 780 Ti
+
+./reduce -k0
+  blocks: 131072
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce0, Throughput = 29.9714 GB/s, Time = 0.00224 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k1
+  blocks: 131072
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce1, Throughput = 43.8293 GB/s, Time = 0.00153 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k2
+  blocks: 131072
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce2, Throughput = 54.4816 GB/s, Time = 0.00123 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k3
+  blocks: 65536
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce3, Throughput = 94.6049 GB/s, Time = 0.00071 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k4
+  blocks: 65536
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce4, Throughput = 117.4628 GB/s, Time = 0.00057 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k5
+  blocks: 65536
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce5, Throughput = 114.5381 GB/s, Time = 0.00059 s, Size = 16777216 fp32 elements, Workgroup = 128
+
+./reduce -k6
+  blocks: 1024
+  workgroup size: 128
+  elements: 16777216
+
+Stats for reduce6, Throughput = 207.3817 GB/s, Time = 0.00032 s, Size = 16777216 fp32 elements, Workgroup = 128
