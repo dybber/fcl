@@ -8,32 +8,31 @@
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
-// Recursively invoke reduction kernel
-inline void reduce(mclContext ctx, int kernelNo, cl_kernel k1, cl_kernel k2,
+inline void reduceOnce(mclContext ctx, cl_kernel kernel,
+                       mclDeviceData d_input, mclDeviceData d_output,
+                       int size, int nThreads, int nBlocks) {
+    mclSetKernelArg(kernel, 0, sizeof(cl_mem), &d_input.data);
+    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &d_output.data);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
+    mclSetKernelArg(kernel, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
+    mclInvokeKernel(ctx, kernel, nThreads*nBlocks, nThreads);
+}
+
+inline void reduceIter(mclContext ctx, int kernelNo, cl_kernel k1, cl_kernel k2,
             mclDeviceData d_input, mclDeviceData d_output,
             int size, int nThreads, int nBlocks) {
 
-    mclSetKernelArg(k1, 0, sizeof(cl_mem), &d_input.data);
-    mclSetKernelArg(k1, 1, sizeof(cl_mem), &d_output.data);
-    mclSetKernelArg(k1, 2, sizeof(cl_int), &size);
-    mclSetKernelArg(k1, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
-    mclInvokeKernel(ctx, k1, nThreads*nBlocks, nThreads);
-
-    mclSetKernelArg(k2, 0, sizeof(cl_mem), &d_output.data);
-    mclSetKernelArg(k2, 1, sizeof(cl_mem), &d_output.data);
-    mclSetKernelArg(k2, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
+    reduceOnce(ctx, k1, d_input, d_output, size, nThreads, nBlocks);
 
     while (nBlocks > 1) {
-      int new_nBlocks;
-      if (kernelNo < 3)
-        new_nBlocks = (nBlocks + nThreads - 1) / nThreads;
-      else
-        new_nBlocks = (nBlocks + (nThreads*2-1)) / (nThreads*2);
+        size = nBlocks;
 
-      size = nBlocks;
-      nBlocks = new_nBlocks;
-      mclSetKernelArg(k2, 2, sizeof(cl_int), &size);
-      mclInvokeKernel(ctx, k2, nThreads*nBlocks, nThreads);
+        if (kernelNo < 3)
+            nBlocks = (nBlocks + nThreads - 1) / nThreads;
+        else
+            nBlocks = (nBlocks + (nThreads*2-1)) / (nThreads*2);
+
+        reduceOnce(ctx, k2, d_output, d_output, size, nThreads, nBlocks);
     }
 }
 
@@ -93,8 +92,6 @@ void runReduce(int kernelNo) {
       expected_out += v;
     }
 
-    /* int nThreads = 128; // threads per block */
-    /* int nBlocks = (size + nThreads - 1) / nThreads; */
     int nThreads, nBlocks;
     getNumBlocksAndThreads(kernelNo, maxBlocks, size, &nBlocks, &nThreads);
 
@@ -105,7 +102,7 @@ void runReduce(int kernelNo) {
     printf("  workgroup size: %d\n", nThreads);
     printf("  elements: %d\n", size);
 
-    reduce(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
+    reduceIter(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
     mclFinish(ctx);
 
     // Check results
@@ -113,12 +110,13 @@ void runReduce(int kernelNo) {
     printf("output:   %d\n", *out);
     printf("expected: %d\n", expected_out);
     mclUnmap(ctx, out_buf, out);
+    mclFinish(ctx);
 
     // Time 100 calls
     struct timeval begin, end;
     gettimeofday(&begin, NULL);
     for (int i = 0; i < NUM_ITERATIONS; ++i) {
-      reduce(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
+        reduceIter(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
     }
     mclFinish(ctx);
     gettimeofday(&end, NULL);
