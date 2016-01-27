@@ -9,30 +9,31 @@
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
 // Recursively invoke reduction kernel
-void reduce(mclContext ctx, int kernelNo, cl_kernel kernel,
+inline void reduce(mclContext ctx, int kernelNo, cl_kernel k1, cl_kernel k2,
             mclDeviceData d_input, mclDeviceData d_output,
             int size, int nThreads, int nBlocks) {
 
-    /* printf("  numBlocks: %d\n", nBlocks); */
-    /* printf("  numThreads: %d\n", nThreads); */
-    /* printf("  size: %d\n", size); */
+    mclSetKernelArg(k1, 0, sizeof(cl_mem), &d_input.data);
+    mclSetKernelArg(k1, 1, sizeof(cl_mem), &d_output.data);
+    mclSetKernelArg(k1, 2, sizeof(cl_int), &size);
+    mclSetKernelArg(k1, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
+    mclInvokeKernel(ctx, k1, nThreads*nBlocks, nThreads);
 
-    mclSetKernelArg(kernel, 0, sizeof(cl_mem), &d_input.data);
-    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &d_output.data);
-    mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
-    mclSetKernelArg(kernel, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
-    mclInvokeKernel(ctx, kernel, nThreads*nBlocks, nThreads);
+    mclSetKernelArg(k2, 0, sizeof(cl_mem), &d_output.data);
+    mclSetKernelArg(k2, 1, sizeof(cl_mem), &d_output.data);
+    mclSetKernelArg(k2, 3, sizeof(cl_int) * nThreads, NULL); /* Shared memory */
 
-    if (nBlocks > 1) {
+    while (nBlocks > 1) {
       int new_nBlocks;
       if (kernelNo < 3)
         new_nBlocks = (nBlocks + nThreads - 1) / nThreads;
       else
         new_nBlocks = (nBlocks + (nThreads*2-1)) / (nThreads*2);
 
-      int kernelNo_ = (kernelNo == 6) ? 5 : kernelNo;
-      /* int new_nBlocks = (size + nThreads - 1) / nThreads; */
-      reduce(ctx, kernelNo_, kernel, d_output, d_output, nBlocks, nThreads, new_nBlocks);
+      size = nBlocks;
+      nBlocks = new_nBlocks;
+      mclSetKernelArg(k2, 2, sizeof(cl_int), &size);
+      mclInvokeKernel(ctx, k2, nThreads*nBlocks, nThreads);
     }
 }
 
@@ -46,7 +47,7 @@ unsigned int nextPow2( unsigned int x ) {
     return ++x;
 }
 
-void getNumBlocksAndThreads(int whichKernel, int n, int* blocks, int* threads) {
+void getNumBlocksAndThreads(int whichKernel, int maxBlocks, int n, int* blocks, int* threads) {
     int maxThreads = 128;
     if (whichKernel < 3)
     {
@@ -58,10 +59,10 @@ void getNumBlocksAndThreads(int whichKernel, int n, int* blocks, int* threads) {
         *threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
         *blocks = (n + (*threads * 2 - 1)) / (*threads * 2);
     }
-        
 
-    /* if (whichKernel == 6) */
-    /*     blocks = MIN(maxBlocks, blocks); */
+    if (whichKernel == 6) {
+      *blocks = (maxBlocks < *blocks) ? maxBlocks : *blocks;
+    }
 }
 
 void runReduce(int kernelNo) {
@@ -72,9 +73,18 @@ void runReduce(int kernelNo) {
 
     mclContext ctx = mclInitialize(0);    
     cl_program p = mclBuildProgram(ctx, "./oclReduction_kernel.cl");
-    cl_kernel kernel = mclCreateKernel(p, kernelName);
+    cl_kernel kernel1 = mclCreateKernel(p, kernelName);
+    cl_kernel kernel2;
+    if(kernelNo == 6) {
+      kernel2 = mclCreateKernel(p, "reduce5");
+    }
+    else {
+      kernel2 = mclCreateKernel(p, kernelName);
+    }
 
-    printf("Creating input array \n");
+    int maxBlocks;
+    clGetKernelWorkGroupInfo(kernel1, ctx.device_id, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), &maxBlocks, NULL);
+
     int* input = (int*)calloc(size, sizeof(int));
     int expected_out = 0;
     for (int i = 0; i < size; i++) {
@@ -86,16 +96,16 @@ void runReduce(int kernelNo) {
     /* int nThreads = 128; // threads per block */
     /* int nBlocks = (size + nThreads - 1) / nThreads; */
     int nThreads, nBlocks;
-    getNumBlocksAndThreads(kernelNo, size, &nBlocks, &nThreads);
+    getNumBlocksAndThreads(kernelNo, maxBlocks, size, &nBlocks, &nThreads);
 
-    printf("Copy input data to device memory \n");
     mclDeviceData input_buf = mclDataToDevice(ctx, MCL_RW, MCL_INT, input, size);
-
-    printf("Allocate output buffer \n");
     mclDeviceData out_buf = mclAllocDevice(ctx, MCL_RW, MCL_INT, nBlocks);
 
-    printf("Debug: Calling kernel %s \n", kernelName);
-    reduce(ctx, kernelNo, kernel, input_buf, out_buf, size, nThreads, nBlocks);
+    printf("  blocks: %d\n", nBlocks);
+    printf("  workgroup size: %d\n", nThreads);
+    printf("  elements: %d\n", size);
+
+    reduce(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
     mclFinish(ctx);
 
     // Check results
@@ -108,7 +118,7 @@ void runReduce(int kernelNo) {
     struct timeval begin, end;
     gettimeofday(&begin, NULL);
     for (int i = 0; i < NUM_ITERATIONS; ++i) {
-      reduce(ctx, kernelNo, kernel, input_buf, out_buf, size, nThreads, nBlocks);
+      reduce(ctx, kernelNo, kernel1, kernel2, input_buf, out_buf, size, nThreads, nBlocks);
     }
     mclFinish(ctx);
     gettimeofday(&end, NULL);
@@ -118,7 +128,9 @@ void runReduce(int kernelNo) {
              (1.0e-9 * (double)(size * sizeof(int))/time),
              time, size, nThreads);
 
-    mclReleaseKernel(kernel);
+    printf("\n");
+    mclReleaseKernel(kernel1);
+    mclReleaseKernel(kernel2);
     mclReleaseProgram(p);
     mclReleaseDeviceData(&input_buf);
     mclReleaseDeviceData(&out_buf);
@@ -133,7 +145,7 @@ int main(int argc, char* const * argv) {
     runReduce(atoi(optarg));
     break;
   default:
-    fprintf(stderr, "err %c\n", c);
+    fprintf(stderr, "Remember -k0-6 argument to select kernel.\n");
     exit(-1);
   }
 
