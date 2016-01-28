@@ -38,7 +38,7 @@ fclDef = Token.LanguageDef {
               , Token.opLetter         = oneOf ""
               , Token.reservedOpNames  = []
               , Token.reservedNames    = [ "sig", "fun", "let", "in", "int", "double",
-                                           "bool", "char", "fn", "true", "false" ]
+                                           "bool", "char", "fn", "true", "false", "kernel" ]
               , Token.caseSensitive    = True
   }
 
@@ -93,7 +93,9 @@ program =
 -- Definitions and type signatures --
 -------------------------------------
 definition :: Parser (Definition Untyped)
-definition = try (typesig >>= def) <|> def Nothing
+definition = try (typesig >>= def)  -- fun.def. w. signature
+          <|> def Nothing           -- fun.def.
+          <|> kernel                -- kernel def.
 
 typesig :: Parser (Maybe (String,Type))
 typesig =
@@ -121,7 +123,14 @@ def tyanno =
            when (name /= name') (fail "Different identifier in signature and definition")
            return (Definition name (Just typ) function)
          Nothing -> return (Definition name Nothing function)
-  
+
+
+kernel :: Parser (Definition Untyped)
+kernel =
+  do reserved "kernel"
+     name <- identifier
+     return (KernelDef name)
+       
 ----------------------
 --    Expressions    --
 ----------------------

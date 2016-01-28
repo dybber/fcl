@@ -18,12 +18,14 @@ Library
   exposed-modules: Language.FCL
                    Language.FCL.Syntax
                    Language.FCL.Parser
+                   Language.FCL.PrettyPrint
                    Language.FCL.TypeChecker
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
                    Language.FCL.SmartCons
                    Language.FCL.Library
+
 
                    Language.GPUIL
                    Language.GPUIL.Syntax

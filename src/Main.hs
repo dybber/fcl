@@ -11,20 +11,23 @@ data Command = ShowUsage | ParseOnly
 
 data Config = Config {
     fclVerbose :: Bool,
-    fclCommand :: Command
+    fclCommand :: Command,
+    fclOutputFile :: String
   }
 
 emptyConfig :: Config
 emptyConfig = Config {
     fclVerbose = False,
-    fclCommand = ParseOnly
+    fclCommand = ParseOnly,
+    fclOutputFile = "kernels.cl"
   }
 
 optionDescriptions :: [OptDescr (Config -> Config)]
 optionDescriptions = 
   [ Option "v" ["verbose"]    (NoArg (\opt -> opt {fclVerbose = True})) "Verbose output",
     Option "h" ["help"]       (NoArg (\opt -> opt {fclCommand = ShowUsage})) "Show help for this command",
-    Option []  ["parse-only"] (NoArg (\opt -> opt {fclCommand = ParseOnly})) "Parse and print syntax tree"
+    Option []  ["parse-only"] (NoArg (\opt -> opt {fclCommand = ParseOnly})) "Parse and print syntax tree",
+    Option "o" ["output"]     (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "where to emit OpenCL kernels"
   ]
 
 parseOptions :: IO ([String], Config)
@@ -54,9 +57,8 @@ main = do
      let extensions = map extension filenames
      if all (== "fcl") extensions
        then do out <- compileFromFiles flagDebug filenames
-               writeFile "out.cl" out
-       else error (concat ["Can not handle input files of different type,",
-                           " either all '.apl' or all '.fcl' files"])
+               writeFile (fclOutputFile cfg) out
+       else error "I can only handle .fcl files."
 
 extension :: FilePath -> String
 extension = reverse . takeWhile ((/=) '.') . reverse

@@ -5,28 +5,33 @@ where
 import Language.FCL.Syntax
 import qualified Data.Map as Map
 
-type Env = Map.Map Variable Type
+type TyEnv = Map.Map Variable Type
 
-emptyEnv :: Env
-emptyEnv = Map.empty
+emptyTyEnv :: TyEnv
+emptyTyEnv = Map.empty
 
-typecheck :: Prog ty -> (Exp Type, Type)
-typecheck = typecheckProg emptyEnv
+emptyExpEnv :: ExpEnv
+emptyExpEnv = []
 
-typecheckProg :: Env -> Prog ty -> (Exp Type, Type)
-typecheckProg _   [] = (Var "main" (IntT :> IntT), IntT :> IntT)
-typecheckProg env (d:ds) =
-  let (x, e, ty) = typecheckDef env d
-      (rest, ty_rest) = typecheckProg (Map.insert x ty env) ds
-  in (Let x e rest ty_rest, ty_rest)
+typecheck :: Prog ty -> [(Variable, Exp Type)]
+typecheck p = typecheckProg emptyTyEnv emptyExpEnv p
 
--- TODO check annotations against definitions
-typecheckDef :: Env -> Definition ty -> (Variable, Exp Type, Type)
-typecheckDef env (Definition v _ e) =
-  let (ety, ty) = (check env e)
-  in (v, ety, ty)
-  
-check :: Env -> Exp ty -> (Exp Type, Type)
+makeLetChain :: Type -> ExpEnv -> Exp Type -> Exp Type
+makeLetChain _ [] ebody = ebody
+makeLetChain ty ((v,e):es) ebody =
+  Let v e (makeLetChain ty es ebody) ty
+
+typecheckProg :: TyEnv -> ExpEnv -> Prog ty -> [(Variable, Exp Type)]
+typecheckProg _ _ [] = []
+typecheckProg tenv eenv (KernelDef v : ds) =
+  case Map.lookup v tenv of
+    Just ty -> (v, makeLetChain ty (reverse eenv) (Var v ty)) : typecheckProg tenv eenv ds
+    Nothing -> error ("Variable " ++ v ++ " not defined in kernel declaration")
+typecheckProg tenv eenv (Definition v _ e : ds) =
+  let (ety, ty) = check tenv e
+  in typecheckProg (Map.insert v ty tenv) ((v, ety) : eenv) ds
+          
+check :: TyEnv -> Exp ty -> (Exp Type, Type)
 check _ (IntScalar v) = (IntScalar v, IntT)
 check _ (DoubleScalar v) = (DoubleScalar v, DoubleT)
 check _ (BoolScalar v) = (BoolScalar v, BoolT)

@@ -1,4 +1,4 @@
-module Language.FCL.Compile where
+module Language.FCL.Compile (compileKernel, compileKernels) where
 
 import qualified Data.Map as Map
 import Control.Monad (liftM)
@@ -42,8 +42,13 @@ type VarEnv = Map.Map Variable Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compile :: String -> Exp Type -> IO Kernel
-compile name e = generateKernel name (compileFun emptyEnv e >> return ())
+compileKernels :: [(Variable, Exp Type)] -> IO [Kernel]
+compileKernels = mapM (uncurry compileKernel)
+
+compileKernel :: Variable -> Exp Type -> IO Kernel
+compileKernel name e =
+  let e' = normalizeFun 0 (typeOf e) e
+  in generateKernel name (compileFun emptyEnv e' >> return ())
 
 -- Convert pull arrays to push arrays
 push :: Array a -> Array a
@@ -58,7 +63,14 @@ push arr =
                     }
     Push _ -> arr
 
-compileFun :: Map.Map Variable Tagged -> Exp Type -> Program ()
+normalizeFun :: Int -> Type -> Exp Type -> Exp Type
+normalizeFun i (ty :> ty') ebody =
+  let varName = ("argument" ++ show i)
+      rest = normalizeFun (i+1) ty' (App ebody (Var varName ty))
+  in Lamb varName ty rest ty'
+normalizeFun _ _ ebody = ebody
+  
+compileFun :: VarEnv -> Exp Type -> Program ()
 compileFun env (Lamb x (ArrayT lvl ty) e _) = do
   arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType ty))
   lenVar <- addParam "lenInput" int
@@ -416,6 +428,7 @@ compileBinOp DivI (TagInt i0) (TagInt i1) = TagInt (divi i0 i1)
 compileBinOp ModI (TagInt i0) (TagInt i1) = TagInt (modi i0 i1)
 compileBinOp MinI (TagInt i0) (TagInt i1) = TagInt (mini i0 i1)
 compileBinOp EqI (TagInt i0) (TagInt i1) = TagBool (eqi i0 i1)
+compileBinOp NeqI (TagInt i0) (TagInt i1) = TagBool (neqi i0 i1)
 compileBinOp op _ _ =
   error $ concat ["Unexpected arguments to binary operator ",
                   show op,

@@ -8,6 +8,7 @@ module Language.FCL.Syntax (
   typeOf,
   Untyped(Untyped),
   Definition(..),
+  ExpEnv,
   Prog,
 ) where
 
@@ -37,7 +38,10 @@ data Type =
 
 type Prog ty = [Definition ty]
 
+type ExpEnv = [(Variable, Exp Type)]
+
 data Definition ty = Definition Variable (Maybe Type) (Exp ty)
+                   | KernelDef Variable
  deriving Show
 
 data Exp ty =
