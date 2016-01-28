@@ -11,4 +11,5 @@ cases/02_transpose/OpenCL/transpose
 cases/03_reduce/OpenCL/reduce
 cases/03_reduce/nvidia-original/oclReduction
 cases/03_reduce/nvidia-original/oclReduction.txt
+cases/04_sobol-pi/OpenCL/sobol-pi
 playground/

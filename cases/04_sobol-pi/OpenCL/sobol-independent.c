@@ -56,9 +56,9 @@ void test_sobol(mclContext ctx, cl_program p) {
     uint32_t lenDirVec = ro_scal.sobol_dim * ro_scal.sobol_bits;
 
     /* Move data to GPU */
-    mclDeviceData scal_buf = mclDataToDevice(ctx, MCL_R, sizeof(LoopROScalars), &ro_scal, 1);
-    mclDeviceData dirVec = mclDataToDevice(ctx, MCL_R, sizeof(cl_int), sobolDirVec, lenDirVec);
-    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_RW, sizeof(cl_double), ro_scal.num_mcits);
+    mclDeviceData scal_buf = mclDataToDevice(ctx, MCL_R, 1, sizeof(LoopROScalars), &ro_scal);
+    mclDeviceData dirVec = mclDataToDevice(ctx, MCL_R, lenDirVec, sizeof(cl_int), sobolDirVec);
+    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_RW, ro_scal.num_mcits, sizeof(cl_double));
 
     int globalWorkSize = getWorkSize(ro_scal.num_mcits, ro_scal.chunk, ro_scal.BLOCK);
     printf("blocks: %d\n", globalWorkSize);
