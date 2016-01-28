@@ -1,0 +1,20 @@
+-- These two are the same except for the types
+-- we do not have polymorphism yet
+sig reverse : [int] -> [int]
+fun reverse (arr : [int]) =
+  let n : int = length arr
+  in generate n (fn i : int => index arr (subi (subi n i) 1))
+
+-- sig reverseBlocks : [[int]] -> [[int]]
+fun reverseBlocks (arr : [[int]]) =
+  let n : int = length arr
+  in generate n (fn i : int => index arr (subi (subi n i) 1))
+
+-- sig reverseGrid : int -> [int] -> [int]
+fun reverseGrid (splitSize : int) (arr : [int]) =
+  concat splitSize
+    (reverseBlocks
+       (map (fn arr2 : [int] => force (reverse arr2))
+               (splitUp splitSize arr)))
+
+kernel reverseGrid

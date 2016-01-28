@@ -1,0 +1,91 @@
+sig transpose : int -> int -> [int] -> [int]
+fun transpose (rows : int) (cols : int) (elems : [int]) =
+  generate (muli rows cols)
+           (fn n : int =>
+              let i : int = divi n rows in
+              let j : int = modi n rows
+              in index elems (addi (muli j rows) i))
+
+-- Polymorphism would be nice
+-- This is the exact same as above, except for its type
+sig transpose2 : int -> int -> [[int]] -> [[int]]
+fun transpose2 (rows : int) (cols : int) (elems : [[int]]) =
+  generate (muli rows cols)
+           (fn n : int =>
+              let i : int = divi n rows in
+              let j : int = modi n rows
+              in index elems (addi (muli j rows) i))
+
+-- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
+-- First argument @splitSize is width and height of tiles
+-- Second and third argument is the width and height of the original array
+sig splitGrid : int -> int -> int -> [int] -> [[int]]
+fun splitGrid (splitSize : int) (rows : int) (cols : int) (elems : [int]) =
+  let tileSize : int = muli splitSize splitSize in
+  let n : int = divi rows splitSize in -- height of outer array
+  let m : int = divi cols splitSize in -- width of outer array
+  let mkTile : int -> int -> [int] =
+        (fn p : int =>
+          fn q : int =>
+             generate tileSize
+                      (fn k : int =>
+                         let i : int = divi k splitSize in -- row in inner array
+                         let j : int = modi k splitSize    -- column in inner array
+                         in index elems (addi (muli p (muli m tileSize))
+                                              (addi (muli q splitSize)
+                                                    (addi (muli m (muli splitSize i))
+                                                          j)))))
+  in generate (muli n m)
+       (fn i : int =>
+          let p : int  = divi i n in -- row in outer
+          let q : int = modi i n -- column in outer
+          in mkTile p q)
+
+-- Concatenate a 2D array of 2D arrays
+-- First argument @splitSize is the width and height of inner arrays
+-- Second argument @cols is the width and height of the outer array
+-- Total number of elements is thus splitSize*splitSize*cols*cols
+sig concatGrid : int -> int -> [[int]] -> [int]
+fun concatGrid
+  (splitSize : int)  -- width&height of inner array (2)
+  (cols : int)       -- width&height of outer array (2)
+  (arr : [[int]]) =
+    let tileSize : int = muli splitSize splitSize in
+    let mkGrid : (int, int) -> int =
+          (fn x : (int, int) =>
+             let p : int = fst x in -- index into outer (0..3)
+             let q : int = snd x in -- index into inner (0..3)
+             let outerRow : int = divi p cols in
+             let outerCol : int = modi p cols in
+             let innerRow : int = modi q splitSize in
+             let innerCol : int = modi q splitSize
+             in addi (muli outerRow (muli cols tileSize))  -- skip complete tiles
+                     (addi (muli innerRow (muli cols splitSize)) -- skip complete rows
+                           (addi (muli outerCol splitSize)        -- skip to the tile
+                                 innerCol)))                    -- skip to row in tile
+    in assemble tileSize mkGrid arr
+
+-- Transpose:
+--  - split up in tiles
+--  - transpose each tile
+--  - force each tile to shared memory
+--  - transpose outer array
+--  - write back to global memory with concatGrid
+sig transposeChunked : int -> int -> int -> [int] -> [int]
+fun transposeChunked
+  (splitSize : int)
+  (rows : int)
+  (cols : int)
+  (elems : [int]) =
+      (concatGrid
+        splitSize
+        (divi cols splitSize))
+        (transpose2
+           (divi rows splitSize)
+           (divi cols splitSize)
+           (map (fn arr : [int] => force arr)  -- force into shared memory
+                (map (transpose splitSize splitSize)
+                     (splitGrid splitSize rows cols elems))))
+
+
+kernel transposeChunked

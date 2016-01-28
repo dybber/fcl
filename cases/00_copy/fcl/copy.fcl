@@ -1,0 +1,5 @@
+fun copy (arr : [int]) =
+  concat 16 (splitUp 16 arr)
+
+kernel copy
+
