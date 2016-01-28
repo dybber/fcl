@@ -1,3 +1,5 @@
+#pragma OPENCL EXTENSION cl_khr_fp64: enable
+
 #include <stdint.h>
 #include "sobol.h"
  
