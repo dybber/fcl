@@ -39,23 +39,18 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
 
     const size_t num_elems = size_x * size_y;
 
-    printf("Debug: Creating input array \n");
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
       input[i] = i;
     }
 
-    printf("Debug: Moving data to device \n");
-    mclDeviceData buf = mclDataToDevice(ctx, MCL_R, MCL_INT, input, num_elems);
-    printf("Debug: Create buffer to store output \n");
-    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, MCL_INT, num_elems * sizeof(int));
+    mclDeviceData buf = mclDataToDevice(ctx, MCL_R, num_elems, sizeof(int), input);
+    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
 
     // Also serves as warm-up
-    printf("Debug: Calling kernel \"%s\" \n", kernelName);
     copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y);
     mclFinish(ctx);
 
-    printf("Debug: Mapping output to host memory\n");
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
 
     cl_int num_errors = 0;
@@ -63,12 +58,15 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
       if (out[i] != input[i]) {
         num_errors++;
         if(num_errors > 10) {
-          printf("Debug: more than 10 errors found. Stopping comparison.\n");
+          printf("More than 10 errors found. Stopping comparison.\n");
           break;
         } else {
           printf("Error: out[%d]!=input[%d] (%d, %d)\n", i, i, out[i], input[i]);
         }
       }
+    }
+    if (num_errors == 0) {
+      printf("PASSED validation. No errors.\n");
     }
     mclUnmap(ctx, buf, out);
 

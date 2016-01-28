@@ -42,7 +42,6 @@ int runReverse(int kernelNo) {
     cl_program p = mclBuildProgram(ctx, "reverse.cl");
     cl_kernel kernel = mclCreateKernel(p, kernelName);
 
-    printf("Debug: Creating input array \n");
     int* input = (int*)calloc(num_elems, sizeof(int));
     int* expected = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
@@ -51,9 +50,8 @@ int runReverse(int kernelNo) {
     }
 
     /////// Test reverse ///////
-    printf("Debug: Moving data to device \n");
-    mclDeviceData buf = mclDataToDevice(ctx, MCL_RW, MCL_INT, input, num_elems);
-    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, MCL_INT, num_elems * sizeof(int));
+    mclDeviceData buf = mclDataToDevice(ctx, MCL_RW, num_elems, sizeof(int), input);
+    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
 
     int nThreads = 256;
     int nBlocks = (num_elems + nThreads - 1)/nThreads;
@@ -61,12 +59,10 @@ int runReverse(int kernelNo) {
     printf("Debug: num groups: %d \n", nBlocks);
 
     // This also serves as warm-up
-    printf("Debug: Calling kernel %s \n", kernelName);
     reverse(ctx, kernelNo, kernel, outbuf, buf, nThreads, nBlocks);
     mclFinish(ctx);
 
     // Check results
-    printf("Debug: Mapping output to host memory\n");
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, sizeof(cl_int));
     cl_int num_errors = 0;
     for (int i = 0; i < num_elems; i++) {
@@ -80,6 +76,10 @@ int runReverse(int kernelNo) {
         }
       }
     }
+    if (num_errors == 0) {
+      printf("PASSED validation. No errors.\n");
+    }
+
     mclUnmap(ctx, buf, out);
 
     // Time 100 calls

@@ -95,8 +95,8 @@ void runReduce(int kernelNo) {
     int nThreads, nBlocks;
     getNumBlocksAndThreads(kernelNo, maxBlocks, size, &nBlocks, &nThreads);
 
-    mclDeviceData input_buf = mclDataToDevice(ctx, MCL_RW, MCL_INT, input, size);
-    mclDeviceData out_buf = mclAllocDevice(ctx, MCL_RW, MCL_INT, nBlocks);
+    mclDeviceData input_buf = mclDataToDevice(ctx, MCL_RW, sizeof(int), size, input);
+    mclDeviceData out_buf = mclAllocDevice(ctx, MCL_RW, sizeof(int), nBlocks);
 
     printf("  blocks: %d\n", nBlocks);
     printf("  workgroup size: %d\n", nThreads);
@@ -107,8 +107,8 @@ void runReduce(int kernelNo) {
 
     // Check results
     cl_int* out = (cl_int*)mclMap(ctx, out_buf, CL_MAP_READ, sizeof(cl_int));
-    printf("output:   %d\n", *out);
-    printf("expected: %d\n", expected_out);
+    printf("  output:   %d\n", *out);
+    printf("  expected: %d\n", expected_out);
     mclUnmap(ctx, out_buf, out);
     mclFinish(ctx);
 

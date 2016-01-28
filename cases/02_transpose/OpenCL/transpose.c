@@ -40,13 +40,12 @@ int main() {
 
     const size_t num_elems = size_x * size_y;
 
-    printf("Debug: Creating input array \n");
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
       input[i] = i;
     }
 
-    printf("Debug: Create transposed matrix (as reference)\n");
+    // Create transposed matrix as reference
     int* expected = (int*)calloc(num_elems, sizeof(int));
     for( unsigned int y = 0; y < size_y; ++y) {
         for( unsigned int x = 0; x < size_x; ++x) {
@@ -54,17 +53,13 @@ int main() {
         }
     }
 
-    printf("Debug: Moving data to device \n");
-    mclDeviceData buf = mclDataToDevice(ctx, MCL_R, MCL_INT, input, num_elems);
-    printf("Debug: Create buffer to store output \n");
-    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, MCL_INT, num_elems * sizeof(int));
+    mclDeviceData buf = mclDataToDevice(ctx, MCL_R, sizeof(int), num_elems, input);
+    mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, sizeof(int), num_elems);
 
     // Also serves as warm-up
-    printf("Debug: Calling kernel \"transpose\" \n");
     transpose(ctx, transposeKernel, outbuf, buf, 0, size_x, size_y);
     mclFinish(ctx);
 
-    printf("Debug: Mapping output to host memory\n");
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
 
     cl_int num_errors = 0;
@@ -78,6 +73,9 @@ int main() {
           printf("Error: out[%d]!=expected[%d] (%d, %d)\n", i, i, out[i], expected[i]);
         }
       }
+    }
+    if (num_errors == 0) {
+      printf("PASSED validation. No errors.\n");
     }
     mclUnmap(ctx, buf, out);
 
