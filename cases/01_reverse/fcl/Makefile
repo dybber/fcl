@@ -11,3 +11,5 @@ reverse: reverse.c reverse.cl
 run: build
 	./reverse
 
+clean:
+	rm -f reverse
