@@ -40,7 +40,7 @@ Library
                    Language.GPUIL.Analysis.Dataflow
                    Language.GPUIL.Analysis.Liveness
                    Language.GPUIL.Analysis.ReachingDefs
-                   Language.GPUIL.Analysis.Test
+--                   Language.GPUIL.Analysis.Test
                    Language.GPUIL.Analysis.TypeChecker
                    Language.GPUIL.Optimise
                    Language.GPUIL.Optimise.ConstantFold
