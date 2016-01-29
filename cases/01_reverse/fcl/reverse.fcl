@@ -20,4 +20,3 @@ fun reverseGrid (splitSize : int) (arr : [int]) =
 fun reverseGrid512 (arr : [int]) = reverseGrid 512 arr
 
 kernel reverseGrid512
-kernel reduce

@@ -12,4 +12,4 @@ run: build
 	./reverse
 
 clean:
-	rm -f reverse
+	rm -f reverse reverse.cl
