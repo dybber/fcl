@@ -4,8 +4,18 @@ build:
 install:
 	cabal install
 
-build-cases: install
-	$(MAKE) -C cases/ run
+build-cases: build-fcl-cases build-opencl-cases
 
-benchmark: build-cases
-	$(MAKE) -C cases/ run
+benchmark: benchmark-fcl benchmark-opencl
+
+build-fcl-cases: install
+	$(MAKE) -C cases/ build-fcl
+
+build-opencl-cases: install
+	$(MAKE) -C cases/ build-opencl
+
+benchmark-fcl: build-cases
+	$(MAKE) -C cases/ run-fcl
+
+benchmark-opencl: build-cases
+	$(MAKE) -C cases/ run-opencl
