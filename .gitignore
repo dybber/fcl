@@ -6,10 +6,15 @@ cabal.sandbox.config
 *.a
 *.o
 cases/00_copy/OpenCL/copy
+cases/00_copy/fcl/copy
 cases/01_reverse/OpenCL/reverse
+cases/01_reverse/fcl/reverse
 cases/02_transpose/OpenCL/transpose
+cases/02_transpose/fcl/transpose
 cases/03_reduce/OpenCL/reduce
+cases/03_reduce/fcl/reduce
 cases/03_reduce/nvidia-original/oclReduction
 cases/03_reduce/nvidia-original/oclReduction.txt
 cases/04_sobol-pi/OpenCL/sobol-pi
+cases/04_sobol-pi/fcl/sobol-pi
 playground/
