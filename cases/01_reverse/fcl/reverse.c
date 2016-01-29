@@ -31,7 +31,7 @@ void reverse(mclContext ctx,
 void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
     cl_kernel revKernel = mclCreateKernel(p, kernelName);
 
-    const size_t num_elems = 512;
+    const size_t num_elems = 1 << 22;
 
     int wgsize = 512;
     int numWgs = (num_elems + wgsize - 1) / wgsize;
