@@ -7,11 +7,11 @@ Maintainer:          dybber@dybber.dk
 Cabal-version:       >= 1.10
 
 Library
-  Build-depends: array >= 0.5
-               , base >= 4 && < 4.8
+  Build-depends: array >= 0.3 && < 0.6
+               , base >= 3 && < 5
                , containers >= 0.5
-               , mtl >= 2.1
-               , parsec >= 3.1.5
+               , mtl >= 2.0 && < 2.3
+               , parsec >= 3.0 && < 3.2
 
   HS-source-dirs: src
 
