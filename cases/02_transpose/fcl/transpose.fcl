@@ -88,4 +88,6 @@ fun transposeChunked
                      (splitGrid splitSize rows cols elems))))
 
 
-kernel transposeChunked
+fun transposeChunkedFixed = transposeChunked 16 2048 2048
+
+kernel transposeChunkedFixed
