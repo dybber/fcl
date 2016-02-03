@@ -175,13 +175,13 @@ forAll lvl ub f = do
 
 allocate :: CType -> CExp -> Program VarName
 allocate ty n = do
-  arr <- newVar (pointer [] ty) "arr"
+  arr <- newVar (pointer [Local] ty) "arr"
   addStmt $ Allocate arr n ()
   return arr
 
 allocateVolatile :: CType -> CExp -> Program VarName
 allocateVolatile ty n = do
-  arr <- newVar (pointer [Volatile] ty) "i"
+  arr <- newVar (pointer [Volatile,Local] ty) "i"
   addStmt $ Allocate arr n ()
   return arr
 
