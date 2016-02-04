@@ -2,3 +2,5 @@ obj
 oclTranspose
 nvidia-opencl/lib
 nvidia-opencl/obj
+nvidia-opencl/oclTranspose.txt
+nvidia-opencl/SdkMasterLog.csv
