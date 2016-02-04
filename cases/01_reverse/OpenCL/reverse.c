@@ -19,7 +19,7 @@ void reverse(mclContext ctx,
              int nThreads, int nBlocks) {
 
     mclSetKernelArg(kernel, 0, sizeof(cl_mem), &output.data);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &input.data);
+    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
     if (kernelNo != 0) {
       // dynamic
       mclSetKernelArg(kernel, 2, sizeof(cl_int)*nThreads, NULL); // local/shared memory

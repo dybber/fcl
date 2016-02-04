@@ -75,7 +75,7 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
 
       double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu fp32 elements, Workgroup = %u\n", kernelName,
+      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu integers, Workgroup = %u\n", kernelName,
              (1.0e-9 * (double)(num_elems * sizeof(float))/time),
              time, num_elems, BLOCK_DIM * BLOCK_DIM);
 
