@@ -28,7 +28,7 @@ void reverse(mclContext ctx,
     mclInvokeKernel(ctx, kernel, numWgs * wgsize, wgsize);
 }
 
-void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
+void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName) {
     cl_kernel revKernel = mclCreateKernel(p, kernelName);
 
     const size_t num_elems = 1 << 22;
@@ -79,12 +79,14 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
+      
+      
 
-      double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
+      double avgtime = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu fp32 elements, Workgroup = %u\n", kernelName,
-             (1.0e-9 * (double)(num_elems * sizeof(float))/time),
-             time, num_elems, numWgs * wgsize);
+      printf("Stats for %s, Throughput = %.4f GB/s, Average time = %.5f s, Size = %lu integers, Workgroup = %u\n", kernelName,
+             (1.0e-9 * (double)(num_elems * sizeof(float))/avgtime),
+             avgtime, num_elems, numWgs * wgsize);
 
     }
 
@@ -97,7 +99,7 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "reverse.cl");
 
-  test_copy_kernel(ctx, p, "reverseGrid512");
+  test_reverse_kernel(ctx, p, "reverseGrid512");
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
