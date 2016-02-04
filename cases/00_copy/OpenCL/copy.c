@@ -14,24 +14,27 @@
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
 void copy(mclContext ctx,
-               cl_kernel kernel,
-               mclDeviceData output,
-               mclDeviceData input,
-               int offset,
-               int size_x,
-               int size_y) {
+          cl_kernel kernel,
+          mclDeviceData output,
+          mclDeviceData input,
+          int offset,
+          int size_x,
+          int size_y,
+          int useSM) {
     cl_int sharedMemory = BLOCK_DIM * (BLOCK_DIM + 1) * sizeof(cl_int);
     mclSetKernelArg(kernel, 0, sizeof(cl_mem), &output.data);
     mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
     mclSetKernelArg(kernel, 2, sizeof(cl_int), &offset);
     mclSetKernelArg(kernel, 3, sizeof(cl_int), &size_x);
     mclSetKernelArg(kernel, 4, sizeof(cl_int), &size_y);
-    mclSetKernelArg(kernel, 5, sharedMemory, NULL); // local/shared memory
+    if(useSM) {
+      mclSetKernelArg(kernel, 5, sharedMemory, NULL); // local/shared memory
+    }
     mclInvokeKernel2D(ctx, kernel, size_x, size_y, 
                                    BLOCK_DIM, BLOCK_DIM);
 }
 
-void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
+void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM) {
     cl_kernel copyKernel = mclCreateKernel(p, kernelName);
 
     const unsigned int size_x = 2048;
@@ -48,7 +51,7 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
     mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
 
     // Also serves as warm-up
-    copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y);
+    copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y, useSM);
     mclFinish(ctx);
 
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
@@ -68,21 +71,21 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
     if (num_errors == 0) {
       printf("PASSED validation. No errors.\n");
     }
-    mclUnmap(ctx, buf, out);
+    mclUnmap(ctx, outbuf, out);
 
     if (num_errors == 0) {
       printf("Timing on %d executions\n", NUM_ITERATIONS);
       struct timeval begin, end;
       gettimeofday(&begin, NULL);
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-          copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y);
+        copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y, useSM);
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
 
       double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %u fp32 elements, Workgroup = %u\n", kernelName,
+      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %u integers, Workgroup = %u\n", kernelName,
              (1.0e-9 * (double)(size_x * size_y * sizeof(float))/time),
              time, (size_x * size_y), BLOCK_DIM * BLOCK_DIM);
 
@@ -97,9 +100,9 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "copy.cl");
 
-  test_copy_kernel(ctx, p, "simple_copy");
-  test_copy_kernel(ctx, p, "shared_copy");
-  test_copy_kernel(ctx, p, "uncoalesced_copy");
+  test_copy_kernel(ctx, p, "simple_copy", 0);
+  test_copy_kernel(ctx, p, "shared_copy", 1);
+  test_copy_kernel(ctx, p, "uncoalesced_copy", 0);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
