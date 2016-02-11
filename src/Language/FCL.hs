@@ -20,10 +20,14 @@ import Language.FCL.PrettyPrint (prettyPrintType)
 import Language.GPUIL.Syntax    (Kernel(..))
 import Language.GPUIL           (renderKernel)
 
-data Flags = Flags { verbosity :: Int }
+data Flags = Flags { verbosity :: Int
+                   , optIter :: Int
+                   }
 
 flagDebug :: Flags
-flagDebug = Flags { verbosity = 3 }
+flagDebug = Flags { verbosity = 3
+                  , optIter = 10
+                  }
 
 -- logError :: Flags -> String -> IO ()
 -- logError flags msg = 
@@ -71,7 +75,7 @@ compileFromFiles flags files =
      logInfo flags "Typechecking done."
      mapM_ (logDebug flags . ("  " ++) . showType) es
      logInfo flags "Compiling."
-     cp <- compileKernels es
+     cp <- compileKernels (optIter flags) es
      return (unlines $ Prelude.map renderKernel cp)
 
 compileFromFile :: Flags -> String -> IO String
@@ -86,7 +90,8 @@ compileSmart name e = do
   let [texp] = typecheck [Definition name Nothing uexp, KernelDef name]
   print texp
   putStrLn ("Compiling: " ++ name)
-  (uncurry compileKernel) texp
+  let optimizationIterations = 10
+  (uncurry (compileKernel optimizationIterations)) texp
 
 eval :: Obs a -> Value Untyped
 eval e =

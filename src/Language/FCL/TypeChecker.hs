@@ -152,6 +152,7 @@ check env (Assemble e0 e1 e2) =
                                                                            ArrayT lvlouter bty)
        (IntT, _, ArrayT _ (ArrayT _ _)) -> error ("Second argument to assemble not of type int*int -> int, got: " ++ show ty1)
        _ -> error "Typechecking assemble: Expecting array as argument"
+check env LocalSize = (LocalSize, IntT)
 
 checkBinOp :: BinOp -> Type -> Type -> Type
 checkBinOp AddI IntT IntT = IntT

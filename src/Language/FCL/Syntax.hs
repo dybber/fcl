@@ -1,10 +1,12 @@
 module Language.FCL.Syntax (
   Type(..),
+  TypeScheme(..),
   Exp(..),
   Level(..),
   UnOp(..),
   BinOp(..),
   Variable,
+  TyVarName,
   typeOf,
   Untyped(Untyped),
   Definition(..),
@@ -14,7 +16,7 @@ module Language.FCL.Syntax (
 
 import Language.GPUIL.Syntax (Level(..))
 
-data UnOp = AbsI | SignI | NegateI
+data UnOp = AbsI | SignI | NegateI | Not
   deriving (Show, Eq)
 
 data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
@@ -26,15 +28,19 @@ type Variable = String
 data Untyped = Untyped
   deriving (Eq, Show)
 
+type TyVarName = String
+
 data Type =
     IntT
   | BoolT
   | DoubleT
-  | TyVar String
+  | TyVar TyVarName
   | Type :> Type
   | Type :*: Type
   | ArrayT Level Type
  deriving (Eq, Show)
+
+data TypeScheme = TypeScheme [TyVarName] Type
 
 type Prog ty = [Definition ty]
 
@@ -63,7 +69,6 @@ data Exp ty =
 -- Array handling
   | Index (Exp ty) (Exp ty)
   | Length (Exp ty) -- array length
-
 -- Combinators
   | Fixpoint (Exp ty) (Exp ty) (Exp ty) -- APL-style, representing tail-recursive functions
   | Generate Level (Exp ty) (Exp ty) -- mkPull
@@ -71,6 +76,7 @@ data Exp ty =
   | ForceLocal (Exp ty) -- force
   | Concat (Exp ty) (Exp ty)
   | Assemble (Exp ty) (Exp ty) (Exp ty)
+  | LocalSize
   deriving (Eq, Show)
 
   -- To be added later!
@@ -139,3 +145,4 @@ typeOf (Vec es _) =
   in if and $ zipWith (==) (t:ts) ts
        then ArrayT undefined t
        else error ""
+typeOf LocalSize = IntT

@@ -71,14 +71,18 @@ foldBinOp MulI (BinOpE DivI e0 (IntE v1)) (IntE v2)
 foldBinOp DivI (IntE v0) (IntE v1) = IntE (v0 `div` v1)
 foldBinOp DivI (IntE 0) _ = IntE 0
 foldBinOp DivI e0 (IntE 1) = e0
+foldBinOp DivI e0 e1 | e0 == e1 = IntE 1
 
 foldBinOp ModI (IntE v0) (IntE v1) = IntE (v0 `mod` v1)
 foldBinOp ModI _ (IntE 1) = IntE 0
+foldBinOp ModI e0 e1 | e0 == e1 = IntE 0
 
 foldBinOp EqI (IntE v0) (IntE v1) | v0 == v1  = BoolE True
                                   | otherwise = BoolE False
 foldBinOp LtI (IntE v0) (IntE v1) | v0 < v1  = BoolE True
                                   | otherwise = BoolE False
+foldBinOp LtI LocalID (IntE 0) = BoolE False
+foldBinOp GtI (IntE 0) LocalID = BoolE False
 
 foldBinOp op e0 e1 = BinOpE op e0 e1
 
@@ -86,9 +90,19 @@ constantFold :: [Statement a] -> [Statement a]
 constantFold stmts = concat $ map process stmts
  where
    process :: Statement a -> [Statement a]
-   process (For v e body i)        = [For v (foldExp e) (constantFold body) i]
+   process (For v e body i)          = [For v (foldExp e) (constantFold body) i]
    process (DistrPar lvl v e body i) = [DistrPar lvl v e (constantFold body) i]
-   process (ForAll lvl v e body i)   = [ForAll lvl v (foldExp e) (constantFold body) i]
+   -- process (ForAll lvl v e body i)   = [ForAll lvl v e (constantFold body) i]
+   process (ForAll lvl v e body i)   =
+     case foldExp e of
+       IntE 0 -> []
+       IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
+       _ -> [ForAll lvl v (foldExp e) (constantFold body) i]
+   process (For v e body i)   =
+     case foldExp e of
+       IntE 0 -> []
+       IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
+       _ -> [For v (foldExp e) (constantFold body) i]
    process (If e strue sfalse i) =
         case foldExp e of
           BoolE True -> constantFold strue

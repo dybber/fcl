@@ -1,5 +1,4 @@
-fun copy (arr : [int]) =
-  concat 16 (splitUp 16 arr)
+fun copy (arr : [int]) = arr
+  -- concat #localSize (splitUp #localSize arr)
 
 kernel copy
-

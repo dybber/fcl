@@ -17,8 +17,8 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
 
-generateKernel :: String -> Program () -> IO Kernel
-generateKernel name m = do
+generateKernel :: Int -> String -> Program () -> IO Kernel
+generateKernel optIterations name m = do
   let (stmts, params, varCount) = runProgram m
   tc params stmts
   let (stmts', used) = memoryMap stmts
@@ -26,7 +26,7 @@ generateKernel name m = do
   tc params' stmts'
   let (stmts'', _) = convert varCount stmts'
   tc params' stmts''
-  let stmts''' = optimise 10 stmts''
+  let stmts''' = optimise optIterations stmts''
   tc params' stmts'''
   return (Kernel { kernelName = name
                  , kernelParams = params'

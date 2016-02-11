@@ -140,6 +140,7 @@ expr = chainl1 nonAppExpr (return App)
 nonAppExpr :: Parser (Exp Untyped)
 nonAppExpr = fnExpr
    <|> pairOrParens
+   <|> configVariable
    <|> opExpr
    <|> arrayExpr
    <|> letExpr
@@ -160,6 +161,14 @@ boolExpr = try (reserved "true" >> return (BoolScalar True))
 
 arrayExpr :: Parser (Exp Untyped)
 arrayExpr = Vec <$> (brackets (sepBy expr comma)) <*> pure Untyped
+
+configVariable :: Parser (Exp Untyped)
+configVariable =
+  do char '#'
+     v <- identifier
+     case v of
+       "localSize" -> return LocalSize
+       _ -> error ("Unknown configuration variable #" ++ v)
 
 pairOrParens :: Parser (Exp Untyped)
 pairOrParens =

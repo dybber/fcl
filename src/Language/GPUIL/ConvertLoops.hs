@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.GPUIL.ConvertLoops (convert) where
 
 import Control.Monad.State
@@ -96,24 +95,28 @@ compileForAll (ForAll Warp name ub body _) =
              resetWarpIx]
 compileForAll (ForAll Block name ub body _) =
   do body' <- convertLoops body
-     loopVar <- newVar
-     let nt = LocalSize
-         q = (BinOpE DivI ub nt)
-         r = (BinOpE ModI ub nt)
-         codeQ = For (loopVar,CInt32) q (declLoopVar : body') ()
+     loopVarName <- newVar
+     qVarName <- newVar
+     let loopVar = (loopVarName, CInt32)
+         qVar = (qVarName, CInt32)
+         nt = LocalSize
+         q = BinOpE DivI ub nt
+         r = BinOpE ModI ub nt
+         codeQ = For loopVar (VarE qVar) (declLoopVar : body') ()
          declLoopVar = Decl name (BinOpE AddI
-                                         (BinOpE MulI (VarE (loopVar, CInt32)) nt)
+                                         (BinOpE MulI (VarE loopVar) nt)
                                          localID) ()
 
          -- TODO: Don't do this if we know statically that num threads divides loop-bound evenly
          codeR = If (BinOpE LtI localID r)
                    ((Decl name
                          ((BinOpE AddI
-                                  (BinOpE MulI q nt)
+                                  (BinOpE MulI (VarE qVar) nt)
                                   localID)) ())
                     : body')
                    [] ()
-     return [Comment "ForAll" (),
+     return [-- Comment "ForAll" (),
+             Decl qVar q (),
              codeQ,
              codeR
             ]
@@ -124,19 +127,22 @@ compileForAll _ = error "compileForAll should only be called with ForAll as argu
 compileDistrPar :: Statement () -> Conv [Statement ()]
 compileDistrPar (DistrPar Block name ub body ()) =
   do body' <- convertLoops body
-     loopVar <- newVar
-     let blocksQ = BinOpE DivI ub NumGroups
+     loopVarName <- newVar
+     blocksQVarName <- newVar
+     let loopVar = (loopVarName, CInt32)
+         blocksQVar = (blocksQVarName, CInt32)
          blocksR = BinOpE ModI ub NumGroups
-         codeQ = For (loopVar, CInt32) blocksQ bodyQ ()
-         bodyQ = (Decl name (BinOpE AddI (BinOpE MulI GroupID blocksQ)
-                                              (VarE (loopVar, CInt32))) ())
+         codeQ = For loopVar (VarE blocksQVar) bodyQ ()
+         bodyQ = (Decl name (BinOpE AddI (BinOpE MulI GroupID (VarE blocksQVar))
+                                              (VarE loopVar)) ())
                  : body' ++ [SyncLocalMem ()]
          codeR = If (BinOpE LtI GroupID blocksR)
-                    ((Decl name (BinOpE AddI (BinOpE MulI NumGroups blocksQ)
+                    ((Decl name (BinOpE AddI (BinOpE MulI NumGroups (VarE blocksQVar))
                                                GroupID) ()) : body' ++ [SyncLocalMem ()])
                     [] ()
 
-     return [codeQ,
+     return [Decl blocksQVar (BinOpE DivI ub NumGroups) (),
+             codeQ,
              codeR]
 compileDistrPar (DistrPar Warp _ _ _ _) = error "compileDistrPar: Warp level DistrPar not yet implemented"
 compileDistrPar (DistrPar Thread _ _ _ _) = error "compileDistrPar: Thread level DistrPar not yet implemented"

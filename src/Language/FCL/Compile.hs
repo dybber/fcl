@@ -42,13 +42,13 @@ type VarEnv = Map.Map Variable Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: [(Variable, Exp Type)] -> IO [Kernel]
-compileKernels = mapM (uncurry compileKernel)
+compileKernels :: Int -> [(Variable, Exp Type)] -> IO [Kernel]
+compileKernels optIterations = mapM (uncurry (compileKernel optIterations))
 
-compileKernel :: Variable -> Exp Type -> IO Kernel
-compileKernel name e =
+compileKernel :: Int -> Variable -> Exp Type -> IO Kernel
+compileKernel optIterations name e =
   let e' = normalizeFun 0 (typeOf e) e
-  in generateKernel name (compileFun emptyEnv e' >> return ())
+  in generateKernel optIterations name (compileFun emptyEnv e' >> return ())
 
 -- Convert pull arrays to push arrays
 push :: Array a -> Array a
@@ -300,7 +300,7 @@ compBody env (Assemble i f e0) = do
                                                   _ -> error "Should not happen")
                                     }
     _ -> error "Assemble should be given an integer, a function and an array."
-
+compBody _ LocalSize   = return (TagInt localSize)
 
 lets :: String -> Tagged -> Program Tagged
 lets name s =
@@ -398,11 +398,6 @@ unsafeWrite arr =
                     -- TODO ^ This should unpack according elem type, currently only supports integers
                     --        How do we support arrays of arrays?
                     
-                    -- TODO: Also, the "name" tag should be
-                    -- "warpIx"/"tid" depending on the level, but
-                    -- would be nicer if that could be handled at a
-                    -- lower level. Maybe give the level as argument
-                    -- to assignArray?
                     syncLocal
                     return (pullFrom name (arrayLen parr) (arrayLevel parr))
        Pull _ -> error "This should not be possible, array was just converted to push array."
