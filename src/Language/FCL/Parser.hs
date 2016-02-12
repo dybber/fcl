@@ -110,7 +110,7 @@ def tyanno =
   let
     addArgs :: [(Variable, Type)] -> Exp Untyped -> Exp Untyped
     addArgs [] rhs = rhs
-    addArgs ((v,ty):xs) rhs = addArgs xs (Lamb v ty rhs Untyped)
+    addArgs ((v,ty):xs) rhs = addArgs xs (Lamb v Untyped rhs Untyped)
   in
     do reserved "fun"
        name <- identifier
@@ -184,7 +184,7 @@ pairOrParens =
 letExpr :: Parser (Exp Untyped)
 letExpr =
   do reserved "let"
-     (ident, typ) <- typedIdent
+     (ident, _) <- typedIdent
      symbol "="
      e1 <- expr
      reserved "in"
@@ -219,7 +219,7 @@ fnExpr =
      (ident, typ) <- typedIdent
      symbol "=>"
      e <- expr
-     return (Lamb ident typ e Untyped)
+     return (Lamb ident Untyped e Untyped)
 
 typedIdent :: Parser (Variable, Type)
 typedIdent =
@@ -265,6 +265,9 @@ baseType = (reserved "int" >> return IntT)
        <|> (reserved "bool" >> return BoolT)
        <?> "base type"
 
+newTyVar :: String -> Type
+newTyVar name = TyVar (TVUser name)
+
 tyVar :: Parser Type
-tyVar = TyVar <$> identifier 
+tyVar = newTyVar <$> identifier
        <?> "base type"

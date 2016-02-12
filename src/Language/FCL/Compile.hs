@@ -101,7 +101,7 @@ compileFun env e = do
       let f = getPushFn (push arr)
       f (\x -> case x of
                  TagInt i -> assignArray varOut i
-                 t -> error (show t))
+                 t -> error ("Can not return arrays with element type " ++ show t))
       assignArray varLen (arrayLen arr) (constant (0 :: Int))
 
 tagArray :: Type -> Level -> CExp -> VarName -> Tagged

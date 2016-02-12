@@ -6,8 +6,7 @@ module Language.FCL
 where
 
 import Language.FCL.Parser      (parseFile)
-import Language.FCL.TypeChecker (typecheck)
---import Language.FCL.TypeInference (typeinfer, initTyEnv)
+import Language.FCL.TypeInference (typeinferProg)
 import Language.FCL.Compile     (compileKernel, compileKernels)
 import Language.FCL.Syntax      (Prog, typeOf, Exp, Type, Untyped)
 import Language.FCL.PrettyPrint (prettyPrintType)
@@ -64,7 +63,7 @@ compileFromFiles flags files =
   do prog <- parseFiles flags files
      logInfo flags "Parsing done. "
      logInfo flags "Typechecking."
-     let es = typecheck prog
+     let es = typeinferProg prog
      logInfo flags "Typechecking done."
      mapM_ (logDebug flags . ("  " ++) . showType) es
      logInfo flags "Compiling."

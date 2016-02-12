@@ -13,7 +13,7 @@ emptyTyEnv = Map.empty
 emptyExpEnv :: ExpEnv
 emptyExpEnv = []
 
-typecheck :: Prog ty -> [(Variable, Exp Type)]
+typecheck :: Show ty => Prog ty -> [(Variable, Exp Type)]
 typecheck p = typecheckProg emptyTyEnv emptyExpEnv p
 
 makeLetChain :: Type -> ExpEnv -> Exp Type -> Exp Type
@@ -21,7 +21,7 @@ makeLetChain _ [] ebody = ebody
 makeLetChain ty ((v,e):es) ebody =
   Let v e (makeLetChain ty es ebody) ty
 
-typecheckProg :: TyEnv -> ExpEnv -> Prog ty -> [(Variable, Exp Type)]
+typecheckProg :: Show ty => TyEnv -> ExpEnv -> Prog ty -> [(Variable, Exp Type)]
 typecheckProg _ _ [] = []
 typecheckProg tenv eenv (KernelDef v : ds) =
   case Map.lookup v tenv of
@@ -31,7 +31,7 @@ typecheckProg tenv eenv (Definition v _ e : ds) =
   let (ety, ty) = check tenv e
   in typecheckProg (Map.insert v ty tenv) ((v, ety) : eenv) ds
           
-check :: TyEnv -> Exp ty -> (Exp Type, Type)
+check :: Show ty => TyEnv -> Exp ty -> (Exp Type, Type)
 check _ (IntScalar v) = (IntScalar v, IntT)
 check _ (DoubleScalar v) = (DoubleScalar v, DoubleT)
 check _ (BoolScalar v) = (BoolScalar v, BoolT)
@@ -63,7 +63,10 @@ check env (App e0 e1) =
                    | otherwise -> error $ concat ["Argument type does not match parameter type in function call.\n",
                                                   "Expected: ", show ty1', "\n",
                                                   "Got: ", show ty1, "\n"]
-       _ -> error "Non-function type in function position of application"
+       _ -> error (concat ["Non-function type in function position of application: ",
+                           show e0,
+                           " ",
+                           show e1])
 check env (Cond e0 e1 e2 _) =
   let (e0', ty0) = check env e0
       (e1', ty1) = check env e1
@@ -152,7 +155,7 @@ check env (Assemble e0 e1 e2) =
                                                                            ArrayT lvlouter bty)
        (IntT, _, ArrayT _ (ArrayT _ _)) -> error ("Second argument to assemble not of type int*int -> int, got: " ++ show ty1)
        _ -> error "Typechecking assemble: Expecting array as argument"
-check env LocalSize = (LocalSize, IntT)
+check _ LocalSize = (LocalSize, IntT)
 
 checkBinOp :: BinOp -> Type -> Type -> Type
 checkBinOp AddI IntT IntT = IntT

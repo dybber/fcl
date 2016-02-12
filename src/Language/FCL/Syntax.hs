@@ -6,11 +6,10 @@ module Language.FCL.Syntax (
   UnOp(..),
   BinOp(..),
   Variable,
-  TyVarName,
+  TyVarName(..),
   typeOf,
   Untyped(Untyped),
   Definition(..),
-  ExpEnv,
   Prog,
 ) where
 
@@ -28,7 +27,9 @@ type Variable = String
 data Untyped = Untyped
   deriving (Eq, Show)
 
-type TyVarName = String
+data TyVarName = TV Int
+               | TVUser String
+ deriving (Show, Eq, Ord)
 
 data Type =
     IntT
@@ -44,8 +45,6 @@ data TypeScheme = TypeScheme [TyVarName] Type
 
 type Prog ty = [Definition ty]
 
-type ExpEnv = [(Variable, Exp Type)]
-
 data Definition ty = Definition Variable (Maybe Type) (Exp ty)
                    | KernelDef Variable
  deriving Show
@@ -58,7 +57,7 @@ data Exp ty =
   | BinOp BinOp (Exp ty) (Exp ty)
   | Var Variable ty
   | Vec [Exp ty] ty
-  | Lamb Variable Type (Exp ty) ty
+  | Lamb Variable ty (Exp ty) ty
   | Let Variable (Exp ty) (Exp ty) ty
   | App (Exp ty) (Exp ty)
   | Cond (Exp ty) (Exp ty) (Exp ty) ty
@@ -98,6 +97,21 @@ typeOf (BinOp op _ _) =
     else
       if op `elem` [ EqI ]
         then BoolT
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         else error "typeOf: BinOp"
 typeOf (Var _ ty) = ty
 typeOf (Lamb _ ty0 _ ty1) = ty0 :> ty1
