@@ -1,0 +1,41 @@
+--------------------
+-- Basic examples --
+--------------------
+-- sig mapIota1000 : int -> [int]
+fun mapIota1000 (n : int) =
+  let g : int -> int = fn x : int => addi 20000 x
+  in map g (iota n)
+
+
+sig mapForceMap : [int]
+fun mapForceMap =
+  let f : int -> int = fn x : int => muli 10 x in
+  let g : int -> int = fn x : int => addi 20000 x in
+    map f (force (map g (iota 1000)))
+
+sig mapIndex : [int] -> [int]
+fun mapIndex (a : [int]) =
+  generate (length a)
+           (fn ix : int => divi (index a ix) 17)
+
+
+-- Distribute examples
+sig double1 : [int] -> [int]
+fun double1 (arr : [int]) =
+  let mapmult2 : [int] -> [int] =
+          fn part : [int] => map (fn x : int => muli 2 x) part
+  in concat 512 (map mapmult2 (splitUp 512 arr))
+
+sig doubleForceDouble : [int] -> [int]
+fun doubleForceDouble (arr : [int]) =
+    let mapmult2 : [int] -> [int] =
+          fn part : [int] => map (fn x : int => muli 2 x) part in
+    let mapmult2_twice : [int] -> [int] =
+                  fn array : [int] => mapmult2 (force (mapmult2 array))
+    in concat 512 (map mapmult2_twice (splitUp 512 arr))
+
+kernel mapIota1000
+kernel mapForceMap
+kernel mapIndex
+kernel double1
+kernel doubleForceDouble

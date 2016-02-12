@@ -1,0 +1,7 @@
+sig mapForceMap : [int]
+fun mapForceMap =
+  let f : int -> int = fn x : int => muli 10 x in
+  let g : int -> int = fn x : int => addi 20000 x in
+    map f (force (map g (iota 1000)))
+
+kernel mapForceMap
