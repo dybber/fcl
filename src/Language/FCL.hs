@@ -1,20 +1,15 @@
 module Language.FCL
- ( module Language.FCL.SmartCons,
-   module Language.FCL.Library,
-   Flags(..), flagDebug,
-   compileKernel, compileKernels, eval, Kernel(..), Value(..), renderKernel,
-   compileFromFile, compileFromFiles, compileAndPrint
+ ( Flags(..), flagDebug,
+   compileKernel, compileKernels, Kernel(..), renderKernel,
+   compileFromFile, compileFromFiles
  ) 
 where
 
-import Language.FCL.SmartCons
-import Language.FCL.Library
-
 import Language.FCL.Parser      (parseFile)
 import Language.FCL.TypeChecker (typecheck)
-import Language.FCL.Eval        (interp, emptyEnv, Value(..))
+--import Language.FCL.TypeInference (typeinfer, initTyEnv)
 import Language.FCL.Compile     (compileKernel, compileKernels)
-import Language.FCL.Syntax      (Definition(..), Prog, typeOf, Exp)
+import Language.FCL.Syntax      (Prog, typeOf, Exp, Type, Untyped)
 import Language.FCL.PrettyPrint (prettyPrintType)
 
 import Language.GPUIL.Syntax    (Kernel(..))
@@ -68,8 +63,6 @@ compileFromFiles :: Flags -> [String] -> IO String
 compileFromFiles flags files =
   do prog <- parseFiles flags files
      logInfo flags "Parsing done. "
---     logDebug flags "Parser output: "
---     mapM_ (logDebug flags . show) prog
      logInfo flags "Typechecking."
      let es = typecheck prog
      logInfo flags "Typechecking done."
@@ -80,28 +73,3 @@ compileFromFiles flags files =
 
 compileFromFile :: Flags -> String -> IO String
 compileFromFile flags filename = compileFromFiles flags [filename]
-
-compileSmart :: String -> Obs a -> IO Kernel
-compileSmart name e = do
-  putStrLn ("Unfolding Smart constructors: " ++ name)
-  let uexp = runObs e
-  print uexp
-  putStrLn ("Typechecking: " ++ name)
-  let [texp] = typecheck [Definition name Nothing uexp, KernelDef name]
-  print texp
-  putStrLn ("Compiling: " ++ name)
-  let optimizationIterations = 10
-  (uncurry (compileKernel optimizationIterations)) texp
-
-eval :: Obs a -> Value Untyped
-eval e =
-  let uexp = runObs e
-  in interp emptyEnv uexp
-
-compileAndPrint :: String -> Obs a -> IO ()
-compileAndPrint name e = do
-  kernel <- compileSmart name e
-  putStrLn "Output:"
-  print kernel
-  putStrLn ""
-  putStrLn (renderKernel kernel)
