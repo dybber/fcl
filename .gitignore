@@ -23,3 +23,4 @@ cases/04_sobol-pi/OpenCL/sobol-pi
 cases/04_sobol-pi/fcl/sobol-pi
 cases/04_sobol-pi/fcl/sobol-pi.cl
 playground/
+examples/*.cl

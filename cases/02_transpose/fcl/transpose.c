@@ -7,32 +7,30 @@
 #include <sys/time.h>
 #include <mcl.h>
 
+#define BLOCK_DIM 16
 #define NUM_ITERATIONS 100
 
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
-void copy(mclContext ctx,
-          cl_kernel kernel,
-          mclDeviceData input,
-          int size,
-          mclDeviceData output,
-          mclDeviceData sizeOut,
-          int blocks,
-          int wgSize) {
-    mclSetKernelArg(kernel, 0, sizeof(cl_mem), &input.data);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &size);
-    mclSetKernelArg(kernel, 2, sizeof(cl_mem), &output.data);
-    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &sizeOut.data);
-    mclInvokeKernel(ctx, kernel, blocks*wgSize, wgSize);
+void transpose(mclContext ctx,
+               cl_kernel kernel,
+               mclDeviceData input,
+               int size,
+               mclDeviceData output,
+               mclDeviceData sizeOut) {
+    mclSetKernelArg(kernel, 0, sizeof(cl_int) * 1024, NULL);
+    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
+    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &output.data);
+    mclSetKernelArg(kernel, 4, sizeof(cl_mem), &sizeOut.data);
+    mclInvokeKernel(ctx, kernel, size / BLOCK_DIM * BLOCK_DIM, BLOCK_DIM * BLOCK_DIM);
 }
 
-void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
-    cl_kernel copyKernel = mclCreateKernel(p, kernelName);
+void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName) {
+    cl_kernel transposeKernel = mclCreateKernel(p, kernelName);
 
     const size_t num_elems = 2048 * 2048;
-    const int wgSize = 128;
-    const int blocks = 32;
 
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
@@ -44,7 +42,7 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
     mclDeviceData outlen = mclAllocDevice(ctx, MCL_W, 1, sizeof(int));
 
     // Also serves as warm-up
-    copy(ctx, copyKernel, buf, num_elems, outbuf, outlen, blocks, wgSize);
+    transpose(ctx, transposeKernel, buf, num_elems, outbuf, outlen);
     mclFinish(ctx);
 
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
@@ -71,29 +69,29 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName) {
       struct timeval begin, end;
       gettimeofday(&begin, NULL);
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-        copy(ctx, copyKernel, buf, num_elems, outbuf, outlen, blocks, wgSize);
+          transpose(ctx, transposeKernel, buf, num_elems, outbuf, outlen);
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
 
       double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu integers, Workgroup = %u\n", kernelName,
+      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu fp32 elements, Workgroup = %u\n", kernelName,
              (1.0e-9 * (double)(num_elems * sizeof(float))/time),
-             time, num_elems, wgSize);
+             time, num_elems, BLOCK_DIM * BLOCK_DIM);
 
     }
 
     mclReleaseDeviceData(&buf);
     mclReleaseDeviceData(&outbuf);
-    mclReleaseKernel(copyKernel);
+    mclReleaseKernel(transposeKernel);
 }
 
 int main () {
   mclContext ctx = mclInitialize(2);
-  cl_program p = mclBuildProgram(ctx, "copy.cl");
+  cl_program p = mclBuildProgram(ctx, "transpose.cl");
 
-  test_copy_kernel(ctx, p, "copy");
+  test_transpose_kernel(ctx, p, "transposeChunkedFixed");
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
