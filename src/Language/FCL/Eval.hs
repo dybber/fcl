@@ -111,12 +111,6 @@ interp env (UnOp op e0) =
   in case op of
        AbsI  -> IntV (abs (unInt "absi" v0))
        SignI -> IntV (signum (unInt "signi" v0))
-interp env (Concat _ e0) =
-  case interp env e0 of
-    ArrayV arr ->
-      let vs = toList arr
-      in ArrayV (fromList (concatMap (toList . unArray "concat") vs))
-    s -> error (show s ++ " not implemented")
 interp env (Assemble n f e0) =
   let fx x y =
         case interp env (App f (Pair (IntScalar x) (IntScalar y))) of

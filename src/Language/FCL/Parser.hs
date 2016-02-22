@@ -38,7 +38,8 @@ fclDef = Token.LanguageDef {
               , Token.opLetter         = oneOf ""
               , Token.reservedOpNames  = []
               , Token.reservedNames    = [ "sig", "fun", "let", "in", "int", "double",
-                                           "bool", "char", "fn", "true", "false", "kernel" ]
+                                           "bool", "char", "fn", "true", "false", "kernel",
+                                           "if", "then", "else"]
               , Token.caseSensitive    = True
   }
 
@@ -108,13 +109,13 @@ typesig =
 def :: Maybe (String, Type) -> Parser (Definition Untyped)
 def tyanno =
   let
-    addArgs :: [(Variable, Type)] -> Exp Untyped -> Exp Untyped
+    addArgs :: [Variable] -> Exp Untyped -> Exp Untyped
     addArgs [] rhs = rhs
-    addArgs ((v,ty):xs) rhs = addArgs xs (Lamb v Untyped rhs Untyped)
+    addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped)
   in
     do reserved "fun"
        name <- identifier
-       args <- many (parens typedIdent)
+       args <- many identifier
        symbol "="
        rhs <- expr
        let function = addArgs (reverse args) rhs
@@ -144,6 +145,7 @@ nonAppExpr = fnExpr
    <|> opExpr
    <|> arrayExpr
    <|> letExpr
+   <|> ifThenElseExpr
    <|> valueExpr
  <?> "expression"
 
@@ -153,6 +155,17 @@ valueExpr = try (DoubleScalar <$> lexeme float)
          <|> boolExpr
          <|> (oneOf "~-" >> UnOp NegateI <$> valueExpr) -- TODO: negation of doubles
          <?> "value or identifier"
+
+
+ifThenElseExpr :: Parser (Exp Untyped)
+ifThenElseExpr =
+  do reserved "if"
+     e1 <- expr
+     reserved "then"
+     e2 <- expr
+     reserved "else"
+     e3 <- expr
+     return (Cond e1 e2 e3 Untyped)
 
 boolExpr :: Parser (Exp Untyped)
 boolExpr = try (reserved "true" >> return (BoolScalar True))
@@ -184,7 +197,7 @@ pairOrParens =
 letExpr :: Parser (Exp Untyped)
 letExpr =
   do reserved "let"
-     (ident, _) <- typedIdent
+     ident <- identifier
      symbol "="
      e1 <- expr
      reserved "in"
@@ -202,6 +215,14 @@ opExpr = identifier >>= switch
     switch "mini" = BinOp MinI <$> nonAppExpr <*> nonAppExpr
     switch "eqi"  = BinOp EqI  <$> nonAppExpr <*> nonAppExpr
     switch "neqi" = BinOp NeqI <$> nonAppExpr <*> nonAppExpr
+    switch "powi" = BinOp PowI <$> nonAppExpr <*> nonAppExpr
+    switch "shiftLi" = BinOp ShiftLI <$> nonAppExpr <*> nonAppExpr
+    switch "shiftRi" = BinOp ShiftRI <$> nonAppExpr <*> nonAppExpr
+    switch "andi" = BinOp AndI <$> nonAppExpr <*> nonAppExpr
+    switch "xori" = BinOp XorI <$> nonAppExpr <*> nonAppExpr
+    switch "i2d" = UnOp I2D <$> nonAppExpr
+    switch "powr" = BinOp PowR <$> nonAppExpr <*> nonAppExpr
+    switch "divr" = BinOp DivR <$> nonAppExpr <*> nonAppExpr
     switch "fst"      = Proj1E         <$> nonAppExpr <?> "fst"
     switch "snd"      = Proj2E         <$> nonAppExpr <?> "snd"
     switch "index"    = Index          <$> nonAppExpr <*> nonAppExpr <?> "index"
@@ -216,17 +237,18 @@ opExpr = identifier >>= switch
 fnExpr :: Parser (Exp Untyped)
 fnExpr =
   do reserved "fn"
-     (ident, typ) <- typedIdent
+     ident <- identifier
      symbol "=>"
      e <- expr
      return (Lamb ident Untyped e Untyped)
 
-typedIdent :: Parser (Variable, Type)
-typedIdent =
-  do ident <- identifier
-     colon
-     typ <- typeExpr
-     return (ident, typ)
+-- typedIdent :: Parser (Variable, Maybe Type)
+-- typedIdent =
+--   do ident <- identifier
+--      try (do colon
+--              typ <- typeExpr
+--              return (ident, Just typ))
+--        <|> return (ident, Nothing)
 
 ------------------
 --    Types

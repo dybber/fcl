@@ -248,30 +248,6 @@ compBody env (Fixpoint e0 e1 e2) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   fixpoint v0 v1 v2
-compBody env (Concat i e0) = do
-  vi <- compBody env i
-  v0 <- compBody env e0
-  case (vi, v0) of
-    (TagInt rn, TagArray arr) ->
-      case arrayFun arr of
-        Push _ -> error "concat only works when the outer function is a pull array (TODO!)"
-        Pull idx -> do
-          let n = arrayLen arr
-          return . TagArray $ Array { arrayElemType = arrayElemType arr
-                                    , arrayLen = n `muli` rn
-                                    , arrayLevel = arrayLevel arr
-                                    , arrayFun = 
-                                      Push (\writer -> distrPar Block n $ \bix -> do
-                                                arrp <- idx bix
-                                                let writer' a ix = writer a ((bix `muli` rn) `addi` ix)
-                                                case arrp of
-                                                  TagArray arrp' ->
-                                                    case push arrp' of
-                                                      (Array {arrayFun = Push p }) -> p writer'
-                                                      _ -> error "Concat only works with inner-arrays of type push"
-                                                  _ -> error "Should not happen")
-                                    }
-    _ -> error "Concat should be given an integer and an array"
 compBody env (Assemble i f e0) = do
   vi <- compBody env i
   vf <- compBody env f

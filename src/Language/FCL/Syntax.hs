@@ -15,11 +15,12 @@ module Language.FCL.Syntax (
 
 import Language.GPUIL.Syntax (Level(..))
 
-data UnOp = AbsI | SignI | NegateI | Not
-  deriving (Show, Eq)
+data UnOp = AbsI | SignI | NegateI | Not | I2D
+  deriving (Eq, Show)
 
 data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
            | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
+           | PowI | DivR | PowR
   deriving (Eq, Show)
 
 type Variable = String
@@ -29,7 +30,7 @@ data Untyped = Untyped
 
 data TyVarName = TV Int
                | TVUser String
- deriving (Show, Eq, Ord)
+  deriving (Eq, Show, Ord)
 
 data Type =
     IntT
@@ -67,13 +68,12 @@ data Exp ty =
 
 -- Array handling
   | Index (Exp ty) (Exp ty)
-  | Length (Exp ty) -- array length
+  | Length (Exp ty)
 -- Combinators
   | Fixpoint (Exp ty) (Exp ty) (Exp ty) -- APL-style, representing tail-recursive functions
-  | Generate Level (Exp ty) (Exp ty) -- mkPull
+  | Generate Level (Exp ty) (Exp ty)
   | Map (Exp ty) (Exp ty)
-  | ForceLocal (Exp ty) -- force
-  | Concat (Exp ty) (Exp ty)
+  | ForceLocal (Exp ty)
   | Assemble (Exp ty) (Exp ty) (Exp ty)
   | LocalSize
   deriving (Eq, Show)
@@ -97,21 +97,6 @@ typeOf (BinOp op _ _) =
     else
       if op `elem` [ EqI ]
         then BoolT
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         else error "typeOf: BinOp"
 typeOf (Var _ ty) = ty
 typeOf (Lamb _ ty0 _ ty1) = ty0 :> ty1
@@ -145,10 +130,10 @@ typeOf (Map e0 e1) =
     (_ :> ty1, ArrayT lvl _) -> ArrayT lvl ty1
     _ -> error "typeOf: Map"
 typeOf (ForceLocal e0) = typeOf e0
-typeOf (Concat _ e0) =
-  case typeOf e0 of
-    ArrayT _ t -> t
-    _ -> error "typeOf: Concat given non-array as third argument"
+-- typeOf (Concat _ e0) =
+--   case typeOf e0 of
+--     ArrayT _ t -> t
+--     _ -> error "typeOf: Concat given non-array as third argument"
 typeOf (Assemble _ _ e0) =
   case typeOf e0 of
     ArrayT _ t -> t
