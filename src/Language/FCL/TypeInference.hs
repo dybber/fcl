@@ -1,5 +1,5 @@
 -- Inspired by http://okmij.org/ftp/Computation/FLOLAC/lecture.pdf
-module Language.FCL.TypeInference (typeinferProg) where
+module Language.FCL.TypeInference (typeinfer) where
 
 import Data.List (nub)
 import qualified Data.Map as Map
@@ -8,35 +8,40 @@ import Control.Monad.State
 
 import Language.FCL.Syntax
 
-type TyEnv = Map.Map Variable TypeScheme
-type ExpEnv = Map.Map Variable (Exp Type)
-type Subst = Map.Map TyVarName Type
+type TyEnv = Map.Map Variable (TypeScheme Type)
+type Subst = Map.Map TyVar Type
 data TVE = TVE Int Subst
 
 type TI x = State TVE x
 
-evalTI :: TI a -> TVE -> a
-evalTI m = evalState m
+-- evalTI :: TI a -> TVE -> a
+-- evalTI m = evalState m
 
--- runTI :: TI a -> TVE -> (a, TVE)
--- runTI m = runState m
+runTI :: TI a -> TVE -> (a, TVE)
+runTI m = runState m
 
 newtv :: TI Type
 newtv = do
  (TVE i s) <- get
  put (TVE (i+1) s)
- return (TyVar (TV i))
+ return (VarT (TyVar i Nothing))
 
-tvext :: (TyVarName,Type) -> TI ()
+newNamedTV :: String -> TI Type
+newNamedTV name = do
+ (TVE i s) <- get
+ put (TVE (i+1) s)
+ return (VarT (TyVar i (Just name)))
+
+tvext :: (TyVar,Type) -> TI ()
 tvext (x,ty) = do
  (TVE i env) <- get
  put (TVE i (Map.insert x ty env))
 
-lkup :: TyEnv -> Variable -> TypeScheme
+lkup :: TyEnv -> Variable -> TypeScheme Type
 lkup env x = maybe err id (Map.lookup x env)
  where err = error ("Unbound variable " ++ x)
 
-ext :: TyEnv -> Variable -> TypeScheme -> TyEnv
+ext :: TyEnv -> Variable -> TypeScheme Type -> TyEnv
 ext env x ty = Map.insert x ty env
 
 tvsub :: Subst -> Type -> Type
@@ -45,51 +50,74 @@ tvsub _ BoolT = BoolT
 tvsub _ DoubleT = DoubleT
 tvsub s (t1 :> t2) = tvsub s t1 :> tvsub s t2
 tvsub s (t1 :*: t2) = tvsub s t1 :*: tvsub s t2
-tvsub s (TyVar tv) =
+tvsub s (VarT tv) =
   case Map.lookup tv s of
     Just t -> tvsub s t
-    Nothing -> TyVar tv
+    Nothing -> VarT tv
 tvsub s (ArrayT Block t) = ArrayT Block (tvsub s t)
 tvsub _ (ArrayT _ _) = error "tvsub: only block level support at the moment"
 
+tvsubExp :: Subst -> Exp Type -> Exp Type
+tvsubExp _ (IntScalar i) = IntScalar i
+tvsubExp _ (BoolScalar b) = BoolScalar b
+tvsubExp _ (DoubleScalar d) = DoubleScalar d
+tvsubExp s (UnOp op e) = UnOp op (tvsubExp s e)
+tvsubExp s (BinOp op e1 e2) = BinOp op (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp s (Var x t) = Var x (tvsub s t)
+tvsubExp s (Vec es t) = Vec (map (tvsubExp s) es) (tvsub s t)
+tvsubExp s (Lamb x t1 e t2) = Lamb x (tvsub s t1) (tvsubExp s e) (tvsub s t2)
+tvsubExp s (Let x e ebody t) = Let x (tvsubExp s e) (tvsubExp s ebody) (tvsub s t)
+tvsubExp s (App e1 e2) = App (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp s (Cond e1 e2 e3 t) = Cond (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) (tvsub s t)
+tvsubExp s (Pair e1 e2) = Pair (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp s (Proj1E e1) = Proj1E (tvsubExp s e1)
+tvsubExp s (Proj2E e1) = Proj2E (tvsubExp s e1)
 
--- tvsubExp :: Subst -> Exp Type -> Exp Type
--- tvsubExp _ (IntScalar i) = IntScalar i
--- tvsubExp _ (BoolScalar b) = BoolScalar b
--- tvsubExp _ (DoubleScalar d) = DoubleScalar d
--- tvsubExp s (UnOp op e) = UnOp op (tvsubExp s e)
--- tvsubExp s (BinOp op e1 e2) = BinOp op (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (Var x t) = Var x (tvsub s t)
--- tvsubExp s (Vec es t) = Vec (map (tvsubExp s) es) (tvsub s t)
--- tvsubExp s (Lamb x t1 e t2) = Lamb x (tvsub s t1) (tvsubExp s e) (tvsub s t2)
--- tvsubExp s (Let x e ebody t) = Let x (tvsubExp s e) (tvsubExp s ebody) (tvsub s t)
--- tvsubExp s (App e1 e2) = App (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (Cond e1 e2 e3 t) = Cond (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) (tvsub s t)
--- tvsubExp s (Pair e1 e2) = Pair (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (Proj1E e1) = Proj1E (tvsubExp s e1)
--- tvsubExp s (Proj2E e1) = Proj2E (tvsubExp s e1)
+tvsubExp s (Index e1 e2) = Index (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp s (Length e1) = Length (tvsubExp s e1)
 
--- tvsubExp s (Index e1 e2) = Index (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (Length e1) = Length (tvsubExp s e1)
+tvsubExp s (Fixpoint e1 e2 e3) = Fixpoint (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
+tvsubExp s (Generate Block e1 e2) = Generate Block (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp _ (Generate _ _ _) = error "tvsubExp: only block level allowed at the moment"
+tvsubExp s (Map e1 e2) = Map (tvsubExp s e1) (tvsubExp s e2)
+tvsubExp s (ForceLocal e1) = ForceLocal (tvsubExp s e1)
+tvsubExp s (Assemble e1 e2 e3) = Assemble (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
+tvsubExp _ LocalSize = LocalSize
 
--- tvsubExp s (Fixpoint e1 e2 e3) = Fixpoint (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
--- tvsubExp s (Generate Block e1 e2) = Generate Block (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp _ (Generate _ _ _) = error "tvsubExp: only block level allowed at the moment"
--- tvsubExp s (Map e1 e2) = Map (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (ForceLocal e1) = ForceLocal (tvsubExp s e1)
--- tvsubExp s (Concat e1 e2) = Concat (tvsubExp s e1) (tvsubExp s e2)
--- tvsubExp s (Assemble e1 e2 e3) = Assemble (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
--- tvsubExp _ LocalSize = LocalSize
+prepareSig :: [(String, Type)] -> Type -> TI (Type, [(String, Type)])
+prepareSig env IntT = return (IntT,env)
+prepareSig env DoubleT = return (DoubleT,env)
+prepareSig env BoolT = return (BoolT,env)
+prepareSig env (t0 :> t1) =
+  do (t0',env') <- prepareSig env t0
+     (t1',env'') <- prepareSig env' t1
+     return (t0' :> t1', env'')
+prepareSig env (t0 :*: t1) =
+  do (t0',env') <- prepareSig env t0
+     (t1',env'') <- prepareSig env' t1
+     return (t0' :*: t1', env'')  
+prepareSig env (ArrayT Block t) =
+  do (t', env') <- prepareSig env t
+     return (ArrayT Block t', env')
 
-
+prepareSig env (VarT (TyVar _ Nothing)) =
+  do tv <- newtv
+     return (tv, env)
+prepareSig env (VarT (TyVar _ (Just x))) =
+  case lookup x env of
+    Just tv -> return (tv, env)
+    Nothing ->
+      do tv <- newNamedTV x
+         return (tv, env)
+prepareSig _ (ArrayT _ _) = error "prepareSig"
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
-tvchase (TyVar x) = do
+tvchase (VarT x) = do
   (TVE _ s) <- get
   case Map.lookup x s of
     Just t -> tvchase t
-    Nothing -> return (TyVar x)
+    Nothing -> return (VarT x)
 tvchase t = return t
 
 -- | The unification. If unification failed, return the reason
@@ -111,21 +139,21 @@ unify' (t1l :*: t1r) (t2l :*: t2r) =
   do unify t1l t2l
      unify t1r t2r
 unify' (ArrayT Block t1) (ArrayT Block t2) = unify t1 t2
-unify' (TyVar v1) t2 = unify_fv v1 t2
-unify' t1 (TyVar v2) = unify_fv v2 t1
+unify' (VarT v1) t2 = unify_fv v1 t2
+unify' t1 (VarT v2) = unify_fv v2 t1
 unify' t1 t2 = error (unwords ["type mismatch:",show t1,"and",
                                show t2])
 
-unify_fv :: TyVarName -> Type -> TI ()
-unify_fv tv t@(TyVar tv') | tv == tv'   = return ()
-                          | otherwise = tvext (tv, t)
+unify_fv :: TyVar -> Type -> TI ()
+unify_fv tv t@(VarT tv') | tv == tv'   = return ()
+                         | otherwise = tvext (tv, t)
 unify_fv tv t = do
   (TVE _ s) <- get
   let c = occurs s tv t 
   if c then error "occurs check failed"
        else tvext (tv, t)
 
-occurs :: Subst -> TyVarName -> Type -> Bool
+occurs :: Subst -> TyVar -> Type -> Bool
 occurs _ _ IntT = False
 occurs _ _ BoolT = False
 occurs _ _ DoubleT = False
@@ -133,7 +161,7 @@ occurs s tv (t1 :> t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (t1 :*: t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (ArrayT Block t) = occurs s tv t
 occurs _ _ (ArrayT _ _) = error "Only block level allowed ATM" -- TODO
-occurs s tv (TyVar tv2) =
+occurs s tv (VarT tv2) =
     case Map.lookup tv2 s of
          Just t  -> occurs s tv t
          Nothing -> tv == tv2
@@ -181,7 +209,7 @@ infer env (Proj2E e) = do
   tv1 <- newtv
   tv2 <- newtv
   unify t (tv1 :*: tv2)
-  return (tv2, e')
+  return (tv2, Proj2E e')
 infer env (Index e1 e2) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
@@ -288,35 +316,24 @@ unifyBinOp XorI = unify2 IntT IntT IntT
 unifyBinOp DivR = unify2 DoubleT DoubleT DoubleT
 unifyBinOp PowR = unify2 DoubleT DoubleT DoubleT
 
-instantiate :: TypeScheme -> TI Type
+instantiate :: TypeScheme Type -> TI Type
 instantiate (TypeScheme tyvars t) = do
   s <- mkFreshvars tyvars
   return (tvsub s t)
  where
-   mkFreshvars :: [TyVarName] -> TI Subst
+   mkFreshvars :: [TyVar] -> TI Subst
    mkFreshvars [] = return Map.empty
    mkFreshvars (tv:tvs) = do
      s <- mkFreshvars tvs
      fresh <- newtv
      return (Map.insert tv fresh s)
 
--- | Return the list of type variables in t (possibly with duplicates)
-freevars :: Type -> [TyVarName]
-freevars IntT       = []
-freevars BoolT       = []
-freevars DoubleT       = []
-freevars (t1 :> t2) = freevars t1 ++ freevars t2
-freevars (t1 :*: t2) = freevars t1 ++ freevars t2
-freevars (ArrayT Block t) = freevars t
-freevars (ArrayT _ _) = error "Only block level allowed ATM" -- TODO
-freevars (TyVar v)  = [v]
-
 -- | Give the list of all type variables that are allocated in TVE but
 -- not bound there
-free :: (Subst, Int) -> [TyVarName]
-free (s,c) = filter (\v -> not (Map.member v s)) (map TV [0..c-1])
+free :: (Subst, Int) -> [TyVar]
+free (s,c) = filter (\v -> not (Map.member v s)) (map (\x -> TyVar x Nothing) [0..c-1])
 
-generalize :: TI (Type, Exp Type) -> TI (TypeScheme, Exp Type)
+generalize :: TI (Type, Exp Type) -> TI (TypeScheme Type, Exp Type)
 generalize ta = do
  before <- get      -- type env before ta is executed
  (t,e')       <- ta
@@ -328,31 +345,33 @@ generalize ta = do
 
 -- | Compute (quite unoptimally) the characteristic function of the set 
 --  forall tvb \in fv(s_before). Union fv(tvsub(s_after,tvb))
-tvdependentset :: TVE -> Subst -> (TyVarName -> Bool)
+tvdependentset :: TVE -> Subst -> (TyVar -> Bool)
 tvdependentset (TVE i s_before) s_after = 
-  \tv -> any (\tvb -> occurs s_after tv (TyVar tvb)) (free (s_before,i))
+  \tv -> any (\tvb -> occurs s_after tv (VarT tvb)) (free (s_before,i))
 
 initEnv :: TVE
 initEnv = TVE 0 Map.empty
 
--- typeinfer :: TyEnv -> Exp Untyped -> (Type, Exp Type)
--- typeinfer env e =
---  let ((t,e'), TVE _ s) = runTI (infer env e) initEnv
---  in (tvsub s t,
---      tvsubExp s e')
+typeinfer :: Program Untyped -> Program Type
+typeinfer prog =
+ let (typrog, TVE _ s) = runTI (typecheckProg Map.empty prog) initEnv
+ in map (mapBody (tvsubExp s)) typrog
 
-typeinferProg :: Show ty => Prog ty -> [(Variable, Exp Type)]
-typeinferProg prog =
- evalTI (typecheckProg Map.empty Map.empty prog) initEnv
-
-typecheckProg :: Show ty => TyEnv -> ExpEnv -> Prog ty -> TI [(Variable, Exp Type)]
-typecheckProg _ _ [] = return []
-typecheckProg tenv eenv (KernelDef v : ds) = 
-  case Map.lookup v eenv of
-    Just e -> do
-      rest <- typecheckProg tenv eenv ds
-      return ((v,e) : rest)
-    Nothing -> error ("Variable " ++ v ++ " not defined in kernel declaration")
-typecheckProg tenv eenv (Definition v _ e : ds) = do
-  (ty, ety) <- generalize (infer tenv e)
-  typecheckProg (Map.insert v ty tenv) (Map.insert v ety eenv) ds
+typecheckProg :: TyEnv -> Program Untyped -> TI (Program Type)
+typecheckProg _ [] = return []
+typecheckProg tenv (d : ds) = do
+  (tysc@(TypeScheme _ ty), ety) <- generalize (infer tenv (defBody d))
+  case defSignature d of
+    Just sig ->
+      do (newTy, _) <- prepareSig [] sig -- TODO
+         unify newTy ty
+    Nothing -> return ()
+  rest <- typecheckProg (Map.insert (defVar d) tysc tenv) ds
+  let typedDef = Definition
+                   { defVar = defVar d
+                   , defSignature = Nothing
+                   , defTypeScheme = tysc
+                   , defEmitKernel = defEmitKernel d
+                   , defBody = ety
+                   }  
+  return (typedDef : rest)

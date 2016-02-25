@@ -6,9 +6,10 @@ module Language.FCL
 where
 
 import Language.FCL.Parser      (parseFile)
-import Language.FCL.TypeInference (typeinferProg)
+import Language.FCL.TypeInference (typeinfer)
+import Language.FCL.Inline      (inline)
 import Language.FCL.Compile     (compileKernel, compileKernels)
-import Language.FCL.Syntax      (Prog, typeOf, Exp, Type, Untyped)
+import Language.FCL.Syntax      (Program, typeOf, Exp, Type, Untyped, Definition(..))
 import Language.FCL.PrettyPrint (prettyPrintType)
 
 import Language.GPUIL.Syntax    (Kernel(..))
@@ -47,7 +48,7 @@ logDebug flags msg =
   then putStrLn msg
   else return ()
 
-parseFiles :: Flags -> [String] -> IO (Prog Untyped)
+parseFiles :: Flags -> [String] -> IO (Program Untyped)
 parseFiles _     [] = return []
 parseFiles flags (f:fs) = do
   logInfo flags ("Parsing " ++ f ++ ".")
@@ -55,19 +56,28 @@ parseFiles flags (f:fs) = do
   rest <- parseFiles flags fs
   return (p ++ rest)
 
-showType :: (String, Exp Type) -> String
-showType (v,e) = v ++ " : " ++ prettyPrintType (typeOf e)
+showType :: Definition Type -> String
+showType (Definition v _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
 
 compileFromFiles :: Flags -> [String] -> IO String
 compileFromFiles flags files =
   do prog <- parseFiles flags files
      logInfo flags "Parsing done. "
      logInfo flags "Typechecking."
-     let es = typeinferProg prog
+     let es = typeinfer prog
+     mapM_ (logDebug flags . (" " ++) . showType) es
      logInfo flags "Typechecking done."
-     mapM_ (logDebug flags . ("  " ++) . showType) es
+     logInfo flags "Inlining."
+     let esInline = inline es
+     logInfo flags (show (length esInline) ++ " kernels")
+     logInfo flags "Inlining done."
+     -- logInfo flags "Typechecking again."
+     -- let es = typeinferProg prog
+     -- mapM_ (logDebug flags . (" " ++) . showType) es
+     -- logInfo flags "Typechecking done."
+     logDebug flags (show esInline)
      logInfo flags "Compiling."
-     cp <- compileKernels (optIter flags) es
+     cp <- compileKernels (optIter flags) esInline
      return (unlines $ Prelude.map renderKernel cp)
 
 compileFromFile :: Flags -> String -> IO String

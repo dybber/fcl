@@ -1,54 +1,66 @@
 module Language.FCL.Syntax (
-  Type(..),
-  TypeScheme(..),
-  Exp(..),
+  -- Types
   Level(..),
+  Type(..),
+  TyVar(..),
+  TypeScheme(..),
+  freevars,
+  Untyped(Untyped),
+
+  -- Expressions
+  Variable,
+  Exp(..),
   UnOp(..),
   BinOp(..),
-  Variable,
-  TyVarName(..),
   typeOf,
-  Untyped(Untyped),
+
+  -- Programs
   Definition(..),
-  Prog,
+  Program,
+  mapBody
 ) where
 
-import Language.GPUIL.Syntax (Level(..))
-
-data UnOp = AbsI | SignI | NegateI | Not | I2D
+---------------------
+-- Syntax of types --
+---------------------
+data Level = Thread | Warp | Block | Grid
   deriving (Eq, Show)
-
-data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
-           | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
-           | PowI | DivR | PowR
-  deriving (Eq, Show)
-
-type Variable = String
-
-data Untyped = Untyped
-  deriving (Eq, Show)
-
-data TyVarName = TV Int
-               | TVUser String
-  deriving (Eq, Show, Ord)
-
+       
 data Type =
     IntT
   | BoolT
   | DoubleT
-  | TyVar TyVarName
+  | VarT TyVar
   | Type :> Type
   | Type :*: Type
   | ArrayT Level Type
- deriving (Eq, Show)
+  deriving (Eq, Show)
 
-data TypeScheme = TypeScheme [TyVarName] Type
+data TyVar = TyVar Int (Maybe String)
+  deriving (Eq, Show, Ord)
 
-type Prog ty = [Definition ty]
+data TypeScheme ty = TypeScheme [TyVar] ty
+  deriving Show
 
-data Definition ty = Definition Variable (Maybe Type) (Exp ty)
-                   | KernelDef Variable
- deriving Show
+-- | Return the list of type variables in t (possibly with duplicates)
+freevars :: Type -> [TyVar]
+freevars IntT       = []
+freevars BoolT       = []
+freevars DoubleT       = []
+freevars (t1 :> t2) = freevars t1 ++ freevars t2
+freevars (t1 :*: t2) = freevars t1 ++ freevars t2
+freevars (ArrayT Block t) = freevars t
+freevars (ArrayT _ _) = error "Only block level allowed ATM" -- TODO
+freevars (VarT v)  = [v]
+
+data Untyped = Untyped
+  deriving (Eq, Show)
+
+---------------------------
+-- Syntax of Expressions --
+---------------------------
+type Variable = String
+
 
 data Exp ty =
     IntScalar Int
@@ -82,6 +94,15 @@ data Exp ty =
   -- | Replicate Exp Exp
   -- | Permute Exp Exp
   -- | Append Exp Exp
+
+data UnOp = AbsI | SignI | NegateI | Not | I2D
+  deriving (Eq, Show)
+
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
+           | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
+           | PowI | DivR | PowR
+  deriving (Eq, Show)
+
 
 typeOf :: Exp Type -> Type
 typeOf (IntScalar _) = IntT
@@ -145,3 +166,31 @@ typeOf (Vec es _) =
        then ArrayT undefined t
        else error ""
 typeOf LocalSize = IntT
+
+
+------------------------
+-- Syntax of programs --
+------------------------
+-- type UntypedProgram ty = [Definition ty]
+-- data Definition ty = Definition Variable (Maybe Type) Bool (Exp ty)
+--   deriving Show
+
+-- type TypedProgram = [TypedDef]
+-- data TypedDef = TypedDef Variable Bool TypeScheme (Exp Type)
+
+-- type Program = [(Variable, Exp Type)]
+
+type Program ty = [Definition ty]
+data Definition ty =
+  Definition
+    { defVar        :: Variable
+    , defSignature  :: Maybe Type
+    , defTypeScheme :: TypeScheme ty
+    , defEmitKernel :: Bool
+    , defBody       :: Exp ty
+    }
+  deriving Show
+
+mapBody :: (Exp ty -> Exp ty) ->
+           Definition ty -> Definition ty
+mapBody f def = def { defBody = f (defBody def) }

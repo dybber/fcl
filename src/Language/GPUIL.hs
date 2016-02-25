@@ -17,9 +17,9 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
 
-generateKernel :: Int -> String -> Program () -> IO Kernel
+generateKernel :: Int -> String -> IL () -> IO Kernel
 generateKernel optIterations name m = do
-  let (stmts, params, varCount) = runProgram m
+  let (stmts, params, varCount) = runIL m
   tc params stmts
   let (stmts', used) = memoryMap stmts
       params' = (addSharedMem used) ++ params
@@ -38,7 +38,7 @@ tc :: [VarName] -> [Statement a] -> IO ()
 tc params stmts =
   case typeCheck params stmts of
     Success   -> return ()
-    Error msg -> putStrLn msg
+    Error msg -> error msg
 
 addSharedMem :: Maybe Bytes -> ([VarName])
 addSharedMem Nothing = []

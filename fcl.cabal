@@ -20,6 +20,7 @@ Library
                    Language.FCL.Parser
                    Language.FCL.PrettyPrint
                    Language.FCL.TypeInference
+                   Language.FCL.Inline
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile

@@ -3,12 +3,12 @@ module Language.FCL.Compile (compileKernel, compileKernels) where
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
-import Language.FCL.Syntax
+import Language.FCL.Syntax hiding (Level(..))
 import Language.GPUIL
 
-type PushFn a = ((a -> CExp -> Program ()) -> Program ())
+type PushFn a = ((a -> CExp -> IL ()) -> IL ())
 
-data Idx a = Pull (CExp -> Program a)
+data Idx a = Pull (CExp -> IL a)
            | Push (PushFn a)
 
 data Array a = Array { arrayLen :: CExp
@@ -22,7 +22,7 @@ data Tagged = TagInt CExp
             | TagBool CExp
             | TagDouble CExp
             | TagArray (Array Tagged)
-            | TagFn (Tagged -> Program Tagged)
+            | TagFn (Tagged -> IL Tagged)
             | TagPair Tagged Tagged
 
 instance Show (Idx a) where
@@ -42,12 +42,15 @@ type VarEnv = Map.Map Variable Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: Int -> [(Variable, Exp Type)] -> IO [Kernel]
-compileKernels optIterations = mapM (uncurry (compileKernel optIterations))
-
-compileKernel :: Int -> Variable -> Exp Type -> IO Kernel
-compileKernel optIterations name e =
-  let e' = normalizeFun 0 (typeOf e) e
+compileKernels :: Int -> Program Type -> IO [Kernel]
+compileKernels optIterations = mapM (compileKernel optIterations)
+ 
+compileKernel :: Int -> Definition Type -> IO Kernel
+compileKernel optIterations def =
+  let
+    e = defBody def
+    name = defVar def
+    e' = normalizeFun 0 (typeOf e) e
   in generateKernel optIterations name (compileFun emptyEnv e' >> return ())
 
 -- Convert pull arrays to push arrays
@@ -70,11 +73,11 @@ normalizeFun i (ty :> ty') ebody =
   in Lamb varName ty rest ty'
 normalizeFun _ _ ebody = ebody
   
-compileFun :: VarEnv -> Exp Type -> Program ()
+compileFun :: VarEnv -> Exp Type -> IL ()
 compileFun env (Lamb x (ArrayT lvl ty) e _) = do
   arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType ty))
   lenVar <- addParam "lenInput" int
-  let taggedExp = tagArray ty lvl (var lenVar) arrVar
+  let taggedExp = tagArray ty Block (var lenVar) arrVar
   compileFun (Map.insert x taggedExp env) e
 compileFun env (Lamb x ty e _) = do
   v <- addParam "input" (convertType ty)
@@ -129,9 +132,9 @@ convertType BoolT = bool
 convertType (ArrayT _ ty) = pointer [] (convertType ty)
 convertType (_ :> _) = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _) = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
-convertType (TyVar _) = error "convertType: All type variables should have been resolved by now"
+convertType (VarT _) = error "convertType: All type variables should have been resolved by now"
 
-compBody :: Map.Map Variable Tagged -> Exp Type -> Program Tagged
+compBody :: Map.Map Variable Tagged -> Exp Type -> IL Tagged
 compBody _ (IntScalar i)    = return (TagInt (constant i))
 compBody _ (DoubleScalar d) = return (TagDouble (constant d))
 compBody _ (BoolScalar b)   = return (TagBool (constant b))
@@ -193,7 +196,7 @@ compBody env (Generate lvl e0 e1) = do
       return . TagArray $ Array { arrayElemType = int -- TODO, when type inference is done,
                                                       -- put something sensible here
                                 , arrayLen = e0'
-                                , arrayLevel = lvl
+                                , arrayLevel = Block
                                 , arrayFun = Pull (\i -> f (TagInt i))
                                 }
     _ -> error "Generate expects integer expression as first argument and function as second argument"
@@ -278,7 +281,7 @@ compBody env (Assemble i f e0) = do
     _ -> error "Assemble should be given an integer, a function and an array."
 compBody _ LocalSize   = return (TagInt localSize)
 
-lets :: String -> Tagged -> Program Tagged
+lets :: String -> Tagged -> IL Tagged
 lets name s =
   case s of
     TagInt x -> liftM TagInt (let_ name int x)
@@ -291,7 +294,7 @@ lets name s =
     TagArray x -> do (n',_) <- letsVar "len" (TagInt (arrayLen x))
                      return (TagArray x {arrayLen = var n'}) -- TODO: materialize??
 
-letsVar :: String -> Tagged -> Program (VarName, Tagged)
+letsVar :: String -> Tagged -> IL (VarName, Tagged)
 letsVar name s =
   case s of
     TagInt x -> do var0 <- letVar name int x
@@ -315,7 +318,7 @@ unArray :: Tagged -> Array Tagged
 unArray (TagArray e) = e
 unArray _ = error "expected array"
 
-fixpoint :: Tagged -> Tagged -> Tagged -> Program Tagged
+fixpoint :: Tagged -> Tagged -> Tagged -> IL Tagged
 fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
   do -- Declare array
      var_array <- allocate (arrayElemType arr) (arrayLen arr)
@@ -363,7 +366,7 @@ fixpoint _ _ _ = error ""
 --
 -- TODO: Maybe we could just handle everything about array-of-tuples,
 -- to tuples of arrays here?
-unsafeWrite :: Array Tagged -> Program (Array Tagged)
+unsafeWrite :: Array Tagged -> IL (Array Tagged)
 unsafeWrite arr =
   let parr = push arr
   in case arrayFun parr of

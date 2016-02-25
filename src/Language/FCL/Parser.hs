@@ -5,7 +5,6 @@ module Language.FCL.Parser
 where
 
 import Control.Applicative hiding ((<|>), many)
-import Control.Monad (when)
 import Control.Monad.Identity (Identity)
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
@@ -13,13 +12,13 @@ import qualified Text.Parsec.Token as Token
 
 import Language.FCL.Syntax
 
-parseString :: String -> String -> (Prog Untyped)
+parseString :: String -> String -> (Program Untyped)
 parseString programText filename =
   case parse program filename programText of
     Left e  -> error $ show e
     Right r -> r
 
-parseFile :: String -> IO (Prog Untyped)
+parseFile :: String -> IO (Program Untyped)
 parseFile filename =
   do contents <- readFile filename
      case parse program filename contents of
@@ -83,7 +82,7 @@ float      = Token.float      lexer
 lexeme :: Parser a -> Parser a
 lexeme     = Token.lexeme     lexer
 
-program :: Parser (Prog Untyped)
+program :: Parser (Program Untyped)
 program =
   do whitespace
      prog <- many1 definition
@@ -94,9 +93,9 @@ program =
 -- Definitions and type signatures --
 -------------------------------------
 definition :: Parser (Definition Untyped)
-definition = try (typesig >>= def)  -- fun.def. w. signature
-          <|> def Nothing           -- fun.def.
-          <|> kernel                -- kernel def.
+definition = try (typesig >>= fundef)  -- fun.def. w. signature
+          <|> fundef Nothing           -- fun.def.
+          -- <|> kernel                -- kernel def.
 
 typesig :: Parser (Maybe (String,Type))
 typesig =
@@ -106,31 +105,34 @@ typesig =
      ty <- typeExpr
      return (Just (ident,ty))
 
-def :: Maybe (String, Type) -> Parser (Definition Untyped)
-def tyanno =
+fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
+fundef tyanno =
   let
     addArgs :: [Variable] -> Exp Untyped -> Exp Untyped
     addArgs [] rhs = rhs
     addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped)
   in
-    do reserved "fun"
+    do make_kernel <- (reserved "fun" >> return False) <|> (reserved "kernel" >> return True)
        name <- identifier
        args <- many identifier
        symbol "="
        rhs <- expr
        let function = addArgs (reverse args) rhs
-       case tyanno of
-         Just (name', typ) -> do
-           when (name /= name') (fail "Different identifier in signature and definition")
-           return (Definition name (Just typ) function)
-         Nothing -> return (Definition name Nothing function)
+       return (Definition
+                 { defVar = name
+                 , defSignature = fmap snd tyanno
+                 , defTypeScheme = TypeScheme [] Untyped
+                 , defEmitKernel = make_kernel
+                 , defBody = function
+                 })
 
 
-kernel :: Parser (Definition Untyped)
-kernel =
-  do reserved "kernel"
-     name <- identifier
-     return (KernelDef name)
+-- kernel :: Parser (Definition Untyped)
+-- kernel =
+--   do reserved "kernel"
+--      name <- identifier
+--      symbol "="
+--      return (KernelDef name)
        
 ----------------------
 --    Expressions    --
@@ -155,7 +157,6 @@ valueExpr = try (DoubleScalar <$> lexeme float)
          <|> boolExpr
          <|> (oneOf "~-" >> UnOp NegateI <$> valueExpr) -- TODO: negation of doubles
          <?> "value or identifier"
-
 
 ifThenElseExpr :: Parser (Exp Untyped)
 ifThenElseExpr =
@@ -288,7 +289,7 @@ baseType = (reserved "int" >> return IntT)
        <?> "base type"
 
 newTyVar :: String -> Type
-newTyVar name = TyVar (TVUser name)
+newTyVar name = VarT (TyVar 0 (Just name))
 
 tyVar :: Parser Type
 tyVar = newTyVar <$> identifier

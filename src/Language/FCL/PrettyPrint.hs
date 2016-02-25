@@ -8,8 +8,8 @@ ppType :: Type -> Doc
 ppType IntT = text "int"
 ppType BoolT = text "bool"
 ppType DoubleT = text "double"
-ppType (TyVar (TV i)) = text "tv" :+: int i
-ppType (TyVar (TVUser a)) = text a
+ppType (VarT (TyVar i Nothing)) = text "tv" :+: int i
+ppType (VarT (TyVar _ (Just v))) = text v
 ppType (ty :> ty')  = parens (ppType ty :<>: text "->" :<>: ppType ty')
 ppType (ty :*: ty') = parens (ppType ty :+: char ',' :<>: ppType ty')
 ppType (ArrayT _ ty) = brackets (ppType ty)
