@@ -1,17 +1,24 @@
+-- Most approachable description of Sobol algorithms is
+-- given by Bradley et al.
+-- https://people.maths.ox.ac.uk/gilesm/files/gems_rng.pdf
+-- (there is an indexing error in equation (4), it should say
+--  m_{q_n + 1})
+
 module Sobol where
 
 import Data.Word
 import Data.Bits
+import Data.List (transpose)
 
+fromBool :: Num a => Bool -> a
 fromBool True = 1
 fromBool False = 0
 
 sobol_num_bits :: Int
 sobol_num_bits = 30
-sobol_dim :: Word32
-sobol_dim = 2
+
 sobol_divisor :: Double
-sobol_divisor = fromIntegral (2 ^ sobol_num_bits)
+sobol_divisor = fromIntegral ((2 :: Int) ^ sobol_num_bits)
 
 -- Two direction vectors
 sobol_dirVs :: [[Word32]]
@@ -26,6 +33,9 @@ sobol_dirVs = [[536870912,268435456,134217728,67108864,33554432,
                 570434048,855651072,713042560,1069563840,538976288,
                 808464432,673720360,1010580540,572662306,858993459]]
 
+sobol_dim :: Word32
+sobol_dim = fromIntegral (length sobol_dirVs)
+
 grayCode :: Int -> Word32
 grayCode ix = fromIntegral (ix `xor` (ix `shiftR` 1))
 
@@ -37,19 +47,18 @@ grayCode ix = fromIntegral (ix `xor` (ix `shiftR` 1))
 sobolInd :: Int -> [Word32] -> Word32
 sobolInd ix dirVec = 
   let bitVec :: [Word32]
-      bitVec = map (\i -> fromBool $ testBit (grayCode ix) i)
+      bitVec = map (fromBool . testBit (grayCode ix))
                    [0..sobol_num_bits-1]
-  in foldr xor 0 $ zipWith (*) dirVec bitVec
+  in foldr xor 0 (zipWith (*) dirVec bitVec)
 
 -- Creates a length n sobol sequences using the given direction vector
-sobol1D :: Int -> [Word32] -> [Word32]
-sobol1D n dirVec = map (\ix -> sobolInd ix dirVec) [0..n-1]
+sobolInd1D :: Int -> [Word32] -> [Word32]
+sobolInd1D n dirVec = map (\ix -> sobolInd ix dirVec) [0..n-1]
 
 -- Creates multi-dimensional sobol-sequences of length n
 -- with as many dimensions as there are direction vectors
-sobolND :: Int -> [[Word32]] -> [[Word32]]
-sobolND n dirVs = map (\ix -> map (sobolInd ix) dirVs) [1..n]
-
+sobolIndND :: Int -> [[Word32]] -> [[Word32]]
+sobolIndND n dirVs = map (\ix -> map (sobolInd ix) dirVs) [0..n-1]
 
 ---------------------
 -- Sobol recursive --
@@ -62,17 +71,15 @@ ffz n = loop 0 n
                   then count
                   else loop (count+1) (c `shiftR` 1)
 
-sobolRec :: Int -> [Word32] -> Word32 -> Word32
-sobolRec ix dirVec e = e `xor` (dirVec !! (ffz ix))
+sobolRec :: [Word32] -> Word32 -> Int -> Word32
+sobolRec dirVec prev ix = prev `xor` (dirVec !! (ffz ix))
 
 -- Creates part of a sobol sequences using the given direction vector
 -- creates `n` elements starting at index `startIx`
 sobolRec1D :: Int -> Int -> [Word32] -> [Word32]
-sobolRec1D startIx n dirVec = 
- let init = sobolInd startIx dirVec
-     recurse _ _ 0 = [] -- This can be written as a sequential scan
-     recurse i e n = e : recurse (i+1) (sobolRec i dirVec e) (n-1)
- in recurse startIx init n
+sobolRec1D startIx n dirVs = 
+ let initial = sobolInd startIx dirVs
+ in scanl (sobolRec dirVs) initial [startIx..startIx+n-2]
 
 -- Creates a length n sobol sequences using the given direction vector
 sobolRec1DChunked :: Int -> Int -> [Word32] -> [Word32]
@@ -82,23 +89,42 @@ sobolRec1DChunked chunkSize n dirVec =
 -- Creates multi-dimensional sobol-sequences of length n
 -- with as many dimensions as there are direction vectors
 sobolRecND :: Int -> [[Word32]] -> [[Word32]]
-sobolRecND n dirVs = 
- let init = map (sobolInd 0) dirVs
-     recurse i e | i == n    = []
-                 | otherwise = e : recurse (i+1) (zipWith (sobolRec i) dirVs e)
- in recurse 0 init
+sobolRecND n dirVs = transpose (map (sobolRec1D 0 n) dirVs)
 
 ---------------------------------------------------------
 -- Skipping algorithm for GPUs (Bradley, Giles et al.) --
 ---------------------------------------------------------
---
--- TODO
 
+sobolSkip :: [Word32] -> Int -> Word32 -> Int -> Word32
+sobolSkip dirVec p prev n =
+  let q_n = ffz (n .|. (2^p - 1))
+  in prev
+      `xor` (dirVec !! (p - 1))
+      `xor` (dirVec !! q_n)
+
+sobolSkip1D :: Int -> Int -> [Word32] -> [Word32]
+sobolSkip1D logskip steps dirVec =
+  let stepSize = (2^logskip)
+      initial = sobolInd1D stepSize dirVec
+      skip prev start = zipWith (sobolSkip dirVec logskip) prev [start..start+stepSize-1]
+  in concat (scanl skip initial (map (*stepSize) [0..steps-2]))
+
+sobolSkipND :: Int -> Int -> [[Word32]] -> [[Word32]]
+sobolSkipND logskip steps dirVs =
+  transpose (map (sobolSkip1D logskip steps) dirVs)
+
+sobolSkipNDWrap :: Int -> Int -> [[Word32]] -> [[Word32]]
+sobolSkipNDWrap logskip n dirVs =
+  let stepSize = (2^logskip)
+      steps = (n + stepSize - 1) `div` stepSize
+  in take n (sobolSkipND logskip steps dirVs)
+
+sobolSkipping :: Int -> [[Word32]] -> [[Word32]]
 sobolSkipping = error "Not implemented yet"
 
---------------------
--- Monte carlo Pi --
---------------------
+---------------------------------------
+-- Normalise to floating point [0;1] --
+---------------------------------------
 -- Converts a sobol number to floating point in the interval [0,1]
 normalise :: Word32 -> Double
 normalise x = fromIntegral x / sobol_divisor
@@ -106,17 +132,58 @@ normalise x = fromIntegral x / sobol_divisor
 normaliseND :: [[Word32]] -> [[Double]]
 normaliseND = map (map normalise)
 
+----------
+-- Test --
+----------
+iterations :: Int
+iterations = 50
+
+expectedOut :: [[Double]]
+expectedOut = [[0.0, 0.0], [0.5, 0.5], [0.75, 0.25], [0.25, 0.75], [0.375, 0.375],
+     [0.875, 0.875], [0.625, 0.125], [0.125, 0.625], [0.1875, 0.3125],
+     [0.6875, 0.8125], [0.9375, 0.0625], [0.4375, 0.5625], [0.3125, 0.1875],
+     [0.8125, 0.6875], [0.5625, 0.4375], [0.0625, 0.9375], [0.09375, 0.46875],
+     [0.59375, 0.96875], [0.84375, 0.21875], [0.34375, 0.71875],
+     [0.46875, 0.09375], [0.96875, 0.59375], [0.71875, 0.34375],
+     [0.21875, 0.84375], [0.15625, 0.15625], [0.65625, 0.65625],
+     [0.90625, 0.40625], [0.40625, 0.90625], [0.28125, 0.28125],
+     [0.78125, 0.78125], [0.53125, 0.03125], [0.03125, 0.53125],
+     [0.046875, 0.265625], [0.546875, 0.765625], [0.796875, 0.015625],
+     [0.296875, 0.515625], [0.421875, 0.140625], [0.921875, 0.640625],
+     [0.671875, 0.390625], [0.171875, 0.890625], [0.234375, 0.078125],
+     [0.734375, 0.578125], [0.984375, 0.328125], [0.484375, 0.828125],
+     [0.359375, 0.453125], [0.859375, 0.953125], [0.609375, 0.203125],
+     [0.109375, 0.703125], [0.078125, 0.234375], [0.578125, 0.734375]]
+
+testSobolIndND :: [[Double]]
+testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
+
+testSobolRecND :: [[Double]]
+testSobolRecND = normaliseND (sobolRecND iterations sobol_dirVs)
+
+testSobolSkipND :: [[Double]]
+testSobolSkipND = normaliseND (sobolSkipNDWrap 3 iterations sobol_dirVs)
+
+---------------------------------------------
+-- Calculate pi w. Monte carlo integration --
+---------------------------------------------
 mcpi :: (Int -> [[Word32]] -> [[Word32]]) -> Int -> Double
 mcpi sobol n = 
   let -- Make two dimensional Sobol-sequence
-      xs = normaliseND $ sobol n sobol_dirVs
+      xs = normaliseND (sobol n sobol_dirVs)
 
       -- Compute distance to centrum
-      dist a b = sqrt (a*a + b*b)
-      distances = map (\ [a,b] -> fromIntegral $ truncate (dist a b)) xs
+      dist a b = a*a + b*b
+      distances = map (\ [a,b] -> fromIntegral (truncate (dist a b) :: Int)) xs
 
       m = fromIntegral n
   in 4 * ((m - sum distances) / m)
 
-mcpi_independent = mcpi sobolND
+mcpi_independent :: Int -> Double
+mcpi_independent = mcpi sobolIndND
+
+mcpi_recursive :: Int -> Double
 mcpi_recursive = mcpi sobolRecND
+
+mcpi_skip :: Int -> Double
+mcpi_skip = mcpi (sobolSkipNDWrap 5)
