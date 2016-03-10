@@ -98,11 +98,11 @@ constantFold stmts = concat $ map process stmts
        IntE 0 -> []
        IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
        _ -> [ForAll lvl v (foldExp e) (constantFold body) i]
-   process (For v e body i)   =
-     case foldExp e of
-       IntE 0 -> []
-       IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
-       _ -> [For v (foldExp e) (constantFold body) i]
+   -- process (For v e body i)   =
+   --   case foldExp e of
+   --     IntE 0 -> []
+   --     IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
+   --     _ -> [For v (foldExp e) (constantFold body) i]
    process (If e strue sfalse i) =
         case foldExp e of
           BoolE True -> constantFold strue

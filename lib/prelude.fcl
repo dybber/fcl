@@ -40,19 +40,24 @@ fun coalesce n arr =
 
 sig concat : int -> [[a]] -> [a]
 fun concat n arr =
-  assemble n (fn x => addi (muli (fst x) n) (snd x)) arr
+  assemble n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
 sig seqReduce : (a -> a -> a) -> a -> [a] -> a
 fun seqReduce f b array =
   let n = length array in
   let cond = fn x => neqi (fst x) n in
-  let step  = fn x => (addi (fst x) 1, f (index array (fst x)) (snd x))
+  let step  = fn x => (addi (fst x) 1,
+                       f (index array (fst x)) (snd x))
   in snd (while cond step (0,b))
 
-sig reduce : (a -> a -> a) -> [a] -> [a]
-fun reduce f arr =
+sig reduceBlock : (a -> a -> a) -> [a] -> [a]
+fun reduceBlock f arr =
   let cond = fn arr => neqi 1 (length arr) in
   let step = fn arr => let x = halve arr
                        in zipWith f (fst x) (snd x)
-  in concat 1 (map (fn arr => while cond step (step arr))
-                   (splitUp 512 arr))
+  in while cond step (step arr)
+
+sig reducePart : (a -> a -> a) -> [a] -> [a]
+fun reducePart f arr =
+   concat 1 (map (reduceBlock f) (splitUp 512 arr))
+

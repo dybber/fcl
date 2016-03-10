@@ -5,19 +5,19 @@ fun reverse arr =
   let n = length arr
   in generate n (fn i => index arr (subi (subi n i) 1))
 
-sig reverseGrid : int -> [a] -> [a]
-fun reverseGrid splitSize arr =
+sig distributeReverse : int -> [a] -> [a]
+fun distributeReverse splitSize arr =
   concat splitSize
     (reverse
        (map (fn arr2 => force (reverse arr2))
                (splitUp splitSize arr)))
 
-sig reverseGridKernel : [int] -> [int]
-kernel reverseGridKernel arr = reverseGrid #localSize arr
+sig reverseKernel : [int] -> [int]
+kernel reverseKernel arr = distributeReverse #localSize arr
 
 
 -- kernel reverseGrid512 arr = reverseGrid #BlockSize arr
 --   config #BlockSize = 512
 --   config #WarpSize = 32 -- (or wavefront size)
---   config #OpenCLVersion = 2.0
+
 

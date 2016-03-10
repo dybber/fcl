@@ -9,7 +9,7 @@ import Language.FCL.Parser      (parseFile)
 import Language.FCL.TypeInference (typeinfer)
 import Language.FCL.Inline      (inline)
 import Language.FCL.Compile     (compileKernel, compileKernels)
-import Language.FCL.Syntax      (Program, typeOf, Exp, Type, Untyped, Definition(..))
+import Language.FCL.Syntax      (Program, typeOf, Type, Untyped, Definition(..))
 import Language.FCL.PrettyPrint (prettyPrintType)
 
 import Language.GPUIL.Syntax    (Kernel(..))

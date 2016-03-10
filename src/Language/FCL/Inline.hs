@@ -23,9 +23,13 @@ inlineFuncs env (d : ds) =
      else rest
   
 inlineAll :: Env -> Exp Type -> Exp Type
+inlineAll _ e@(IntScalar _) = e
+inlineAll _ e@(DoubleScalar _) = e
+inlineAll _ e@(BoolScalar _) = e
+inlineAll _ e@LocalSize = e
 inlineAll env (Var v ty) =
   case Map.lookup v env of
-    Just (tysc, e) -> inlineAll env e  -- TODO fix up types
+    Just (_, e) -> inlineAll env e  -- TODO fix up types
     Nothing -> Var v ty
 inlineAll env (UnOp op e0)           = UnOp op      (inlineAll env e0)
 inlineAll env (BinOp op e0 e1)       = BinOp op     (inlineAll env e0) (inlineAll env e1)
@@ -44,4 +48,5 @@ inlineAll env (Generate lvl e0 e1)   = Generate lvl (inlineAll env e0) (inlineAl
 inlineAll env (Map e0 e1)            = Map          (inlineAll env e0) (inlineAll env e1)
 inlineAll env (ForceLocal e0)        = ForceLocal   (inlineAll env e0)
 inlineAll env (Assemble e0 e1 e2)    = Assemble     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
-inlineAll _ e = e
+inlineAll env (Scanl e0 e1 e2)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
+

@@ -5,7 +5,7 @@ module Language.FCL.Eval.ArrayLib
   indices,
   fromList, toList,
   fromFunction,
-  index, mapA, foldlA,
+  index, mapA, foldlA, scanlA,
   reduceA, joinA, splitA
  )
 where
@@ -54,6 +54,9 @@ mapA g (FCLArray {len=n, idx=f}) = FCLArray { len=n
 
 foldlA :: ((a, b) -> a) -> a -> FCLArray b -> a
 foldlA f b arr = foldl (curry f) b (toList arr)
+
+scanlA :: ((a, b) -> a) -> a -> FCLArray b -> FCLArray a
+scanlA f b arr = fromList (scanl (curry f) b (toList arr))
 
 reduceA :: ((a, a) -> a) -> a -> FCLArray a -> a
 reduceA = foldlA

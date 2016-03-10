@@ -106,9 +106,9 @@ liveness stmts graph =
 
   in backwardAnalysis updateIn updateOut graph
 
-ss0 = addLabels  [Decl ("a",CInt32) (IntE 0) (),
-                  Decl ("b",CInt32) (IntE 512) (),
-                  Decl ("c",CInt32) (VarE ("a",CInt32)) (),
-                  Decl ("a",CInt32) (IntE 17) ()]
-g = makeFlowGraph ss0
-(in_,out_) = liveness ss0 g
+-- ss0 = addLabels  [Decl ("a",CInt32) (IntE 0) (),
+--                   Decl ("b",CInt32) (IntE 512) (),
+--                   Decl ("c",CInt32) (VarE ("a",CInt32)) (),
+--                   Decl ("a",CInt32) (IntE 17) ()]
+-- g = makeFlowGraph ss0
+-- (in_,out_) = liveness ss0 g

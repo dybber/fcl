@@ -83,6 +83,7 @@ tvsubExp s (Map e1 e2) = Map (tvsubExp s e1) (tvsubExp s e2)
 tvsubExp s (ForceLocal e1) = ForceLocal (tvsubExp s e1)
 tvsubExp s (Assemble e1 e2 e3) = Assemble (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
 tvsubExp _ LocalSize = LocalSize
+tvsubExp s (Scanl e1 e2 e3) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
 
 prepareSig :: [(String, Type)] -> Type -> TI (Type, [(String, Type)])
 prepareSig env IntT = return (IntT,env)
@@ -273,6 +274,14 @@ infer env (Vec es _) = do
   tes <- mapM (infer env) es
   t <- unifyAll (map fst tes)
   return (ArrayT Block t, Vec (map snd tes) t)
+infer env (Scanl e1 e2 e3) = do
+  (tf, e1') <- infer env e1
+  (ta, e2') <- infer env e2
+  (tbs, e3') <- infer env e3
+  tb <- newtv
+  unify tf (ta :> tb :> ta)
+  unify tbs (ArrayT Block tb)
+  return (ArrayT Block ta, Scanl e1' e2' e3')
 
 unifyAll :: [Type] -> TI Type
 unifyAll [] = newtv

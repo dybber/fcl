@@ -23,8 +23,8 @@ deadCodeElimination stmts liveOutMap =
         Just liveVars -> not (Set.member var liveVars)
         Nothing -> error "No liveness information for this statement."
 
-    elimStmt (Assign (_, CPtr _ _) _ lbl) = False
-    elimStmt (Decl (_, CPtr _ _) _ lbl) = False
+    elimStmt (Assign (_, CPtr _ _) _ _) = False
+    elimStmt (Decl (_, CPtr _ _) _ _) = False
     elimStmt (Assign v _ lbl) = canElim lbl v
     elimStmt (Decl v _ lbl) = canElim lbl v
     elimStmt _ = False

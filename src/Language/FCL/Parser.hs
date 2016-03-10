@@ -55,8 +55,8 @@ reserved   = Token.reserved   lexer
 -- stringlit  = Token.stringLiteral lexer
 -- charlit :: Parser Char
 -- charlit    = Token.charLiteral lexer
-parens :: Parser a -> Parser a
-parens     = Token.parens     lexer
+-- parens :: Parser a -> Parser a
+-- parens     = Token.parens     lexer
 brackets :: Parser a -> Parser a
 brackets   = Token.brackets   lexer
 -- angles :: Parser a -> Parser a

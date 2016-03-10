@@ -2,7 +2,8 @@ module Language.GPUIL.Analysis.Graph
  (Graph, Node, nodes, emptyGraph,
   getNode, addNode, addEdge, addEdges,
   startNode, exitNode, setStartNode, setExitNode,
-  predecessors, successors, dfs, dfsBackwards)
+  predecessors, successors, -- dfs, dfsBackwards
+ )
 where
 
 import qualified Data.Map as Map
@@ -47,8 +48,8 @@ nodes (Graph{assocs = ass}) = Map.keys ass
 
 -- TODO! Use ST monad/STArray to keep an updatable Array of visited nodes.
 -- See implementation in Data.Graph?
-dfs = undefined
-dfsBackwards = undefined
+-- dfs = undefined
+-- dfsBackwards = undefined
 
 -- dfs :: (Show lbl, Ord lbl) => Graph lbl -> lbl -> [lbl]
 -- dfs g start =

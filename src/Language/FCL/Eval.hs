@@ -83,6 +83,9 @@ interp env (BinOp op e1 e2) =
        XorI -> IntV $ (unInt "xori" v1) `xor` (unInt "xori" v2)
        ShiftLI -> IntV $ (unInt "shiftLi" v1) `shiftL` (unInt "shiftLi" v2)
        ShiftRI -> IntV $ (unInt "shiftRi" v1) `shiftR` (unInt "shiftRi" v2)
+       PowI    -> IntV $ (unInt "powi" v1) ^ (unInt "powi" v2)
+       PowR    -> DoubleV $ (unDouble "powr" v1) ** (unDouble "powr" v2)
+       DivR    -> DoubleV $ (unDouble "divr" v1) / (unDouble "divr" v2)
 interp env (Map ef e) =
   case (interp env ef, interp env e) of
     (LamV env' x ebody, ArrayV arr) ->
@@ -111,6 +114,9 @@ interp env (UnOp op e0) =
   in case op of
        AbsI  -> IntV (abs (unInt "absi" v0))
        SignI -> IntV (signum (unInt "signi" v0))
+       Not -> BoolV (not (unBool "not" v0))
+       NegateI -> IntV (negate (unInt "negatei" v0))
+       I2D -> DoubleV (fromIntegral (unInt "i2d" v0))
 interp env (Assemble n f e0) =
   let fx x y =
         case interp env (App f (Pair (IntScalar x) (IntScalar y))) of
@@ -128,6 +134,14 @@ interp env (Fixpoint e0 e1 e2) =
           (\x -> interp (insertVar var1 x env1) body)
           (interp env e2)
     _ -> error ""
+interp env (Scanl ef e bs) =
+  case (interp env ef, interp env bs) of
+    (LamV env' x ebody, ArrayV arr) ->
+      let f (v1,v2) = interp (insertVar x (PairV v1 v2) env') ebody
+      in ArrayV (Arr.scanlA f (interp env e) arr)
+    (LamV _ _ _, _) -> error "Error when evaluating third argument to map: not an array"
+    _               -> error "Error when evaluating first argument to map: not a function"
+interp _ LocalSize = error "Eval: LocalSize not implemented"
 
 
 sortOn :: Ord b => (a -> b) -> [a] -> [a]

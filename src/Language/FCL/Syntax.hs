@@ -88,6 +88,9 @@ data Exp ty =
   | ForceLocal (Exp ty)
   | Assemble (Exp ty) (Exp ty) (Exp ty)
   | LocalSize
+
+  -- Sequential scan, I don't really want this!
+  | Scanl (Exp ty) (Exp ty) (Exp ty)
   deriving (Eq, Show)
 
   -- To be added later!
@@ -166,19 +169,15 @@ typeOf (Vec es _) =
        then ArrayT undefined t
        else error ""
 typeOf LocalSize = IntT
+typeOf (Scanl _ e1 e2) =
+  case typeOf e2 of
+    ArrayT lvl _ -> ArrayT lvl (typeOf e1)
+    _ -> error "typeOf: Scanl"
 
 
 ------------------------
 -- Syntax of programs --
 ------------------------
--- type UntypedProgram ty = [Definition ty]
--- data Definition ty = Definition Variable (Maybe Type) Bool (Exp ty)
---   deriving Show
-
--- type TypedProgram = [TypedDef]
--- data TypedDef = TypedDef Variable Bool TypeScheme (Exp Type)
-
--- type Program = [(Variable, Exp Type)]
 
 type Program ty = [Definition ty]
 data Definition ty =
@@ -191,6 +190,6 @@ data Definition ty =
     }
   deriving Show
 
-mapBody :: (Exp ty -> Exp ty) ->
-           Definition ty -> Definition ty
+mapBody :: (Exp ty -> Exp ty)
+        -> Definition ty -> Definition ty
 mapBody f def = def { defBody = f (defBody def) }

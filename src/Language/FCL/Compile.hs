@@ -74,7 +74,7 @@ normalizeFun i (ty :> ty') ebody =
 normalizeFun _ _ ebody = ebody
   
 compileFun :: VarEnv -> Exp Type -> IL ()
-compileFun env (Lamb x (ArrayT lvl ty) e _) = do
+compileFun env (Lamb x (ArrayT _ ty) e _) = do
   arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType ty))
   lenVar <- addParam "lenInput" int
   let taggedExp = tagArray ty Block (var lenVar) arrVar
@@ -100,12 +100,10 @@ compileFun env e = do
       error "compileFun: cannot return array of arrays"
     TagArray arr -> do
       varOut <- addParam "arrOutput" (pointer [attrGlobal] (arrayElemType arr))
-      varLen <- addParam "lenOutput" (pointer [attrGlobal] int)
       let f = getPushFn (push arr)
       f (\x -> case x of
                  TagInt i -> assignArray varOut i
                  t -> error ("Can not return arrays with element type " ++ show t))
-      assignArray varLen (arrayLen arr) (constant (0 :: Int))
 
 tagArray :: Type -> Level -> CExp -> VarName -> Tagged
 tagArray (ArrayT _ _) _ _ _ = error "Kernels can not accept arrays of arrays"
@@ -188,7 +186,7 @@ compBody env (Cond e0 e1 e2 _) = do
                      (TagFn _, TagFn _) -> error "TODO: yet to be implemented"
                      (_,_) -> error "branches are differing"
     _ -> error "Expecting boolean expression as conditional argument in branch"
-compBody env (Generate lvl e0 e1) = do
+compBody env (Generate _ e0 e1) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   case (v0, v1) of
@@ -371,8 +369,8 @@ unsafeWrite arr =
   let parr = push arr
   in case arrayFun parr of
        Push f -> do name <- allocate (arrayElemType parr) (arrayLen parr)
-                    f (\tx -> case tx of
-                                TagInt i -> assignArray name i
+                    f (\tx ix -> case tx of
+                                TagInt v -> assignArray name v ix
                                 e -> error (show e))
                     -- TODO ^ This should unpack according elem type, currently only supports integers
                     --        How do we support arrays of arrays?
@@ -416,3 +414,8 @@ compileUnOp op _ =
   error $ concat ["Unexpected arguments to unary operator ",
                   show op,
                   ", expecting integer expression."]
+
+
+unInt :: Tagged -> CExp
+unInt (TagInt i) = i
+unInt _ = error "unInt"
