@@ -249,14 +249,13 @@ compBody env (Fixpoint e0 e1 e2) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   fixpoint v0 v1 v2
-compBody env (Assemble i f e0) = do
+compBody env (Concat i e0) = do
   vi <- compBody env i
-  vf <- compBody env f
   v0 <- compBody env e0
-  case (vi, vf, v0) of
-    (TagInt rn, TagFn ff, TagArray arr) ->
+  case (vi, v0) of
+    (TagInt rn, TagArray arr) ->
       case arrayFun arr of
-        Push _ -> error "Assemble only works when the outer function is a pull array (TODO!)"
+        Push _ -> error "concat only works when the outer function is a pull array (TODO!)"
         Pull idx -> do
           let n = arrayLen arr
           return . TagArray $ Array { arrayElemType = arrayElemType arr
@@ -265,18 +264,15 @@ compBody env (Assemble i f e0) = do
                                     , arrayFun = 
                                       Push (\writer -> distrPar Block n $ \bix -> do
                                                 arrp <- idx bix
-                                                let writer' a ix = do ix' <- ff (TagPair (TagInt bix) (TagInt ix))
-                                                                      case ix' of
-                                                                        TagInt ix'' -> writer a ix''
-                                                                        _ -> error "Function argument to Assemble should return an integer value"
+                                                let writer' a ix = writer a ((bix `muli` rn) `addi` ix)
                                                 case arrp of
                                                   TagArray arrp' ->
                                                     case push arrp' of
                                                       (Array {arrayFun = Push p }) -> p writer'
-                                                      _ -> error "Assemble only works with inner-arrays of type push"
+                                                      _ -> error "Concat only works with inner-arrays of type push"
                                                   _ -> error "Should not happen")
                                     }
-    _ -> error "Assemble should be given an integer, a function and an array."
+    _ -> error "Concat should be given an integer and an array"
 compBody _ LocalSize   = return (TagInt localSize)
 
 lets :: String -> Tagged -> IL Tagged

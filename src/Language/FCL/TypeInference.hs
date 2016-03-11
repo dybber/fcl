@@ -81,7 +81,7 @@ tvsubExp s (Generate Block e1 e2) = Generate Block (tvsubExp s e1) (tvsubExp s e
 tvsubExp _ (Generate _ _ _) = error "tvsubExp: only block level allowed at the moment"
 tvsubExp s (Map e1 e2) = Map (tvsubExp s e1) (tvsubExp s e2)
 tvsubExp s (ForceLocal e1) = ForceLocal (tvsubExp s e1)
-tvsubExp s (Assemble e1 e2 e3) = Assemble (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
+tvsubExp s (Concat e1 e2) = Concat (tvsubExp s e1) (tvsubExp s e2)
 tvsubExp _ LocalSize = LocalSize
 tvsubExp s (Scanl e1 e2 e3) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
 
@@ -251,15 +251,13 @@ infer env (ForceLocal e) = do
   tv <- newtv
   unify t (ArrayT Block tv)
   return (t, ForceLocal e')
-infer env (Assemble e1 e2 e3) = do
+infer env (Concat e1 e2) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
-  (t3, e3') <- infer env e3
   unify t1 IntT
-  unify t2 ((IntT :*: IntT) :> IntT)
   tv <- newtv
-  unify t3 (ArrayT Block (ArrayT Block tv))
-  return (ArrayT Block tv, Assemble e1' e2' e3')
+  unify t2 (ArrayT Block (ArrayT Block tv))
+  return (ArrayT Block tv, Concat e1' e2')
 infer _ LocalSize = return (IntT, LocalSize)
 infer env (UnOp op e) = do
   (t, e') <- infer env e

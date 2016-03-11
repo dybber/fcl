@@ -9,6 +9,12 @@ fun zipWith f a1 a2 =
   generate (mini (length a1) (length a2))
     (fn ix => f (index a1 ix) (index a2 ix))
 
+sig backpermute : int -> (int -> (int, int)) -> [[a]] -> [a]
+fun backpermute totalSize f array =
+  generate totalSize
+    (fn ix => let ix0 = f ix
+              in index (index array (fst ix0)) (snd ix0))
+
 -- Split an array at a given point
 sig splitAt : int -> [a] -> ([a], [a])
 fun splitAt n arr =
@@ -37,10 +43,6 @@ fun coalesce n arr =
   let s = divi (length arr) n
   in generate s (fn i =>
        generate n (fn j => index arr (addi i (muli s j))))
-
-sig concat : int -> [[a]] -> [a]
-fun concat n arr =
-  assemble n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
 sig seqReduce : (a -> a -> a) -> a -> [a] -> a
 fun seqReduce f b array =

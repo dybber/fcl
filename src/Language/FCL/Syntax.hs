@@ -86,7 +86,8 @@ data Exp ty =
   | Generate Level (Exp ty) (Exp ty)
   | Map (Exp ty) (Exp ty)
   | ForceLocal (Exp ty)
-  | Assemble (Exp ty) (Exp ty) (Exp ty)
+  | Concat (Exp ty) (Exp ty)
+  -- | Assemble (Exp ty) (Exp ty) (Exp ty)
   | LocalSize
 
   -- Sequential scan, I don't really want this!
@@ -154,14 +155,14 @@ typeOf (Map e0 e1) =
     (_ :> ty1, ArrayT lvl _) -> ArrayT lvl ty1
     _ -> error "typeOf: Map"
 typeOf (ForceLocal e0) = typeOf e0
--- typeOf (Concat _ e0) =
---   case typeOf e0 of
---     ArrayT _ t -> t
---     _ -> error "typeOf: Concat given non-array as third argument"
-typeOf (Assemble _ _ e0) =
+typeOf (Concat _ e0) =
   case typeOf e0 of
     ArrayT _ t -> t
-    _ -> error "typeOf: Assemble given non-array as third argument"
+    _ -> error "typeOf: Concat given non-array as third argument"
+-- typeOf (Assemble _ _ e0) =
+--   case typeOf e0 of
+--     ArrayT _ t -> t
+--     _ -> error "typeOf: Assemble given non-array as third argument"
 typeOf (Vec [] _) = error "Cannot type empty list"
 typeOf (Vec es _) =
   let (t:ts) = map typeOf es

@@ -47,6 +47,6 @@ inlineAll env (Fixpoint e0 e1 e2)    = Fixpoint     (inlineAll env e0) (inlineAl
 inlineAll env (Generate lvl e0 e1)   = Generate lvl (inlineAll env e0) (inlineAll env e1)
 inlineAll env (Map e0 e1)            = Map          (inlineAll env e0) (inlineAll env e1)
 inlineAll env (ForceLocal e0)        = ForceLocal   (inlineAll env e0)
-inlineAll env (Assemble e0 e1 e2)    = Assemble     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
+inlineAll env (Concat e0 e1)         = Concat       (inlineAll env e0) (inlineAll env e1)
 inlineAll env (Scanl e0 e1 e2)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
 

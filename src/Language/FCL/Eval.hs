@@ -137,20 +137,16 @@ interp env (UnOp op e0) =
        Not -> BoolV (not (unBool "not" v0))
        NegateI -> IntV (negate (unInt "negatei" v0))
        I2D -> DoubleV (fromIntegral (unInt "i2d" v0))
-interp env (Assemble n f e0) =
-  let fx x y =
-        case interp env (App f (Pair (IntScalar x) (IntScalar y))) of
-          IntV z -> z
-          _ -> error "Function given to assemble should return an integer"
-  in case (interp env n, interp env e0) of
-       (IntV _, ArrayV arr) ->
-         let vs = toList arr
-         in ArrayV (fromList (assemble fx (map (toList . unArray "asssemble") vs)))
-       s -> error (show s ++ " not implemented")
+interp env (Concat n e0) =
+  case (interp env n, interp env e0) of
+    (IntV _, ArrayV arr) ->
+      let vs = toList arr
+      in ArrayV (fromList (concat (map (toList . unArray "assemble") vs)))
+    s -> error (show s ++ " not implemented")
 interp env (Fixpoint e0 e1 e2) =
   case (interp env e0, interp env e1) of
     (LamV env0 var0 f, LamV env1 var1 body) ->
-      fix (\x -> interp (insertVar var0 x env0) f)
+      while (\x -> interp (insertVar var0 x env0) f)
           (\x -> interp (insertVar var1 x env1) body)
           (interp env e2)
     _ -> error ""
@@ -175,10 +171,10 @@ assemble f array =
         (f i j, y) : buildAssocList i (j+1) (ys:xs)
   in Prelude.map Prelude.snd (sortOn Prelude.fst (buildAssocList 0 0 array))
 
-fix :: (Value ty -> Value ty) -> (Value ty -> Value ty) -> Value ty -> Value ty
-fix f body x =
+while :: (Value ty -> Value ty) -> (Value ty -> Value ty) -> Value ty -> Value ty
+while f body x =
   case f x of
-    BoolV True -> fix f body (body x)
+    BoolV True -> while f body (body x)
     BoolV False -> x
     _ -> error "Second argument to fixpoint should return Bool"
 

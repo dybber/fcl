@@ -232,7 +232,7 @@ opExpr = identifier >>= switch
     switch "while"    = Fixpoint       <$> nonAppExpr <*> nonAppExpr <*> nonAppExpr <?> "while"
     switch "map"      = Map            <$> nonAppExpr <*> nonAppExpr <?> "map"
     switch "force"    = ForceLocal     <$> nonAppExpr <?> "force"
-    switch "assemble" = Assemble       <$> nonAppExpr <*> nonAppExpr <*> nonAppExpr <?> "assemble"
+    switch "concat"   = Concat       <$> nonAppExpr <*> nonAppExpr <?> "concat"
     switch n          = return (Var n Untyped)
 
 fnExpr :: Parser (Exp Untyped)
