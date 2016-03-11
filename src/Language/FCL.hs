@@ -1,8 +1,9 @@
 module Language.FCL
  ( Flags(..), flagDebug,
+   parseFiles, eval,
    compileKernel, compileKernels, Kernel(..), renderKernel,
    compileFromFile, compileFromFiles
- ) 
+ )
 where
 
 import Language.FCL.Parser      (parseFile)
@@ -11,6 +12,8 @@ import Language.FCL.Inline      (inline)
 import Language.FCL.Compile     (compileKernel, compileKernels)
 import Language.FCL.Syntax      (Program, typeOf, Type, Untyped, Definition(..))
 import Language.FCL.PrettyPrint (prettyPrintType)
+
+import Language.FCL.Eval     (eval)
 
 import Language.GPUIL.Syntax    (Kernel(..))
 import Language.GPUIL           (renderKernel)

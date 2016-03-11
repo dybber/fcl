@@ -1,4 +1,4 @@
-module Language.FCL.Eval where
+module Language.FCL.Eval (eval) where
 
 import qualified Data.Map as Map
 import Data.Bits ((.&.), xor, shiftL, shiftR)
@@ -32,7 +32,27 @@ data Value ty = LamV (Env ty) Variable (Exp ty)
               | PairV (Value ty) (Value ty)
               | BoolV Bool
               | ArrayV (FCLArray (Value ty))
-   deriving (Eq, Show)
+   deriving Eq
+
+instance Show (Value ty) where
+  show (LamV _ _ _) = "<fun>"
+  show (IntV i) = show i
+  show (DoubleV d) = show d
+  show (PairV v1 v2) = concat ["(", show v1, ", ", show v2, ")"]
+  show (BoolV b) = show b
+  show (ArrayV arr) = show arr
+
+eval :: Show ty => Program ty -> Either String (Value ty)
+eval = evalProgram emptyEnv
+
+evalProgram :: Show ty => Env ty -> Program ty -> Either String (Value ty)
+evalProgram _ [] = Left "No main, exiting"
+evalProgram env (def:defs) =
+  if defVar def == "main"
+  then Right (interp env (defBody def))
+  else
+    let newEnv = insertVar (defVar def) (interp env (defBody def)) env
+    in evalProgram newEnv defs
 
 -- Evaluation of expressions
 interp :: Show ty => Env ty -> Exp ty -> Value ty
