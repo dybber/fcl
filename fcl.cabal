@@ -7,8 +7,8 @@ Maintainer:          dybber@dybber.dk
 Cabal-version:       >= 1.10
 
 Library
-  Build-depends: array >= 0.3 && < 0.6
-               , base >= 3 && < 5
+  Build-depends: base >= 3 && < 5
+               , array >= 0.3 && < 0.6
                , containers >= 0.5
                , mtl >= 2.0 && < 2.3
                , parsec >= 3.0 && < 3.2
@@ -28,7 +28,6 @@ Library
                    Language.GPUIL
                    Language.GPUIL.Syntax
                    Language.GPUIL.Cons
-                   -- Language.GPUIL.SmartCons
                    Language.GPUIL.ConvertLoops
                    Language.GPUIL.SimpleAllocator
                    Language.GPUIL.PrettyLib
@@ -38,7 +37,6 @@ Library
                    Language.GPUIL.Analysis.Dataflow
                    Language.GPUIL.Analysis.Liveness
                    Language.GPUIL.Analysis.ReachingDefs
---                   Language.GPUIL.Analysis.Test
                    Language.GPUIL.Analysis.TypeChecker
                    Language.GPUIL.Optimise
                    Language.GPUIL.Optimise.ConstantFold
@@ -52,31 +50,9 @@ Library
 Executable fcl
   Main-is: src/Main.hs
 
-  Build-depends: base >= 4 && < 4.8,
-                 array >= 0.4,
-                 mtl >= 2.2.1,
-                 containers,
+  Build-depends: base >= 3 && < 5,
                  fcl
 
   Default-Language:   Haskell2010
 
   Ghc-Options:        -Wall
-
-
--- Test-suite fcl-unit-test
---   Type:                 exitcode-stdio-1.0
---   Main-is:              Main.hs
---   Hs-Source-Dirs:       test
---   other-modules:        FCLTest_Eval
---                         FCLTest_TypeInference
---                         FCLGen_Syntax
---   Default-Language:     Haskell2010
---   Build-Depends:        Cabal >= 1.20.0
---                       , HUnit >= 1.2
---                       , QuickCheck == 2.8.*
---                       , base
---                       , fcl
---                       , random >= 1.0.1
---                       , test-framework >= 0.4.0
---                       , test-framework-hunit
---                       , test-framework-quickcheck2
