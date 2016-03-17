@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <mcl.h>
 
+#define BLOCK_SIZE 256
 #define NUM_ITERATIONS 100
 
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
@@ -15,26 +16,21 @@
 void reverse(mclContext ctx,
              cl_kernel kernel,
              int numWgs,
-             int wgsize,
              mclDeviceData input,
              int size,
-             mclDeviceData output,
-             mclDeviceData sizeOut) {
-    mclSetKernelArg(kernel, 0, sizeof(cl_int) * wgsize, NULL);
+             mclDeviceData output) {
+    mclSetKernelArg(kernel, 0, sizeof(cl_int) * BLOCK_SIZE, NULL);
     mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
     mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
     mclSetKernelArg(kernel, 3, sizeof(cl_mem), &output.data);
-    mclSetKernelArg(kernel, 4, sizeof(cl_mem), &sizeOut.data);
-    mclInvokeKernel(ctx, kernel, numWgs * wgsize, wgsize);
+    mclInvokeKernel(ctx, kernel, numWgs * BLOCK_SIZE, BLOCK_SIZE);
 }
 
-void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName) {
+void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigned int num_elems, int blocks) {
     cl_kernel revKernel = mclCreateKernel(p, kernelName);
 
-    const size_t num_elems = 1 << 22;
-
-    int wgsize = 512;
-    int numWgs = (num_elems + wgsize - 1) / wgsize;
+    /* int wgsize = 256; */
+    /* int numWgs = (num_elems + wgsize - 1) / wgsize; */
 
     int* input = (int*)calloc(num_elems, sizeof(int));
     int* expected_out = (int*)calloc(num_elems, sizeof(int));
@@ -45,10 +41,9 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName) {
 
     mclDeviceData buf = mclDataToDevice(ctx, MCL_R, num_elems, sizeof(int), input);
     mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
-    mclDeviceData outlen = mclAllocDevice(ctx, MCL_W, 1, sizeof(int));
 
     // Also serves as warm-up
-    reverse(ctx, revKernel, numWgs, wgsize, buf, num_elems, outbuf, outlen);
+    reverse(ctx, revKernel, blocks, buf, num_elems, outbuf);
     mclFinish(ctx);
 
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
@@ -75,7 +70,7 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName) {
       struct timeval begin, end;
       gettimeofday(&begin, NULL);
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-        reverse(ctx, revKernel, numWgs, wgsize, buf, num_elems, outbuf, outlen);
+        reverse(ctx, revKernel, blocks, buf, num_elems, outbuf);
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
@@ -84,9 +79,9 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName) {
 
       double avgtime = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Average time = %.5f s, Size = %lu integers, Workgroup = %u\n", kernelName,
+      printf("Stats for %s, Throughput = %.4f GB/s, Average time = %.5f s, Size = %u integers, Workgroup = %u\n", kernelName,
              (1.0e-9 * (double)(num_elems * sizeof(float))/avgtime),
-             avgtime, num_elems, numWgs * wgsize);
+             avgtime, num_elems, blocks * BLOCK_SIZE);
 
     }
 
@@ -99,7 +94,9 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "reverse.cl");
 
-  test_reverse_kernel(ctx, p, "reverseGrid512");
+  int n = 2048*2048 * 2;
+
+  test_reverse_kernel(ctx, p, "reverseKernel", n, 4096);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);

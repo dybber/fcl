@@ -1,4 +1,3 @@
 sig copy : [int] -> [int]
-kernel copy arr = arr
-  -- concat #localSize (splitUp #localSize arr)
+kernel copy arr = concat #localSize (splitUp #localSize arr)
 
