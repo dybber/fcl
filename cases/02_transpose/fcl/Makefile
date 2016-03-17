@@ -2,14 +2,17 @@ include ../../shared/config.mk
 
 build: transpose
 
-transpose.cl: transpose.fcl
-	fcl -o $@ ../../../lib/prelude.fcl transpose.fcl
+# transpose.cl: transpose.fcl
+# 	fcl -o $@ ../../../lib/prelude.fcl transpose.fcl
 
-transpose: transpose.c transpose.cl
+transpose3.cl: transpose3.fcl
+	fcl -o $@ ../../../lib/prelude.fcl transpose3.fcl
+
+transpose: transpose.c transpose3.cl
 	gcc $(CFLAGS) $(INCLUDE) $(LIBDIR) -o $@ transpose.c $(LIB)
 
 run: build
 	./transpose
 
 clean:
-	rm -f transpose transpose.cl
+	rm -f transpose transpose3.cl

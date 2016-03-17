@@ -29,9 +29,6 @@ void reverse(mclContext ctx,
 void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigned int num_elems, int blocks) {
     cl_kernel revKernel = mclCreateKernel(p, kernelName);
 
-    /* int wgsize = 256; */
-    /* int numWgs = (num_elems + wgsize - 1) / wgsize; */
-
     int* input = (int*)calloc(num_elems, sizeof(int));
     int* expected_out = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
