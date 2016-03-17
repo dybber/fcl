@@ -1,9 +1,6 @@
-// OpenCL-implementation of copy using shared-memory, described
-// here in CUDA here:
-// http://devblogs.nvidia.com/parallelforall/using-shared-memory-cuda-cc/
-// Kernel code from NVIDIA SDK
-
 #include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <mcl.h>
 
@@ -57,7 +54,7 @@ void test_copy1D_kernel(mclContext ctx, cl_program p, char* kernelName, int useS
 
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
-      input[i] = i;
+      input[i] = rand();
     }
 
     mclDeviceData buf = mclDataToDevice(ctx, MCL_R, num_elems, sizeof(int), input);
@@ -117,7 +114,7 @@ void test_copy2D_kernel(mclContext ctx, cl_program p, char* kernelName, int useS
 
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
-      input[i] = i;
+      input[i] = rand();
     }
 
     mclDeviceData buf = mclDataToDevice(ctx, MCL_R, num_elems, sizeof(int), input);
@@ -171,6 +168,7 @@ void test_copy2D_kernel(mclContext ctx, cl_program p, char* kernelName, int useS
 
 
 int main () {
+  srand(time(NULL));
   mclContext ctx = mclInitialize(0);
   cl_program p1 = mclBuildProgram(ctx, "copy2D.cl");
 
