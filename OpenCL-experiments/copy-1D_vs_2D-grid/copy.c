@@ -6,7 +6,7 @@
 
 #define BLOCK_DIM 16
 #define BLOCK_SIZE (BLOCK_DIM*BLOCK_DIM)
-#define NUM_ITERATIONS 100
+#define NUM_ITERATIONS 1000
 
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
