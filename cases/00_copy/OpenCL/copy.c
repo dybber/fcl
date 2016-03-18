@@ -37,8 +37,8 @@ void copy(mclContext ctx,
 void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM) {
     cl_kernel copyKernel = mclCreateKernel(p, kernelName);
 
-    const unsigned int size_x = 2048;
-    const unsigned int size_y = 2048;
+    const unsigned int size_x = 4096;
+    const unsigned int size_y = 4096;
 
     const size_t num_elems = size_x * size_y;
 

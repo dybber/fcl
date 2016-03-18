@@ -29,7 +29,7 @@ void reverse(mclContext ctx,
 }
 
 int runReverse(int kernelNo) {
-    const int num_elems = 2048*2048;
+    const int num_elems = 2048*2048*4;
 
     char* kernelName;
     if(kernelNo == 0) {

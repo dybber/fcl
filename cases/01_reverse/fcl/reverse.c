@@ -91,7 +91,7 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "reverse.cl");
 
-  int n = 2048*2048 * 2;
+  int n = 2048*2048 * 4;
 
   test_reverse_kernel(ctx, p, "reverseKernel", n, 4096);
 
