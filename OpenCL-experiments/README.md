@@ -124,8 +124,8 @@ Without virtualization:
 With virtualization
 
  - Num. work groups: 4096, 4 blocks per work-group
- simple_copy1D_virt: Throughput = 132.1665 GB/s, Time = 0.00013 s
- simple_copy1D_virt_strength_reduced: Throughput = 132.1633 GB/s, Time = 0.00013 s
+ - simple_copy1D_virt: Throughput = 132.1665 GB/s, Time = 0.00013 s
+ - simple_copy1D_virt_strength_reduced: Throughput = 132.1633 GB/s, Time = 0.00013 s
 
 
 ##### 2^24 32-bit ints
@@ -141,4 +141,3 @@ With virtualization
  - Num. work groups: 4096, 16 blocks per work-group
  - simple_copy1D_virt: Throughput = 135.6162 GB/s, Time = 0.00049 s
  - simple_copy1D_virt_strength_reduced: Throughput = 135.7586 GB/s, Time = 0.00049 s
-
