@@ -90,7 +90,7 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "copy.cl");
 
-  unsigned int n = 2048 * 2048 * 4; /* Must be a multiple of BLOCK_SIZE */
+  unsigned int n = 2048 * 2048; /* Must be a multiple of BLOCK_SIZE */
 
   // Launch 'n' threads, each copying a single element
   test_copy_kernel(ctx, p, "simple_copy1D", 0, n, n / BLOCK_SIZE);
