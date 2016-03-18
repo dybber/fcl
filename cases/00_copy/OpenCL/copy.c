@@ -8,7 +8,7 @@
 #include <mcl.h>
 
 #define BLOCK_DIM 16
-#define NUM_ITERATIONS 100
+#define NUM_ITERATIONS 1000
 
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
