@@ -3,6 +3,7 @@ module Language.FCL.Inline (inline) where
 
 import qualified Data.Map as Map
 
+import Language.FCL.SourceRegion
 import Language.FCL.Syntax
 
 type Env = Map.Map Variable (TypeScheme Type, Exp Type)
@@ -23,30 +24,30 @@ inlineFuncs env (d : ds) =
      else rest
   
 inlineAll :: Env -> Exp Type -> Exp Type
-inlineAll _ e@(IntScalar _) = e
-inlineAll _ e@(DoubleScalar _) = e
-inlineAll _ e@(BoolScalar _) = e
-inlineAll _ e@LocalSize = e
-inlineAll env (Var v ty) =
+inlineAll _ e@(IntScalar _ _) = e
+inlineAll _ e@(DoubleScalar _ _) = e
+inlineAll _ e@(BoolScalar _ _) = e
+inlineAll _ e@(LocalSize _) = e
+inlineAll env (Var v ty _) =
   case Map.lookup v env of
     Just (_, e) -> inlineAll env e  -- TODO fix up types
-    Nothing -> Var v ty
-inlineAll env (UnOp op e0)           = UnOp op      (inlineAll env e0)
-inlineAll env (BinOp op e0 e1)       = BinOp op     (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Vec es ety)           = Vec          (map (inlineAll env) es) ety
-inlineAll env (Lamb v ty0 ebody ty1) = Lamb v ty0   (inlineAll (Map.delete v env) ebody) ty1
-inlineAll env (Let v e ebody ty)     = Let v        (inlineAll env e) (inlineAll (Map.delete v env) ebody) ty
+    Nothing -> Var v ty Missing
+inlineAll env (UnOp op e0 reg)           = UnOp op      (inlineAll env e0) reg
+inlineAll env (BinOp op e0 e1 reg)       = BinOp op     (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Vec es ety reg)           = Vec          (map (inlineAll env) es) ety reg
+inlineAll env (Lamb v ty0 ebody ty1 reg) = Lamb v ty0   (inlineAll (Map.delete v env) ebody) ty1 reg
+inlineAll env (Let v e ebody ty reg)     = Let v        (inlineAll env e) (inlineAll (Map.delete v env) ebody) ty reg
 inlineAll env (App e0 e1)            = App          (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Cond e0 e1 e2 ty)     = Cond         (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) ty
-inlineAll env (Pair e0 e1)           = Pair         (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Proj1E e0)            = Proj1E       (inlineAll env e0)
-inlineAll env (Proj2E e0)            = Proj2E       (inlineAll env e0)
-inlineAll env (Index e0 e1)          = Index        (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Length e0)            = Length       (inlineAll env e0)
-inlineAll env (Fixpoint e0 e1 e2)    = Fixpoint     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
-inlineAll env (Generate lvl e0 e1)   = Generate lvl (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Map e0 e1)            = Map          (inlineAll env e0) (inlineAll env e1)
-inlineAll env (ForceLocal e0)        = ForceLocal   (inlineAll env e0)
-inlineAll env (Concat e0 e1)         = Concat       (inlineAll env e0) (inlineAll env e1)
-inlineAll env (Scanl e0 e1 e2)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2)
+inlineAll env (Cond e0 e1 e2 ty reg)     = Cond         (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) ty reg
+inlineAll env (Pair e0 e1 reg)           = Pair         (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Proj1E e0 reg)            = Proj1E       (inlineAll env e0) reg
+inlineAll env (Proj2E e0 reg)            = Proj2E       (inlineAll env e0) reg
+inlineAll env (Index e0 e1 reg)          = Index        (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Length e0 reg)            = Length       (inlineAll env e0) reg
+inlineAll env (While e0 e1 e2 reg)       = While        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
+inlineAll env (Generate lvl e0 e1 reg)   = Generate lvl (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Map e0 e1 reg)            = Map          (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (ForceLocal e0 reg)        = ForceLocal   (inlineAll env e0) reg
+inlineAll env (Concat e0 e1 reg)         = Concat       (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Scanl e0 e1 e2 reg)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 

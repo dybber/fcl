@@ -27,7 +27,7 @@ module Language.GPUIL.Cons (
  mini, maxi,
  
  -- Statements
- for, while, iff, distrPar, forAll,
+ for, whileLoop, iff, distrPar, forAll,
  allocate, allocateVolatile,
  assign, (<==), assignArray,
  syncGlobal, syncLocal, comment,
@@ -45,8 +45,9 @@ module Language.GPUIL.Cons (
 where
 
 import Data.Word (Word32, Word8)
-import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.Trans.State
+import Control.Monad.Trans.Writer
+import Control.Monad.Trans.Class
 
 import Language.GPUIL.Syntax as AST
 
@@ -85,9 +86,9 @@ evalIL m = fst (evalState (runWriterT m) initialState)
 
 run :: IL () -> IL ([Statement ()])
 run m = do
-  s <- get
+  s <- lift get
   let (stmts, s') = runProg m s
-  put s'
+  lift (put s')
   return stmts
 
 addStmt :: Statement () -> IL ()
@@ -95,8 +96,8 @@ addStmt stmt = tell [stmt]
 
 newVar :: CType -> String -> IL VarName
 newVar ty name = do
-  c <- gets varCount
-  modify (\s -> s { varCount = 1 + varCount s })
+  c <- lift (gets varCount)
+  lift (modify (\s -> s { varCount = 1 + varCount s }))
   return (name ++ "_" ++ show c, ty) -- the underscore is important!
 
 
@@ -121,7 +122,7 @@ letVar name ty e = do
 addParam :: String -> CType -> IL VarName
 addParam name ty = do
   v <- newVar ty name
-  modify (\s -> s { params = v : params s })
+  lift (modify (\s -> s { params = v : params s }))
   return v
 
 var :: VarName -> CExp
@@ -147,8 +148,8 @@ for ub f = do
                                -- TODO: Var count should be passed on!
     addStmt $ For i upperbound body ())
 
-while :: CExp -> IL () -> IL ()
-while f body = do
+whileLoop :: CExp -> IL () -> IL ()
+whileLoop f body = do
   body' <- run body
   addStmt (SeqWhile f body' ())
                                     -- TODO: Var count should be passed on!

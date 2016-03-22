@@ -10,13 +10,15 @@ Library
   Build-depends: base >= 3 && < 5
                , array >= 0.3 && < 0.6
                , containers >= 0.5
-               , mtl >= 2.0 && < 2.3
+               , transformers >= 0.4.2 && < 0.5
                , parsec >= 3.0 && < 3.2
 
   HS-source-dirs: src
 
   exposed-modules: Language.FCL
                    Language.FCL.Syntax
+                   Language.FCL.SourceRegion
+                   Language.FCL.Lexer
                    Language.FCL.Parser
                    Language.FCL.PrettyPrint
                    Language.FCL.TypeInference

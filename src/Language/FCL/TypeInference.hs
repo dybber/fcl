@@ -4,7 +4,7 @@ module Language.FCL.TypeInference (typeinfer) where
 import Data.List (nub)
 import qualified Data.Map as Map
 
-import Control.Monad.State
+import Control.Monad.Trans.State
 
 import Language.FCL.Syntax
 
@@ -58,32 +58,32 @@ tvsub s (ArrayT Block t) = ArrayT Block (tvsub s t)
 tvsub _ (ArrayT _ _) = error "tvsub: only block level support at the moment"
 
 tvsubExp :: Subst -> Exp Type -> Exp Type
-tvsubExp _ (IntScalar i) = IntScalar i
-tvsubExp _ (BoolScalar b) = BoolScalar b
-tvsubExp _ (DoubleScalar d) = DoubleScalar d
-tvsubExp s (UnOp op e) = UnOp op (tvsubExp s e)
-tvsubExp s (BinOp op e1 e2) = BinOp op (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp s (Var x t) = Var x (tvsub s t)
-tvsubExp s (Vec es t) = Vec (map (tvsubExp s) es) (tvsub s t)
-tvsubExp s (Lamb x t1 e t2) = Lamb x (tvsub s t1) (tvsubExp s e) (tvsub s t2)
-tvsubExp s (Let x e ebody t) = Let x (tvsubExp s e) (tvsubExp s ebody) (tvsub s t)
+tvsubExp _ (IntScalar i reg) = IntScalar i reg
+tvsubExp _ (BoolScalar b reg) = BoolScalar b reg
+tvsubExp _ (DoubleScalar d reg) = DoubleScalar d reg
+tvsubExp s (UnOp op e reg) = UnOp op (tvsubExp s e) reg
+tvsubExp s (BinOp op e1 e2 reg) = BinOp op (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Var x t reg) = Var x (tvsub s t) reg
+tvsubExp s (Vec es t reg) = Vec (map (tvsubExp s) es) (tvsub s t) reg
+tvsubExp s (Lamb x t1 e t2 reg) = Lamb x (tvsub s t1) (tvsubExp s e) (tvsub s t2) reg
+tvsubExp s (Let x e ebody t reg) = Let x (tvsubExp s e) (tvsubExp s ebody) (tvsub s t) reg
 tvsubExp s (App e1 e2) = App (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp s (Cond e1 e2 e3 t) = Cond (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) (tvsub s t)
-tvsubExp s (Pair e1 e2) = Pair (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp s (Proj1E e1) = Proj1E (tvsubExp s e1)
-tvsubExp s (Proj2E e1) = Proj2E (tvsubExp s e1)
+tvsubExp s (Cond e1 e2 e3 t reg) = Cond (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) (tvsub s t) reg
+tvsubExp s (Pair e1 e2 reg) = Pair (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Proj1E e1 reg) = Proj1E (tvsubExp s e1) reg
+tvsubExp s (Proj2E e1 reg) = Proj2E (tvsubExp s e1) reg
 
-tvsubExp s (Index e1 e2) = Index (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp s (Length e1) = Length (tvsubExp s e1)
+tvsubExp s (Index e1 e2 reg) = Index (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Length e1 reg) = Length (tvsubExp s e1) reg
 
-tvsubExp s (Fixpoint e1 e2 e3) = Fixpoint (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
-tvsubExp s (Generate Block e1 e2) = Generate Block (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp _ (Generate _ _ _) = error "tvsubExp: only block level allowed at the moment"
-tvsubExp s (Map e1 e2) = Map (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp s (ForceLocal e1) = ForceLocal (tvsubExp s e1)
-tvsubExp s (Concat e1 e2) = Concat (tvsubExp s e1) (tvsubExp s e2)
-tvsubExp _ LocalSize = LocalSize
-tvsubExp s (Scanl e1 e2 e3) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3)
+tvsubExp s (While e1 e2 e3 reg) = While (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
+tvsubExp s (Generate Block e1 e2 reg) = Generate Block (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp _ (Generate _ _ _ reg) = error "tvsubExp: only block level allowed at the moment"
+tvsubExp s (Map e1 e2 reg) = Map (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (ForceLocal e1 reg) = ForceLocal (tvsubExp s e1) reg
+tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp _ (LocalSize reg) = LocalSize reg
+tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 
 prepareSig :: [(String, Type)] -> Type -> TI (Type, [(String, Type)])
 prepareSig env IntT = return (IntT,env)
@@ -168,118 +168,118 @@ occurs s tv (VarT tv2) =
          Nothing -> tv == tv2
 
 infer :: TyEnv -> Exp ty -> TI (Type, Exp Type)
-infer _ (IntScalar i) = return (IntT, IntScalar i)
-infer _ (BoolScalar b) = return (BoolT, BoolScalar b)
-infer _ (DoubleScalar d) = return (DoubleT, DoubleScalar d)
-infer env (Var x _) = do
+infer _ (IntScalar i reg) = return (IntT, IntScalar i reg)
+infer _ (BoolScalar b reg) = return (BoolT, BoolScalar b reg)
+infer _ (DoubleScalar d reg) = return (DoubleT, DoubleScalar d reg)
+infer env (Var x _ reg) = do
   ty <- instantiate (lkup env x)
-  return (ty, Var x ty)
+  return (ty, Var x ty reg)
 infer env (App e1 e2) = do
   (t1,e1') <- infer env e1
   (t2,e2') <- infer env e2
   tv <- newtv
   unify t1 (t2 :> tv)
   return (tv, App e1' e2')
-infer env (Lamb x _ e _) = do
+infer env (Lamb x _ e _ reg) = do
   tv <- newtv
   (te, e') <- infer (ext env x (TypeScheme [] tv)) e
-  return (tv :> te, Lamb x tv e' te)
-infer env (Let x e ebody _) = do
+  return (tv :> te, Lamb x tv e' te reg)
+infer env (Let x e ebody _ reg) = do
   (ts,e') <- generalize (infer env e)
   (t,body) <- infer (ext env x ts) ebody
-  return (t, Let x e' body t)
-infer env (Cond e1 e2 e3 _) = do
+  return (t, Let x e' body t reg)
+infer env (Cond e1 e2 e3 _ reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
   unify t1 BoolT
   unify t2 t3
-  return (t2, Cond e1' e2' e3' t2)
-infer env (Pair e1 e2) = do
+  return (t2, Cond e1' e2' e3' t2 reg)
+infer env (Pair e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
-  return (t1 :*: t2, Pair e1' e2')
-infer env (Proj1E e) = do
+  return (t1 :*: t2, Pair e1' e2' reg)
+infer env (Proj1E e reg) = do
   (t,e') <- infer env e
   tv1 <- newtv
   tv2 <- newtv
   unify t (tv1 :*: tv2)
-  return (tv1, Proj1E e')
-infer env (Proj2E e) = do
+  return (tv1, Proj1E e' reg)
+infer env (Proj2E e reg) = do
   (t, e') <- infer env e
   tv1 <- newtv
   tv2 <- newtv
   unify t (tv1 :*: tv2)
-  return (tv2, Proj2E e')
-infer env (Index e1 e2) = do
+  return (tv2, Proj2E e' reg)
+infer env (Index e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
   unify t1 (ArrayT Block tv)
   unify t2 IntT
-  return (tv, Index e1' e2')
-infer env (Length e) = do
+  return (tv, Index e1' e2' reg)
+infer env (Length e reg) = do
   (t, e') <- infer env e
   tv <- newtv
   unify t (ArrayT Block tv)
-  return (IntT, Length e')
-infer env (Fixpoint e1 e2 e3) = do
+  return (IntT, Length e' reg)
+infer env (While e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
   unify t1 (t3 :> BoolT)
   unify t2 (t3 :> t3)
-  return (t3, Fixpoint e1' e2' e3')
-infer env (Map e1 e2) = do
+  return (t3, While e1' e2' e3' reg)
+infer env (Map e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv1 <- newtv
   tv2 <- newtv
   unify t1 (tv1 :> tv2)
   unify t2 (ArrayT Block tv1)
-  return (ArrayT Block tv2, Map e1' e2')
-infer env (Generate Block e1 e2) = do
+  return (ArrayT Block tv2, Map e1' e2' reg)
+infer env (Generate Block e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
   unify t1 IntT
   unify t2 (IntT :> tv)
-  return (ArrayT Block tv, Generate Block e1' e2')
-infer _ (Generate _ _ _) = error "typeinfer: Only block level support at the moment"
-infer env (ForceLocal e) = do
+  return (ArrayT Block tv, Generate Block e1' e2' reg)
+infer _ (Generate _ _ _ _) = error "typeinfer: Only block level support at the moment"
+infer env (ForceLocal e reg) = do
   (t,e') <- infer env e
   tv <- newtv
   unify t (ArrayT Block tv)
-  return (t, ForceLocal e')
-infer env (Concat e1 e2) = do
+  return (t, ForceLocal e' reg)
+infer env (Concat e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   unify t1 IntT
   tv <- newtv
   unify t2 (ArrayT Block (ArrayT Block tv))
-  return (ArrayT Block tv, Concat e1' e2')
-infer _ LocalSize = return (IntT, LocalSize)
-infer env (UnOp op e) = do
+  return (ArrayT Block tv, Concat e1' e2' reg)
+infer _ (LocalSize reg) = return (IntT, LocalSize reg)
+infer env (UnOp op e reg) = do
   (t, e') <- infer env e
   tret <- unifyUnOp op t
-  return (tret, UnOp op e')
-infer env (BinOp op e1 e2) = do
+  return (tret, UnOp op e' reg)
+infer env (BinOp op e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tret <- unifyBinOp op t1 t2
-  return (tret, BinOp op e1' e2')
-infer env (Vec es _) = do
+  return (tret, BinOp op e1' e2' reg)
+infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
   t <- unifyAll (map fst tes)
-  return (ArrayT Block t, Vec (map snd tes) t)
-infer env (Scanl e1 e2 e3) = do
+  return (ArrayT Block t, Vec (map snd tes) t reg)
+infer env (Scanl e1 e2 e3 reg) = do
   (tf, e1') <- infer env e1
   (ta, e2') <- infer env e2
   (tbs, e3') <- infer env e3
   tb <- newtv
   unify tf (ta :> tb :> ta)
   unify tbs (ArrayT Block tb)
-  return (ArrayT Block ta, Scanl e1' e2' e3')
+  return (ArrayT Block ta, Scanl e1' e2' e3' reg)
 
 unifyAll :: [Type] -> TI Type
 unifyAll [] = newtv

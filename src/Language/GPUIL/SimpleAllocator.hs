@@ -5,7 +5,7 @@ module Language.GPUIL.SimpleAllocator
 where 
 
 import Data.Maybe
-import Control.Monad.State
+import Control.Monad.Trans.State
 import Language.GPUIL.Syntax
 
 type Bytes   = IExp

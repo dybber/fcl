@@ -3,6 +3,7 @@ module Language.FCL.Compile (compileKernel, compileKernels) where
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
+import Language.FCL.SourceRegion
 import Language.FCL.Syntax hiding (Level(..))
 import Language.GPUIL
 
@@ -69,17 +70,17 @@ push arr =
 normalizeFun :: Int -> Type -> Exp Type -> Exp Type
 normalizeFun i (ty :> ty') ebody =
   let varName = ("argument" ++ show i)
-      rest = normalizeFun (i+1) ty' (App ebody (Var varName ty))
-  in Lamb varName ty rest ty'
+      rest = normalizeFun (i+1) ty' (App ebody (Var varName ty Missing))
+  in Lamb varName ty rest ty' Missing
 normalizeFun _ _ ebody = ebody
   
 compileFun :: VarEnv -> Exp Type -> IL ()
-compileFun env (Lamb x (ArrayT _ ty) e _) = do
+compileFun env (Lamb x (ArrayT _ ty) e _ _) = do
   arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType ty))
   lenVar <- addParam "lenInput" int
   let taggedExp = tagArray ty Block (var lenVar) arrVar
   compileFun (Map.insert x taggedExp env) e
-compileFun env (Lamb x ty e _) = do
+compileFun env (Lamb x ty e _ _) = do
   v <- addParam "input" (convertType ty)
   compileFun (Map.insert x (tagExp ty (var v)) env) e
 compileFun env e = do
@@ -133,48 +134,48 @@ convertType (_ :*: _) = error "convertType: tuples not yet support in argument o
 convertType (VarT _) = error "convertType: All type variables should have been resolved by now"
 
 compBody :: Map.Map Variable Tagged -> Exp Type -> IL Tagged
-compBody _ (IntScalar i)    = return (TagInt (constant i))
-compBody _ (DoubleScalar d) = return (TagDouble (constant d))
-compBody _ (BoolScalar b)   = return (TagBool (constant b))
+compBody _ (IntScalar i _)    = return (TagInt (constant i))
+compBody _ (DoubleScalar d _) = return (TagDouble (constant d))
+compBody _ (BoolScalar b _)   = return (TagBool (constant b))
 compBody env (App e0 e1) = do
   v0 <- compBody env e0
   case v0 of
     TagFn f -> f =<< compBody env e1
     _ -> error "Unexpected value at function position in application"
-compBody env (Pair e0 e1) = do
+compBody env (Pair e0 e1 _) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   return (TagPair v0 v1)
-compBody env (Proj1E e) = do
+compBody env (Proj1E e reg) = do
   v <- compBody env e
   case v of
     TagPair v0 _ -> return v0
-    _ -> error "Projection expects Pair as argument"
-compBody env (Proj2E e) = do
+    _ -> error (show reg ++ ": fst expects a pair as argument")
+compBody env (Proj2E e reg) = do
   v <- compBody env e
   case v of
     TagPair _ v1 -> return v1
-    _ -> error "Projection expects Pair as argument"
-compBody env (Var x _) =
+    _ -> error (show reg ++ ": snd expects a pair as argument")
+compBody env (Var x _ reg) =
   case Map.lookup x env of
     Just v -> return v
-    Nothing -> error ("Compile: Variable not defined: " ++ x)
-compBody env (Lamb x _ e _) =
+    Nothing -> error (show reg ++ ": Variable not defined: " ++ x)
+compBody env (Lamb x _ e _ _) =
   return . TagFn $ \v ->
     do --v' <- lets "v" v
        compBody (Map.insert x v env) e
-compBody env (Let x e0 e1 _) = do
+compBody env (Let x e0 e1 _ _) = do
   v0 <- compBody env e0
   x0 <- lets x v0
   compBody (Map.insert x x0 env) e1
-compBody env (UnOp op e0) = do
+compBody env (UnOp op e0 reg) = do
   v0 <- compBody env e0
-  return (compileUnOp op v0)
-compBody env (BinOp op e0 e1) = do
+  return (compileUnOp op v0 reg)
+compBody env (BinOp op e0 e1 reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
-  return (compileBinOp op v0 v1)
-compBody env (Cond e0 e1 e2 _) = do
+  return (compileBinOp op v0 v1 reg)
+compBody env (Cond e0 e1 e2 _ reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   v2 <- compBody env e2
@@ -182,11 +183,11 @@ compBody env (Cond e0 e1 e2 _) = do
     (TagBool b0) -> case (v1, v2) of
                      (TagInt i1, TagInt i2) -> return . TagInt $ if_ b0 i1 i2
                      (TagBool b1, TagBool b2) -> return . TagBool $ if_ b0 b1 b2
-                     (TagArray _, TagArray _) -> error "TODO: not possible yet"
-                     (TagFn _, TagFn _) -> error "TODO: yet to be implemented"
-                     (_,_) -> error "branches are differing"
+                     (TagArray _, TagArray _) -> error (show reg ++ ": TODO: not possible yet")
+                     (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
+                     (_,_) -> error (show reg ++ ": branches are differing")
     _ -> error "Expecting boolean expression as conditional argument in branch"
-compBody env (Generate _ e0 e1) = do
+compBody env (Generate _ e0 e1 reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   case (v0, v1) of
@@ -197,8 +198,8 @@ compBody env (Generate _ e0 e1) = do
                                 , arrayLevel = Block
                                 , arrayFun = Pull (\i -> f (TagInt i))
                                 }
-    _ -> error "Generate expects integer expression as first argument and function as second argument"
-compBody env (Map e0 e1) = do
+    _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
+compBody env (Map e0 e1 reg) = do
   f' <- compBody env e0
   e' <- compBody env e1
   case (f', e') of
@@ -217,17 +218,19 @@ compBody env (Map e0 e1) = do
                           , arrayFun = Push (\writer -> g (\e ix -> do v <- f e
                                                                        writer v ix))
                           }
-    _ -> error $ concat ["Map expects function as first argument and",
+    _ -> error $ concat [show reg,
+                         ": ",
+                         "Map expects function as first argument and",
                          "pull array as second argument, got:\n    ",
                          show f',
                          "\nand\n    ",
                          show e']
-compBody env (Length e0) = do
+compBody env (Length e0 reg) = do
   v <- compBody env e0
   case v of
     TagArray arr -> return $ TagInt (arrayLen arr)
-    e -> error $ "Length expects array as argument got " ++ show e
-compBody env (Index e0 e1) = do
+    e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
+compBody env (Index e0 e1 reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   case (v0, v1) of
@@ -237,19 +240,19 @@ compBody env (Index e0 e1) = do
         Push _ -> do farr <- unsafeWrite arr
                      case arrayFun farr of
                           Pull idx -> idx i
-                          Push _ -> error "Impossible"
-    _ -> error "Index expects array and integer argument"
-compBody env (ForceLocal e0) = do
+                          Push _ -> error (show reg ++ ": Impossible")
+    _ -> error (show reg ++ ": Index expects array and integer argument")
+compBody env (ForceLocal e0 reg) = do
   v0 <- compBody env e0
   case v0 of
     TagArray arr -> liftM TagArray (unsafeWrite arr)
-    _ -> error "ComputeLocal expects array as argument"
-compBody env (Fixpoint e0 e1 e2) = do
+    _ -> error (show reg ++ ": ComputeLocal expects array as argument")
+compBody env (While e0 e1 e2 _) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   v2 <- compBody env e2
-  fixpoint v0 v1 v2
-compBody env (Concat i e0) = do
+  while v0 v1 v2
+compBody env (Concat i e0 reg) = do
   vi <- compBody env i
   v0 <- compBody env e0
   case (vi, v0) of
@@ -269,11 +272,11 @@ compBody env (Concat i e0) = do
                                                   TagArray arrp' ->
                                                     case push arrp' of
                                                       (Array {arrayFun = Push p }) -> p writer'
-                                                      _ -> error "Concat only works with inner-arrays of type push"
-                                                  _ -> error "Should not happen")
+                                                      _ -> error (show reg ++ ": Concat only works with inner-arrays of type push")
+                                                  _ -> error (show reg ++ ": Should not happen"))
                                     }
     _ -> error "Concat should be given an integer and an array"
-compBody _ LocalSize   = return (TagInt localSize)
+compBody _ (LocalSize _)   = return (TagInt localSize)
 
 lets :: String -> Tagged -> IL Tagged
 lets name s =
@@ -312,8 +315,8 @@ unArray :: Tagged -> Array Tagged
 unArray (TagArray e) = e
 unArray _ = error "expected array"
 
-fixpoint :: Tagged -> Tagged -> Tagged -> IL Tagged
-fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
+while :: Tagged -> Tagged -> Tagged -> IL Tagged
+while (TagFn cond) (TagFn step) (TagArray arr) =
   do -- Declare array
      var_array <- allocate (arrayElemType arr) (arrayLen arr)
      (var_len,_) <- letsVar "arraySize" (TagInt (arrayLen arr))
@@ -329,7 +332,7 @@ fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
                       }
      cond' <- liftM unBool (cond (TagArray vararr))
      (var_cond,_) <- letsVar "cond" (TagBool cond')
-     while (Language.GPUIL.not (var var_cond)) $
+     whileLoop (Language.GPUIL.not (var var_cond)) $
        do -- step
           arr' <- liftM unArray (step (TagArray vararr))
           assign var_len (arrayLen arr')
@@ -341,20 +344,20 @@ fixpoint (TagFn cond) (TagFn step) (TagArray arr) =
           cond'' <- liftM unBool (cond (TagArray new_arr))
           assign var_cond cond''
      return (TagArray vararr)
-fixpoint (TagFn cond) (TagFn step) v =
+while (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v
      cond' <- cond var0tagged
      case cond' of
-       TagBool b -> while b (do v' <- step var0tagged
-                                case v' of
-                                  TagInt x -> assign var0 x
-                                  TagBool x -> assign var0 x
-                                  TagDouble x -> assign var0 x
-                                  _ -> error ""
-                                )
-       _ -> error "Conditional in Fixpoint should be boolean typed"  
+       TagBool b -> whileLoop b
+                     (do v' <- step var0tagged
+                         case v' of
+                           TagInt x -> assign var0 x
+                           TagBool x -> assign var0 x
+                           TagDouble x -> assign var0 x
+                           _ -> error "")
+       _ -> error "Conditional in 'while- should be boolean typed"  
      return v
-fixpoint _ _ _ = error ""
+while _ _ _ = error ""
 
 -- TODO: What will happen with arrays of arrays?
 --
@@ -388,30 +391,32 @@ pullFrom name@(_, CPtr _ ty) n lvl =
         }
 pullFrom _ _ _ = error "pullFrom: must be applied to pointer-typed variable"
 
-compileBinOp :: BinOp -> Tagged -> Tagged -> Tagged
-compileBinOp AddI (TagInt i0) (TagInt i1) = TagInt (addi i0 i1)
-compileBinOp SubI (TagInt i0) (TagInt i1) = TagInt (subi i0 i1)
-compileBinOp MulI (TagInt i0) (TagInt i1) = TagInt (muli i0 i1)
-compileBinOp DivI (TagInt i0) (TagInt i1) = TagInt (divi i0 i1)
-compileBinOp ModI (TagInt i0) (TagInt i1) = TagInt (modi i0 i1)
-compileBinOp MinI (TagInt i0) (TagInt i1) = TagInt (mini i0 i1)
-compileBinOp EqI (TagInt i0) (TagInt i1) = TagBool (eqi i0 i1)
-compileBinOp NeqI (TagInt i0) (TagInt i1) = TagBool (neqi i0 i1)
-compileBinOp op _ _ =
-  error $ concat ["Unexpected arguments to binary operator ",
-                  show op,
-                  ", expecting integer expression."]
+compileBinOp :: BinOp -> Tagged -> Tagged -> Region -> Tagged
+compileBinOp AddI (TagInt i0) (TagInt i1) _ = TagInt (addi i0 i1)
+compileBinOp SubI (TagInt i0) (TagInt i1) _ = TagInt (subi i0 i1)
+compileBinOp MulI (TagInt i0) (TagInt i1) _ = TagInt (muli i0 i1)
+compileBinOp DivI (TagInt i0) (TagInt i1) _ = TagInt (divi i0 i1)
+compileBinOp ModI (TagInt i0) (TagInt i1) _ = TagInt (modi i0 i1)
+compileBinOp MinI (TagInt i0) (TagInt i1) _ = TagInt (mini i0 i1)
+compileBinOp EqI  (TagInt i0) (TagInt i1) _ = TagBool (eqi i0 i1)
+compileBinOp NeqI (TagInt i0) (TagInt i1) _ = TagBool (neqi i0 i1)
+compileBinOp op _ _ reg =
+  error (concat [show reg,
+                 ": ",
+                 "Unexpected arguments to unary operator ",
+                 show op,
+                 ", expecting integer expression."])
 
+compileUnOp :: UnOp -> Tagged -> Region -> Tagged
+compileUnOp AbsI  (TagInt i0) _ = TagInt (absi i0)
+compileUnOp SignI (TagInt i0) _ = TagInt (signi i0)
+compileUnOp op _ reg =
+  error (concat [show reg,
+                 ": ",
+                 "Unexpected arguments to unary operator ",
+                 show op,
+                 ", expecting integer expression."])
 
-compileUnOp :: UnOp -> Tagged -> Tagged
-compileUnOp AbsI  (TagInt i0) = TagInt (absi i0)
-compileUnOp SignI (TagInt i0) = TagInt (signi i0)
-compileUnOp op _ =
-  error $ concat ["Unexpected arguments to unary operator ",
-                  show op,
-                  ", expecting integer expression."]
-
-
-unInt :: Tagged -> CExp
-unInt (TagInt i) = i
-unInt _ = error "unInt"
+-- unInt :: Tagged -> CExp
+-- unInt (TagInt i) = i
+-- unInt _ = error "unInt"

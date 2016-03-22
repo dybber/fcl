@@ -5,11 +5,11 @@ module Language.FCL.Parser
 where
 
 import Control.Applicative hiding ((<|>), many)
-import Control.Monad.Identity (Identity)
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
-import qualified Text.Parsec.Token as Token
 
+import Language.FCL.SourceRegion
+import Language.FCL.Lexer
 import Language.FCL.Syntax
 
 parseString :: String -> String -> (Program Untyped)
@@ -25,63 +25,6 @@ parseFile filename =
        Left e  -> error $ show e
        Right r -> return r
 
-fclDef :: Token.GenLanguageDef String u Identity
-fclDef = Token.LanguageDef {
-                Token.commentStart     = "(*"
-              , Token.commentEnd       = "*)"
-              , Token.commentLine      = "--"
-              , Token.nestedComments   = False
-              , Token.identStart       = letter
-              , Token.identLetter      = alphaNum <|> char '_'
-              , Token.opStart          = oneOf ""
-              , Token.opLetter         = oneOf ""
-              , Token.reservedOpNames  = []
-              , Token.reservedNames    = [ "sig", "fun", "let", "in", "int", "double",
-                                           "bool", "char", "fn", "true", "false", "kernel",
-                                           "if", "then", "else"]
-              , Token.caseSensitive    = True
-  }
-
-lexer :: Token.GenTokenParser String u Identity
-lexer = Token.makeTokenParser fclDef
-
-identifier :: Parser String
-identifier = Token.identifier lexer
-reserved :: String -> Parser ()
-reserved   = Token.reserved   lexer
--- reservedOp :: String -> Parser ()
--- reservedOp = Token.reservedOp lexer
--- stringlit :: Parser String
--- stringlit  = Token.stringLiteral lexer
--- charlit :: Parser Char
--- charlit    = Token.charLiteral lexer
--- parens :: Parser a -> Parser a
--- parens     = Token.parens     lexer
-brackets :: Parser a -> Parser a
-brackets   = Token.brackets   lexer
--- angles :: Parser a -> Parser a
--- angles     = Token.angles     lexer
--- braces :: Parser a -> Parser a
--- braces     = Token.braces     lexer
--- integer :: Parser Integer
--- integer    = Token.integer    lexer
--- semi :: Parser String
--- semi       = Token.semi       lexer
-comma :: Parser String
-comma      = Token.comma      lexer
-colon :: Parser String
-colon      = Token.colon      lexer
-symbol :: String -> Parser String
-symbol     = Token.symbol     lexer
-whitespace :: Parser ()
-whitespace = Token.whiteSpace lexer
-decimal :: Parser Integer
-decimal    = Token.decimal    lexer
-float :: Parser Double
-float      = Token.float      lexer
-lexeme :: Parser a -> Parser a
-lexeme     = Token.lexeme     lexer
-
 program :: Parser (Program Untyped)
 program =
   do whitespace
@@ -95,7 +38,6 @@ program =
 definition :: Parser (Definition Untyped)
 definition = try (typesig >>= fundef)  -- fun.def. w. signature
           <|> fundef Nothing           -- fun.def.
-          -- <|> kernel                -- kernel def.
 
 typesig :: Parser (Maybe (String,Type))
 typesig =
@@ -110,7 +52,7 @@ fundef tyanno =
   let
     addArgs :: [Variable] -> Exp Untyped -> Exp Untyped
     addArgs [] rhs = rhs
-    addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped)
+    addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped Missing)
   in
     do make_kernel <- (reserved "fun" >> return False) <|> (reserved "kernel" >> return True)
        name <- identifier
@@ -125,14 +67,6 @@ fundef tyanno =
                  , defEmitKernel = make_kernel
                  , defBody = function
                  })
-
-
--- kernel :: Parser (Definition Untyped)
--- kernel =
---   do reserved "kernel"
---      name <- identifier
---      symbol "="
---      return (KernelDef name)
        
 ----------------------
 --    Expressions    --
@@ -151,105 +85,112 @@ nonAppExpr = fnExpr
    <|> valueExpr
  <?> "expression"
 
+intExpr :: Parser (Region -> Exp Untyped)
+intExpr = IntScalar . fromInteger <$> lexeme decimal
+
+doubleExpr :: Parser (Region -> Exp Untyped)
+doubleExpr = try (DoubleScalar <$> lexeme float)
+
+
+boolExpr :: Parser (Region -> Exp Untyped)
+boolExpr =
+      try (reserved "true" >> return (BoolScalar True))
+  <|> try (reserved "false" >> return (BoolScalar False))
+  <?> "boolean value"
+
+-- TODO: negation of doubles
+negation :: Parser (Region -> Exp Untyped)
+negation = do
+  oneOf "~-"
+  UnOp NegateI <$> valueExpr
+
 valueExpr :: Parser (Exp Untyped)
-valueExpr = try (DoubleScalar <$> lexeme float)
-         <|> (IntScalar . fromInteger) <$> lexeme decimal
-         <|> boolExpr
-         <|> (oneOf "~-" >> UnOp NegateI <$> valueExpr) -- TODO: negation of doubles
-         <?> "value or identifier"
+valueExpr = withRegion (doubleExpr <|> intExpr <|> boolExpr <|> negation)
 
 ifThenElseExpr :: Parser (Exp Untyped)
 ifThenElseExpr =
-  do reserved "if"
-     e1 <- expr
-     reserved "then"
-     e2 <- expr
-     reserved "else"
-     e3 <- expr
-     return (Cond e1 e2 e3 Untyped)
-
-boolExpr :: Parser (Exp Untyped)
-boolExpr = try (reserved "true" >> return (BoolScalar True))
-       <|> try (reserved "false" >> return (BoolScalar False))
-       <?> "boolean value"
+  withRegion $ do
+    reserved "if"
+    e1 <- expr
+    reserved "then"
+    e2 <- expr
+    reserved "else"
+    e3 <- expr
+    return (Cond e1 e2 e3 Untyped)
 
 arrayExpr :: Parser (Exp Untyped)
-arrayExpr = Vec <$> (brackets (sepBy expr comma)) <*> pure Untyped
+arrayExpr = withRegion (Vec <$> (brackets (sepBy expr comma)) <*> pure Untyped)
 
 configVariable :: Parser (Exp Untyped)
 configVariable =
   do char '#'
      v <- identifier
      case v of
-       "localSize" -> return LocalSize
+       "localSize" -> withRegion (return LocalSize)
        _ -> error ("Unknown configuration variable #" ++ v)
 
 pairOrParens :: Parser (Exp Untyped)
 pairOrParens =
-  do symbol "("
+  do p1 <- getPosition
+     symbol "("
      t1 <- expr
      try (do comma
              t2 <- expr
              symbol ")"
-             return (Pair t1 t2))
+             p2 <- getPosition
+             return (Pair t1 t2 (newRegion p1 p2)))
       <|> do symbol ")"
              return t1
 
 letExpr :: Parser (Exp Untyped)
 letExpr =
-  do reserved "let"
-     ident <- identifier
-     symbol "="
-     e1 <- expr
-     reserved "in"
-     e2 <- expr
-     return (Let ident e1 e2 Untyped)
+  withRegion $ do
+    reserved "let"
+    ident <- identifier
+    symbol "="
+    e1 <- expr
+    reserved "in"
+    e2 <- expr
+    return (Let ident e1 e2 Untyped)
 
 opExpr :: Parser (Exp Untyped)
-opExpr = identifier >>= switch
+opExpr = withRegion (identifier >>= switch)
   where
-    switch "addi" = BinOp AddI <$> nonAppExpr <*> nonAppExpr
-    switch "subi" = BinOp SubI <$> nonAppExpr <*> nonAppExpr
-    switch "muli" = BinOp MulI <$> nonAppExpr <*> nonAppExpr
-    switch "divi" = BinOp DivI <$> nonAppExpr <*> nonAppExpr
-    switch "modi" = BinOp ModI <$> nonAppExpr <*> nonAppExpr
-    switch "mini" = BinOp MinI <$> nonAppExpr <*> nonAppExpr
-    switch "eqi"  = BinOp EqI  <$> nonAppExpr <*> nonAppExpr
-    switch "neqi" = BinOp NeqI <$> nonAppExpr <*> nonAppExpr
-    switch "powi" = BinOp PowI <$> nonAppExpr <*> nonAppExpr
-    switch "shiftLi" = BinOp ShiftLI <$> nonAppExpr <*> nonAppExpr
-    switch "shiftRi" = BinOp ShiftRI <$> nonAppExpr <*> nonAppExpr
-    switch "andi" = BinOp AndI <$> nonAppExpr <*> nonAppExpr
-    switch "xori" = BinOp XorI <$> nonAppExpr <*> nonAppExpr
-    switch "i2d" = UnOp I2D <$> nonAppExpr
-    switch "powr" = BinOp PowR <$> nonAppExpr <*> nonAppExpr
-    switch "divr" = BinOp DivR <$> nonAppExpr <*> nonAppExpr
+    switch "i2d"      = UnOp I2D       <$> nonAppExpr
+    switch "addi"     = BinOp AddI     <$> nonAppExpr <*> nonAppExpr
+    switch "subi"     = BinOp SubI     <$> nonAppExpr <*> nonAppExpr
+    switch "muli"     = BinOp MulI     <$> nonAppExpr <*> nonAppExpr
+    switch "divi"     = BinOp DivI     <$> nonAppExpr <*> nonAppExpr
+    switch "modi"     = BinOp ModI     <$> nonAppExpr <*> nonAppExpr
+    switch "mini"     = BinOp MinI     <$> nonAppExpr <*> nonAppExpr
+    switch "eqi"      = BinOp EqI      <$> nonAppExpr <*> nonAppExpr
+    switch "neqi"     = BinOp NeqI     <$> nonAppExpr <*> nonAppExpr
+    switch "powi"     = BinOp PowI     <$> nonAppExpr <*> nonAppExpr
+    switch "shiftLi"  = BinOp ShiftLI  <$> nonAppExpr <*> nonAppExpr
+    switch "shiftRi"  = BinOp ShiftRI  <$> nonAppExpr <*> nonAppExpr
+    switch "andi"     = BinOp AndI     <$> nonAppExpr <*> nonAppExpr
+    switch "xori"     = BinOp XorI     <$> nonAppExpr <*> nonAppExpr
+    switch "powr"     = BinOp PowR     <$> nonAppExpr <*> nonAppExpr
+    switch "divr"     = BinOp DivR     <$> nonAppExpr <*> nonAppExpr
     switch "fst"      = Proj1E         <$> nonAppExpr <?> "fst"
     switch "snd"      = Proj2E         <$> nonAppExpr <?> "snd"
     switch "index"    = Index          <$> nonAppExpr <*> nonAppExpr <?> "index"
     switch "length"   = Length         <$> nonAppExpr <?> "length"
     switch "generate" = Generate Block <$> nonAppExpr <*> nonAppExpr <?> "generate"
-    switch "while"    = Fixpoint       <$> nonAppExpr <*> nonAppExpr <*> nonAppExpr <?> "while"
+    switch "while"    = While          <$> nonAppExpr <*> nonAppExpr <*> nonAppExpr <?> "while"
     switch "map"      = Map            <$> nonAppExpr <*> nonAppExpr <?> "map"
     switch "force"    = ForceLocal     <$> nonAppExpr <?> "force"
-    switch "concat"   = Concat       <$> nonAppExpr <*> nonAppExpr <?> "concat"
+    switch "concat"   = Concat         <$> nonAppExpr <*> nonAppExpr <?> "concat"
     switch n          = return (Var n Untyped)
 
 fnExpr :: Parser (Exp Untyped)
 fnExpr =
-  do reserved "fn"
-     ident <- identifier
-     symbol "=>"
-     e <- expr
-     return (Lamb ident Untyped e Untyped)
-
--- typedIdent :: Parser (Variable, Maybe Type)
--- typedIdent =
---   do ident <- identifier
---      try (do colon
---              typ <- typeExpr
---              return (ident, Just typ))
---        <|> return (ident, Nothing)
+  withRegion $ do
+    reserved "fn"
+    ident <- identifier
+    symbol "=>"
+    e <- expr
+    return (Lamb ident Untyped e Untyped)
 
 ------------------
 --    Types

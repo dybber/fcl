@@ -3,7 +3,7 @@ module Language.GPUIL.Analysis.Dataflow
 where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad.State (evalState, get, modify, execState, State)
+import Control.Monad.Trans.State (evalState, get, modify, execState, State)
 
 import qualified Data.Map as Map
 import Data.Map (Map)

@@ -1,6 +1,6 @@
 module Language.GPUIL.ConvertLoops (convert) where
 
-import Control.Monad.State
+import Control.Monad.Trans.State
 
 import Language.GPUIL.Syntax
 
@@ -51,7 +51,7 @@ convert :: Int -> [Statement ()] -> ([Statement ()], Int)
 convert varCount stmts = runState (convertLoops stmts) varCount
 
 convertLoops :: [Statement ()] -> Conv [Statement ()]
-convertLoops stmts = liftM concat $ mapM convertLoop stmts
+convertLoops stmts = concat `fmap` (mapM convertLoop stmts)
 
 convertLoop :: Statement () -> Conv [Statement ()]
 convertLoop stmt@(ForAll _ _ _ _ _) = compileForAll stmt

@@ -101,18 +101,18 @@ check env (Length e0) =
   in case ty0 of
        ArrayT _ _ -> (Length e0', IntT)
        _ -> error "Argument to length must be an array"
-check env (Fixpoint cond step initv) =
+check env (While cond step initv) =
   let (cond', cond_ty)  = check env cond
       (step', step_ty)  = check env step
       (initv', init_ty) = check env initv
   in case (cond_ty, step_ty) of
        (ty0 :> ty1, ty0' :> ty1')
-         | ty0 /= init_ty  -> error "fixpoint: argument to conditional does not match initial value"
-         | ty1 /= BoolT    -> error "fixpoint: conditional does not return boolean"
-         | ty0' /= init_ty -> error "fixpoint: stepper-function argument type does not match initial value"
-         | ty1' /= init_ty -> error "fixpoint: result type of stepper-function does not match initial value"
-         | otherwise       -> (Fixpoint cond' step' initv', init_ty)
-       _ -> error "fixpoint: Conditional and stepper should be functions (for now)"
+         | ty0 /= init_ty  -> error "while: argument to conditional does not match initial value"
+         | ty1 /= BoolT    -> error "while: conditional does not return boolean"
+         | ty0' /= init_ty -> error "while: stepper-function argument type does not match initial value"
+         | ty1' /= init_ty -> error "while: result type of stepper-function does not match initial value"
+         | otherwise       -> (While cond' step' initv', init_ty)
+       _ -> error "while: Conditional and stepper should be functions (for now)"
 check env (Generate lvl e0 e1) =
   let (e0', ty0) = check env e0
       (e1', ty1) = check env e1
