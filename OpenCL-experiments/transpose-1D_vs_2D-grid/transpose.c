@@ -26,7 +26,8 @@ void transpose1D(mclContext ctx,
   mclSetKernelArg(kernel, 4, sizeof(cl_int), &height);
   mclSetKernelArg(kernel, 5, sharedMemory, NULL); // local/shared memory
 
-  mclInvokeKernel(ctx, kernel, width*height, BLOCK_SIZE);
+  mclInvokeKernel(ctx, kernel, width*height,
+                  BLOCK_SIZE);
 }
 
 void transpose2D(mclContext ctx,
@@ -78,10 +79,10 @@ void test_transpose1D_kernel(mclContext ctx, cl_program p, char* kernelName, uns
     for (int i = 0; i < num_elems; i++) {
       if (out[i] != expected[i]) {
         num_errors++;
-        if(num_errors > 10) {
-          printf("More than 10 errors found. Stopping comparison.\n");
-          break;
-        } else {
+        /* if(num_errors > 10) { */
+        /*   printf("More than 10 errors found. Stopping comparison.\n"); */
+        /*   break; */
+        /* } else */ {
           printf("Error: out[%d]!=expected[%d] (%d, %d)\n", i, i, out[i], expected[i]);
         }
       }
@@ -114,8 +115,8 @@ void test_transpose1D_kernel(mclContext ctx, cl_program p, char* kernelName, uns
     mclReleaseKernel(transposeKernel);
 }
 
-void test_transpose2D_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM,
-                          unsigned int width, unsigned int height) {
+void test_transpose2D_kernel(mclContext ctx, cl_program p, char* kernelName,
+                             unsigned int width, unsigned int height) {
     cl_kernel transposeKernel = mclCreateKernel(p, kernelName);
 
     const size_t num_elems = width * height;
@@ -190,7 +191,7 @@ int main () {
   // Launch a grid of 2048 by 2048 threads, each transposeing a single
   // element
   test_transpose1D_kernel(ctx, p, "transpose1D", 2048, 2048);
-  //test_transpose2D_kernel(ctx, p, "transpose", 1, 2048, 2048);
+  test_transpose2D_kernel(ctx, p, "transpose", 2048, 2048);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);

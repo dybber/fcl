@@ -1,4 +1,7 @@
+//#pragma OPENCL EXTENSION cl_amd_printf : enable
+
 #define BLOCK_DIM 16
+#define LOG_BLOCK_DIM 4
 
 // From NVIDIA
 
@@ -14,7 +17,7 @@
  *
  */
 
-__kernel void transpose(__global float *odata, __global float *idata, int offset, int width, int height, __local float* block)
+__kernel void transpose(__global int *odata, __global int *idata, int offset, int width, int height, __local int* block)
 {
 	// read the matrix tile into shared memory
 	unsigned int xIndex = get_global_id(0);
@@ -41,15 +44,18 @@ __kernel void transpose(__global float *odata, __global float *idata, int offset
 
 // Modified version of above, to run over a 1D-grid, calculating the
 // 2D coordinates instead
-__kernel void transpose1D(__global float *odata, __global float *idata, int offset, int width, int height, __local float* block)
+__kernel void transpose1D(__global int *odata, __global int *idata, int offset, int width, int height, __local int* block)
 {
+  unsigned int groupsPerRow = width >> LOG_BLOCK_DIM; // width / BLOCK_DIM
+  unsigned const int groupIDx = get_group_id(0) & (groupsPerRow-1); // get_group_id(0) % groupsPerRow
+  unsigned const int groupIDy = get_group_id(0) >> 7; // get_group_id(0) / groupsPerRow
+
+  unsigned const int localIDx = get_local_id(0) & (BLOCK_DIM-1); // get_local_id(0) % BLOCK_DIM
+  unsigned const int localIDy = get_local_id(0) >> LOG_BLOCK_DIM; // get_local_id(0) / BLOCK_DIM
+
 	// read the matrix tile into shared memory
-	unsigned int xIndex = get_global_id(0) % width;
-	unsigned int yIndex = get_global_id(0) / width;
-  unsigned int localIDx = xIndex % BLOCK_DIM;
-  unsigned int localIDy = yIndex % BLOCK_DIM;
-  unsigned int groupIDx = xIndex / (width/BLOCK_DIM);
-  unsigned int groupIDy = yIndex / (height/BLOCK_DIM);
+	unsigned int xIndex = groupIDx * BLOCK_DIM + localIDx;
+	unsigned int yIndex = groupIDy * BLOCK_DIM + localIDy;
 
 	if((xIndex + offset < width) && (yIndex < height))
 	{
@@ -58,6 +64,8 @@ __kernel void transpose1D(__global float *odata, __global float *idata, int offs
 	}
 
 	barrier(CLK_LOCAL_MEM_FENCE);
+
+
 
 	// write the transposed matrix tile to global memory
 	xIndex = groupIDy * BLOCK_DIM + localIDx;
