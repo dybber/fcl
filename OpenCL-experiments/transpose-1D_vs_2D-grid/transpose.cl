@@ -1,3 +1,19 @@
+#define BLOCK_DIM 16
+
+// From NVIDIA
+
+
+/*
+ * Copyright 1993-2010 NVIDIA Corporation.  All rights reserved.
+ *
+ * Please refer to the NVIDIA end user license agreement (EULA) associated
+ * with this source code for terms and conditions that govern your use of
+ * this software. Any use, reproduction, disclosure, or distribution of
+ * this software and related documentation outside the terms of the EULA
+ * is strictly prohibited.
+ *
+ */
+
 __kernel void transpose(__global float *odata, __global float *idata, int offset, int width, int height, __local float* block)
 {
 	// read the matrix tile into shared memory
@@ -23,6 +39,8 @@ __kernel void transpose(__global float *odata, __global float *idata, int offset
 }
 
 
+// Modified version of above, to run over a 1D-grid, calculating the
+// 2D coordinates instead
 __kernel void transpose1D(__global float *odata, __global float *idata, int offset, int width, int height, __local float* block)
 {
 	// read the matrix tile into shared memory
@@ -30,9 +48,8 @@ __kernel void transpose1D(__global float *odata, __global float *idata, int offs
 	unsigned int yIndex = get_global_id(0) / width;
   unsigned int localIDx = xIndex % BLOCK_DIM;
   unsigned int localIDy = yIndex % BLOCK_DIM;
-  unsigned int groupIDx = xIndex / BLOCK_DIM;
-  unsigned int groupIDy = yIndex / BLOCK_DIM;
-    
+  unsigned int groupIDx = xIndex / (width/BLOCK_DIM);
+  unsigned int groupIDy = yIndex / (height/BLOCK_DIM);
 
 	if((xIndex + offset < width) && (yIndex < height))
 	{

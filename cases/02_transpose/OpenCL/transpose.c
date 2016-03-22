@@ -77,7 +77,7 @@ int main() {
     if (num_errors == 0) {
       printf("PASSED validation. No errors.\n");
     }
-    mclUnmap(ctx, buf, out);
+    mclUnmap(ctx, outbuf, out);
 
     if (num_errors == 0) {
       printf("Timing on %d executions\n", NUM_ITERATIONS);

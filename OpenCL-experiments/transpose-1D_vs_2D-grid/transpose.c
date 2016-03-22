@@ -76,13 +76,13 @@ void test_transpose1D_kernel(mclContext ctx, cl_program p, char* kernelName, uns
 
     cl_int num_errors = 0;
     for (int i = 0; i < num_elems; i++) {
-      if (out[i] != input[i]) {
+      if (out[i] != expected[i]) {
         num_errors++;
         if(num_errors > 10) {
           printf("More than 10 errors found. Stopping comparison.\n");
           break;
         } else {
-          printf("Error: out[%d]!=input[%d] (%d, %d)\n", i, i, out[i], input[i]);
+          printf("Error: out[%d]!=expected[%d] (%d, %d)\n", i, i, out[i], expected[i]);
         }
       }
     }
@@ -122,7 +122,15 @@ void test_transpose2D_kernel(mclContext ctx, cl_program p, char* kernelName, int
 
     int* input = (int*)calloc(num_elems, sizeof(int));
     for (int i = 0; i < num_elems; i++) {
-      input[i] = rand();
+      input[i] = i;
+    }
+
+    // Create transposed matrix as reference
+    int* expected = (int*)calloc(num_elems, sizeof(int));
+    for( unsigned int y = 0; y < height; ++y) {
+        for( unsigned int x = 0; x < width; ++x) {
+            expected[(x * height) + y] = input[(y * width) + x];
+        }
     }
 
     mclDeviceData buf = mclDataToDevice(ctx, MCL_R, num_elems, sizeof(int), input);
@@ -136,13 +144,13 @@ void test_transpose2D_kernel(mclContext ctx, cl_program p, char* kernelName, int
 
     cl_int num_errors = 0;
     for (int i = 0; i < num_elems; i++) {
-      if (out[i] != input[i]) {
+      if (out[i] != expected[i]) {
         num_errors++;
         if(num_errors > 10) {
           printf("More than 10 errors found. Stopping comparison.\n");
           break;
         } else {
-          printf("Error: out[%d]!=input[%d] (%d, %d)\n", i, i, out[i], input[i]);
+          printf("Error: out[%d]!=expected[%d] (%d, %d)\n", i, i, out[i], expected[i]);
         }
       }
     }
@@ -181,8 +189,8 @@ int main () {
 
   // Launch a grid of 2048 by 2048 threads, each transposeing a single
   // element
-  test_transpose1D_kernel(ctx, p, "transpose", 0, 2048 * 2048);
-  test_transpose2D_kernel(ctx, p, "transpose1D", 1, 2048, 2048);
+  test_transpose1D_kernel(ctx, p, "transpose1D", 2048, 2048);
+  //test_transpose2D_kernel(ctx, p, "transpose", 1, 2048, 2048);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
