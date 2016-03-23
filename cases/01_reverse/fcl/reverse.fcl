@@ -1,5 +1,3 @@
--- These two are the same except for the types
--- we do not have polymorphism yet
 sig reverse : [a] -> [a]
 fun reverse arr =
   let n = length arr
@@ -14,10 +12,5 @@ fun distributeReverse splitSize arr =
 
 sig reverseKernel : [int] -> [int]
 kernel reverseKernel arr = distributeReverse #localSize arr
-
-
--- kernel reverseGrid512 arr = reverseGrid #BlockSize arr
---   config #BlockSize = 512
---   config #WarpSize = 32 -- (or wavefront size)
 
 
