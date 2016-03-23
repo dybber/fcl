@@ -7,6 +7,7 @@ where
 import Control.Applicative hiding ((<|>), many)
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
+import Text.Parsec.Expr
 
 import Language.FCL.SourceRegion
 import Language.FCL.Lexer
@@ -75,21 +76,18 @@ fundef tyanno =
 ---------------------
 --   Expressions   --
 ---------------------
-expr :: Parser (Exp Untyped)
-expr = chainl1 nonAppExpr (return App)
-
-nonAppExpr :: Parser (Exp Untyped)
-nonAppExpr =
+term :: Parser (Exp Untyped)
+term =
    try fn
-   <|> let'
+   <|> tupleOrParens
    <|> if'
    <|> configVariable
    <|> try bool
    <|> try floating
    <|> integer
-   <|> op
+   <|> try op
    <|> array
-   <|> tupleOrParens
+   <|> let'
 
 sign :: Num a => Parser (a -> a)
 sign = (oneOf "-~" >> return negate)
@@ -99,9 +97,8 @@ sign = (oneOf "-~" >> return negate)
 integer :: Parser (Exp Untyped)
 integer =
   withRegion $ do
-    f <- sign
-    n <- decimal
-    return (IntScalar (fromInteger (f n)))
+    n <- natural
+    return (IntScalar (fromInteger n))
 
 floating :: Parser (Exp Untyped)
 floating =
@@ -167,31 +164,31 @@ let' =
 op :: Parser (Exp Untyped)
 op = withRegion (identifier >>= switch)
   where
-    switch "i2d"      = UnOp I2D       <$> nonAppExpr
-    switch "addi"     = BinOp AddI     <$> nonAppExpr <*> nonAppExpr
-    switch "subi"     = BinOp SubI     <$> nonAppExpr <*> nonAppExpr
-    switch "muli"     = BinOp MulI     <$> nonAppExpr <*> nonAppExpr
-    switch "divi"     = BinOp DivI     <$> nonAppExpr <*> nonAppExpr
-    switch "modi"     = BinOp ModI     <$> nonAppExpr <*> nonAppExpr
-    switch "mini"     = BinOp MinI     <$> nonAppExpr <*> nonAppExpr
-    switch "eqi"      = BinOp EqI      <$> nonAppExpr <*> nonAppExpr
-    switch "neqi"     = BinOp NeqI     <$> nonAppExpr <*> nonAppExpr
-    switch "powi"     = BinOp PowI     <$> nonAppExpr <*> nonAppExpr
-    switch "shiftLi"  = BinOp ShiftLI  <$> nonAppExpr <*> nonAppExpr
-    switch "shiftRi"  = BinOp ShiftRI  <$> nonAppExpr <*> nonAppExpr
-    switch "andi"     = BinOp AndI     <$> nonAppExpr <*> nonAppExpr
-    switch "xori"     = BinOp XorI     <$> nonAppExpr <*> nonAppExpr
-    switch "powr"     = BinOp PowR     <$> nonAppExpr <*> nonAppExpr
-    switch "divr"     = BinOp DivR     <$> nonAppExpr <*> nonAppExpr
-    switch "fst"      = Proj1E         <$> nonAppExpr <?> "fst"
-    switch "snd"      = Proj2E         <$> nonAppExpr <?> "snd"
-    switch "index"    = Index          <$> nonAppExpr <*> nonAppExpr <?> "index"
-    switch "length"   = Length         <$> nonAppExpr <?> "length"
-    switch "generate" = Generate Block <$> nonAppExpr <*> nonAppExpr <?> "generate"
-    switch "while"    = While          <$> nonAppExpr <*> nonAppExpr <*> nonAppExpr <?> "while"
-    switch "map"      = Map            <$> nonAppExpr <*> nonAppExpr <?> "map"
-    switch "force"    = ForceLocal     <$> nonAppExpr <?> "force"
-    switch "concat"   = Concat         <$> nonAppExpr <*> nonAppExpr <?> "concat"
+    switch "i2d"      = UnOp I2D       <$> term
+    switch "addi"     = BinOp AddI     <$> term <*> term
+    switch "subi"     = BinOp SubI     <$> term <*> term
+    switch "muli"     = BinOp MulI     <$> term <*> term
+    switch "divi"     = BinOp DivI     <$> term <*> term
+    switch "modi"     = BinOp ModI     <$> term <*> term
+    switch "mini"     = BinOp MinI     <$> term <*> term
+    switch "eqi"      = BinOp EqI      <$> term <*> term
+    switch "neqi"     = BinOp NeqI     <$> term <*> term
+    switch "powi"     = BinOp PowI     <$> term <*> term
+    switch "shiftLi"  = BinOp ShiftLI  <$> term <*> term
+    switch "shiftRi"  = BinOp ShiftRI  <$> term <*> term
+    switch "andi"     = BinOp AndI     <$> term <*> term
+    switch "xori"     = BinOp XorI     <$> term <*> term
+    switch "powr"     = BinOp PowR     <$> term <*> term
+    switch "divr"     = BinOp DivR     <$> term <*> term
+    switch "fst"      = Proj1E         <$> term <?> "fst"
+    switch "snd"      = Proj2E         <$> term <?> "snd"
+    switch "index"    = Index          <$> term <*> term <?> "index"
+    switch "length"   = Length         <$> term <?> "length"
+    switch "generate" = Generate Block <$> term <*> term <?> "generate"
+    switch "while"    = While          <$> term <*> term <*> term <?> "while"
+    switch "map"      = Map            <$> term <*> term <?> "map"
+    switch "force"    = ForceLocal     <$> term <?> "force"
+    switch "concat"   = Concat         <$> term <*> term <?> "concat"
     switch n          = return (Var n Untyped)
 
 fn :: Parser (Exp Untyped)
@@ -202,6 +199,24 @@ fn =
     symbol "=>"
     e <- expr
     return (Lamb ident Untyped e Untyped)
+
+expr :: Parser (Exp Untyped)
+expr = buildExpressionParser table term
+  where
+    table = [ [Infix (return App) AssocLeft],
+              [Infix (binOp "+" AddI) AssocLeft],
+              [Infix pipeForward AssocLeft]
+            ]
+
+pipeForward :: Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+pipeForward = do
+  reservedOp "|>"
+  return (\e1 e2 -> App e2 e1)
+
+binOp :: String -> BinOp -> Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+binOp opName operator = do
+  reservedOp opName
+  return (\e1 e2 -> BinOp operator e1 e2 Missing)
 
 ------------------
 --    Types
