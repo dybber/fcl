@@ -7,10 +7,10 @@ fun reverse arr =
 
 sig distributeReverse : int -> [a] -> [a]
 fun distributeReverse splitSize arr =
-  concat splitSize
-    (reverse
-       (map (fn arr2 => force (reverse arr2))
-               (splitUp splitSize arr)))
+  splitUp splitSize arr
+   |> map (fn arr2 => force (reverse arr2))
+   |> reverse
+   |> concat splitSize
 
 sig reverseKernel : [int] -> [int]
 kernel reverseKernel arr = distributeReverse #localSize arr

@@ -1,3 +1,51 @@
+sig map : (a -> b) -> [a] -> [b]
+fun map f arr = #map f arr
+
+sig generate : int -> (int -> a) -> [a]
+fun generate n f = #generate n f
+
+sig length : [a] -> int
+fun length arr = #length arr
+
+sig addi : int -> int -> int
+fun addi x y = #addi x y
+
+sig subi : int -> int -> int
+fun subi x y = #subi x y
+
+sig divi : int -> int -> int
+fun divi x y = #divi x y
+
+sig muli : int -> int -> int
+fun muli x y = #muli x y
+
+sig modi : int -> int -> int
+fun modi x y = #modi x y
+
+sig index : [a] -> int -> a
+fun index arr i = #index arr i
+
+sig mini : int -> int -> int
+fun mini x y = #mini x y
+
+sig neqi : int -> int -> bool
+fun neqi x y = #neqi x y
+
+sig fst : (a, b) -> a
+fun fst x = #fst x
+
+sig snd : (a, b) -> b
+fun snd x = #snd x
+
+sig while : (a -> bool) -> (a -> a) -> a -> a
+fun while cond step x = #while cond step x
+
+sig concat : int -> [[a]] -> [a]
+fun concat n arr = #concat n arr
+
+sig force : a -> a
+fun force x = #force x
+
 sig id : a -> a
 fun id x = x
 
