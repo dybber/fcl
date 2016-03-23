@@ -12,29 +12,32 @@ import Language.FCL.SourceRegion
 import Language.FCL.Lexer
 import Language.FCL.Syntax
 
+----------------------
+-- Exported parsers --
+----------------------
 parseString :: String -> String -> (Program Untyped)
 parseString programText filename =
-  case parse program filename programText of
+  case parse topLevel filename programText of
     Left e  -> error $ show e
     Right r -> r
 
 parseFile :: String -> IO (Program Untyped)
 parseFile filename =
   do contents <- readFile filename
-     case parse program filename contents of
+     case parse topLevel filename contents of
        Left e  -> error $ show e
        Right r -> return r
 
-program :: Parser (Program Untyped)
-program =
+---------------------------
+-- Top-level definitions --
+---------------------------
+topLevel :: Parser (Program Untyped)
+topLevel =
   do whitespace
      prog <- many1 definition
      eof
      return prog
 
--------------------------------------
--- Definitions and type signatures --
--------------------------------------
 definition :: Parser (Definition Untyped)
 definition = try (typesig >>= fundef)  -- fun.def. w. signature
           <|> fundef Nothing           -- fun.def.
@@ -44,7 +47,7 @@ typesig =
   do reserved "sig"
      ident <- identifier
      colon
-     ty <- typeExpr
+     ty <- type'
      return (Just (ident,ty))
 
 fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
@@ -54,7 +57,8 @@ fundef tyanno =
     addArgs [] rhs = rhs
     addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped Missing)
   in
-    do make_kernel <- (reserved "fun" >> return False) <|> (reserved "kernel" >> return True)
+    do make_kernel <-     (reserved "fun" >> return False)
+                      <|> (reserved "kernel" >> return True)
        name <- identifier
        args <- many identifier
        symbol "="
@@ -68,47 +72,52 @@ fundef tyanno =
                  , defBody = function
                  })
        
-----------------------
---    Expressions    --
-----------------------
+---------------------
+--   Expressions   --
+---------------------
 expr :: Parser (Exp Untyped)
 expr = chainl1 nonAppExpr (return App)
 
 nonAppExpr :: Parser (Exp Untyped)
-nonAppExpr = fnExpr
-   <|> pairOrParens
+nonAppExpr =
+   try fn
+   <|> let'
+   <|> if'
    <|> configVariable
-   <|> opExpr
-   <|> arrayExpr
-   <|> letExpr
-   <|> ifThenElseExpr
-   <|> valueExpr
- <?> "expression"
+   <|> try bool
+   <|> try floating
+   <|> integer
+   <|> op
+   <|> array
+   <|> tupleOrParens
 
-intExpr :: Parser (Region -> Exp Untyped)
-intExpr = IntScalar . fromInteger <$> lexeme decimal
+sign :: Num a => Parser (a -> a)
+sign = (oneOf "-~" >> return negate)
+       <|> (char '+' >> return id)
+       <|> return id
 
-doubleExpr :: Parser (Region -> Exp Untyped)
-doubleExpr = try (DoubleScalar <$> lexeme float)
+integer :: Parser (Exp Untyped)
+integer =
+  withRegion $ do
+    f <- sign
+    n <- decimal
+    return (IntScalar (fromInteger (f n)))
 
+floating :: Parser (Exp Untyped)
+floating =
+  withRegion $ do
+    f <- sign
+    n <- float
+    return (DoubleScalar (f n))
 
-boolExpr :: Parser (Region -> Exp Untyped)
-boolExpr =
-      try (reserved "true" >> return (BoolScalar True))
-  <|> try (reserved "false" >> return (BoolScalar False))
-  <?> "boolean value"
+bool :: Parser (Exp Untyped)
+bool =
+  withRegion $
+    (reserved "true" >> return (BoolScalar True))
+    <|> (reserved "false" >> return (BoolScalar False))
 
--- TODO: negation of doubles
-negation :: Parser (Region -> Exp Untyped)
-negation = do
-  oneOf "~-"
-  UnOp NegateI <$> valueExpr
-
-valueExpr :: Parser (Exp Untyped)
-valueExpr = withRegion (doubleExpr <|> intExpr <|> boolExpr <|> negation)
-
-ifThenElseExpr :: Parser (Exp Untyped)
-ifThenElseExpr =
+if' :: Parser (Exp Untyped)
+if' =
   withRegion $ do
     reserved "if"
     e1 <- expr
@@ -118,8 +127,10 @@ ifThenElseExpr =
     e3 <- expr
     return (Cond e1 e2 e3 Untyped)
 
-arrayExpr :: Parser (Exp Untyped)
-arrayExpr = withRegion (Vec <$> (brackets (sepBy expr comma)) <*> pure Untyped)
+array :: Parser (Exp Untyped)
+array = withRegion $ do
+  elems <- brackets (sepBy expr comma)
+  return (Vec elems Untyped)
 
 configVariable :: Parser (Exp Untyped)
 configVariable =
@@ -129,8 +140,8 @@ configVariable =
        "localSize" -> withRegion (return LocalSize)
        _ -> error ("Unknown configuration variable #" ++ v)
 
-pairOrParens :: Parser (Exp Untyped)
-pairOrParens =
+tupleOrParens :: Parser (Exp Untyped)
+tupleOrParens =
   do p1 <- getPosition
      symbol "("
      t1 <- expr
@@ -142,8 +153,8 @@ pairOrParens =
       <|> do symbol ")"
              return t1
 
-letExpr :: Parser (Exp Untyped)
-letExpr =
+let' :: Parser (Exp Untyped)
+let' =
   withRegion $ do
     reserved "let"
     ident <- identifier
@@ -153,8 +164,8 @@ letExpr =
     e2 <- expr
     return (Let ident e1 e2 Untyped)
 
-opExpr :: Parser (Exp Untyped)
-opExpr = withRegion (identifier >>= switch)
+op :: Parser (Exp Untyped)
+op = withRegion (identifier >>= switch)
   where
     switch "i2d"      = UnOp I2D       <$> nonAppExpr
     switch "addi"     = BinOp AddI     <$> nonAppExpr <*> nonAppExpr
@@ -183,8 +194,8 @@ opExpr = withRegion (identifier >>= switch)
     switch "concat"   = Concat         <$> nonAppExpr <*> nonAppExpr <?> "concat"
     switch n          = return (Var n Untyped)
 
-fnExpr :: Parser (Exp Untyped)
-fnExpr =
+fn :: Parser (Exp Untyped)
+fn =
   withRegion $ do
     reserved "fn"
     ident <- identifier
@@ -195,21 +206,31 @@ fnExpr =
 ------------------
 --    Types
 ------------------
-typeExpr :: Parser Type
-typeExpr = chainr1 tyterm funType
+type' :: Parser Type
+type' = chainr1 simpleType funType
 
-tyterm :: Parser Type
-tyterm = baseType
-    <|> tyVar
-    <|> productOrParensType
-    <|> arrayType
+simpleType :: Parser Type
+simpleType =
+  baseType
+  <|> tyVar
+  <|> tupleType
+  <|> arrayType
 
-productOrParensType :: Parser Type
-productOrParensType =
+
+baseType :: Parser Type
+baseType = (reserved "int" >> return IntT)
+       <|> (reserved "double" >> return DoubleT)
+       <|> (reserved "bool" >> return BoolT)
+
+arrayType :: Parser Type
+arrayType = ArrayT Block <$> brackets type'
+
+tupleType :: Parser Type
+tupleType =
   do symbol "("
-     t1 <- typeExpr
+     t1 <- type'
      try (do comma
-             t2 <- typeExpr
+             t2 <- type'
              symbol ")"
              return (t1 :*: t2))
       <|> do symbol ")"
@@ -220,18 +241,7 @@ funType =
   do symbol "->"
      return (:>)
 
-arrayType :: Parser Type
-arrayType = ArrayT Block <$> brackets typeExpr
-
-baseType :: Parser Type
-baseType = (reserved "int" >> return IntT)
-       <|> (reserved "double" >> return DoubleT)
-       <|> (reserved "bool" >> return BoolT)
-       <?> "base type"
-
-newTyVar :: String -> Type
-newTyVar name = VarT (TyVar 0 (Just name))
-
 tyVar :: Parser Type
-tyVar = newTyVar <$> identifier
-       <?> "base type"
+tyVar = do
+  name <- identifier
+  return (VarT (TyVar 0 (Just name)))

@@ -72,9 +72,6 @@ angles     = Token.angles     lexer
 braces :: Parser a -> Parser a
 braces     = Token.braces     lexer
 
-integer :: Parser Integer
-integer    = Token.integer    lexer
-
 semi :: Parser String
 semi       = Token.semi       lexer
 
