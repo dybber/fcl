@@ -43,10 +43,10 @@ type VarEnv = Map.Map Variable Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: Int -> Program Type -> IO [Kernel]
-compileKernels optIterations = mapM (compileKernel optIterations)
+compileKernels :: Int -> Program Type -> [Kernel]
+compileKernels optIterations = map (compileKernel optIterations)
  
-compileKernel :: Int -> Definition Type -> IO Kernel
+compileKernel :: Int -> Definition Type -> Kernel
 compileKernel optIterations def =
   let
     e = defBody def

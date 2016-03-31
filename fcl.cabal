@@ -6,6 +6,8 @@ Build-type:          Simple
 Maintainer:          dybber@dybber.dk
 Cabal-version:       >= 1.10
 
+Data-files: lib/prelude.fcl
+
 Library
   Build-depends: base >= 3 && < 5
                , array >= 0.3 && < 0.6
@@ -50,11 +52,11 @@ Library
   GHC-prof-options: -fprof-auto
 
 Executable fcl
-  Main-is: src/Main.hs
-
   Build-depends: base >= 3 && < 5,
+                 transformers >= 0.4.2 && < 0.5,
                  fcl
 
-  Default-Language:   Haskell2010
+  Main-is: src/Main.hs
 
+  Default-Language:   Haskell2010
   Ghc-Options:        -Wall

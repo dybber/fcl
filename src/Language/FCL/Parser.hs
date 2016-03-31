@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Language.FCL.Parser
-  (parseFile,
-   parseString)
+  (parseTopLevel, ParseError)
 where
 
 import Control.Applicative hiding ((<|>), many)
@@ -16,18 +15,8 @@ import Language.FCL.Syntax
 ----------------------
 -- Exported parsers --
 ----------------------
-parseString :: String -> String -> (Program Untyped)
-parseString programText filename =
-  case parse topLevel filename programText of
-    Left e  -> error $ show e
-    Right r -> r
-
-parseFile :: String -> IO (Program Untyped)
-parseFile filename =
-  do contents <- readFile filename
-     case parse topLevel filename contents of
-       Left e  -> error $ show e
-       Right r -> return r
+parseTopLevel :: String -> String -> Either ParseError (Program Untyped)
+parseTopLevel filename programText = parse topLevel filename programText
 
 ---------------------------
 -- Top-level definitions --

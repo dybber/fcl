@@ -17,27 +17,27 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
 
-generateKernel :: Int -> String -> IL () -> IO Kernel
-generateKernel optIterations name m = do
+generateKernel :: Int -> String -> IL () -> Kernel
+generateKernel optIterations name m =
   let (stmts, params, varCount) = runIL m
-  tc params stmts
-  let (stmts', used) = memoryMap stmts
+--  tc params stmts
+      (stmts', used) = memoryMap stmts
       params' = (addSharedMem used) ++ params
-  tc params' stmts'
-  let (stmts'', _) = convert varCount stmts'
-  tc params' stmts''
-  let stmts''' = optimise optIterations stmts''
-  tc params' stmts'''
-  return (Kernel { kernelName = name
-                 , kernelParams = params'
-                 , kernelBody = removeLabels stmts'''
-                 , kernelSharedMem = fmap optimiseExp used
-                 })
+--  tc params' stmts'
+      (stmts'', _) = convert varCount stmts'
+--  tc params' stmts''
+      stmts''' = optimise optIterations stmts''
+--  tc params' stmts'''
+  in (Kernel { kernelName = name
+             , kernelParams = params'
+             , kernelBody = removeLabels stmts'''
+             , kernelSharedMem = fmap optimiseExp used
+             })
 
-tc :: [VarName] -> [Statement a] -> IO ()
+tc :: [VarName] -> [Statement a] -> ()
 tc params stmts =
   case typeCheck params stmts of
-    Success   -> return ()
+    Success   -> ()
     Error msg -> error msg
 
 addSharedMem :: Maybe Bytes -> ([VarName])
