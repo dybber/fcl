@@ -1,10 +1,12 @@
 -- Inspired by http://okmij.org/ftp/Computation/FLOLAC/lecture.pdf
-module Language.FCL.TypeInference (typeinfer) where
+module Language.FCL.TypeInference (typeinfer, TypeError(..)) where
 
 import Data.List (nub)
 import qualified Data.Map as Map
 
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Class (lift)
 
 import Language.FCL.Syntax
 
@@ -12,13 +14,20 @@ type TyEnv = Map.Map Variable (TypeScheme Type)
 type Subst = Map.Map TyVar Type
 data TVE = TVE Int Subst
 
-type TI x = State TVE x
 
--- evalTI :: TI a -> TVE -> a
--- evalTI m = evalState m
+data TypeError = UnificationError String
+               | NotImplementedError String
+               | UnboundTypeVariableError Variable
+               | OccursCheckFailed
+ deriving (Show, Eq)
 
-runTI :: TI a -> TVE -> (a, TVE)
-runTI m = runState m
+type TI x = StateT TVE (Except TypeError) x
+
+throwError :: TypeError -> TI a
+throwError err = lift (throwE err)
+
+runTI :: TI a -> TVE -> Either TypeError (a, TVE)
+runTI m s = runExcept (runStateT m s)
 
 newtv :: TI Type
 newtv = do
@@ -37,9 +46,11 @@ tvext (x,ty) = do
  (TVE i env) <- get
  put (TVE i (Map.insert x ty env))
 
-lkup :: TyEnv -> Variable -> TypeScheme Type
-lkup env x = maybe err id (Map.lookup x env)
- where err = error ("Unbound variable " ++ x)
+lkup :: TyEnv -> Variable -> TI (TypeScheme Type)
+lkup env x =
+  case Map.lookup x env of
+    Just ty  -> return ty
+    Nothing -> throwError (UnboundTypeVariableError x)
 
 ext :: TyEnv -> Variable -> TypeScheme Type -> TyEnv
 ext env x ty = Map.insert x ty env
@@ -54,8 +65,7 @@ tvsub s (VarT tv) =
   case Map.lookup tv s of
     Just t -> tvsub s t
     Nothing -> VarT tv
-tvsub s (ArrayT Block t) = ArrayT Block (tvsub s t)
-tvsub _ (ArrayT _ _) = error "tvsub: only block level support at the moment"
+tvsub s (ArrayT lvl t) = ArrayT lvl (tvsub s t)
 
 tvsubExp :: Subst -> Exp Type -> Exp Type
 tvsubExp _ (IntScalar i reg) = IntScalar i reg
@@ -77,8 +87,7 @@ tvsubExp s (Index e1 e2 reg) = Index (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Length e1 reg) = Length (tvsubExp s e1) reg
 
 tvsubExp s (While e1 e2 e3 reg) = While (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
-tvsubExp s (Generate Block e1 e2 reg) = Generate Block (tvsubExp s e1) (tvsubExp s e2) reg
-tvsubExp _ (Generate _ _ _ reg) = error "tvsubExp: only block level allowed at the moment"
+tvsubExp s (Generate e1 e2 reg) = Generate (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Map e1 e2 reg) = Map (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (ForceLocal e1 reg) = ForceLocal (tvsubExp s e1) reg
 tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
@@ -97,10 +106,9 @@ prepareSig env (t0 :*: t1) =
   do (t0',env') <- prepareSig env t0
      (t1',env'') <- prepareSig env' t1
      return (t0' :*: t1', env'')  
-prepareSig env (ArrayT Block t) =
+prepareSig env (ArrayT lvl t) =
   do (t', env') <- prepareSig env t
-     return (ArrayT Block t', env')
-
+     return (ArrayT lvl t', env')
 prepareSig env (VarT (TyVar _ Nothing)) =
   do tv <- newtv
      return (tv, env)
@@ -110,7 +118,6 @@ prepareSig env (VarT (TyVar _ (Just x))) =
     Nothing ->
       do tv <- newNamedTV x
          return (tv, env)
-prepareSig _ (ArrayT _ _) = error "prepareSig"
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
@@ -139,11 +146,11 @@ unify' (t1a :> t1r) (t2a :> t2r) =
 unify' (t1l :*: t1r) (t2l :*: t2r) =
   do unify t1l t2l
      unify t1r t2r
-unify' (ArrayT Block t1) (ArrayT Block t2) = unify t1 t2
+unify' (ArrayT _ t1) (ArrayT _ t2) = unify t1 t2
 unify' (VarT v1) t2 = unify_fv v1 t2
 unify' t1 (VarT v2) = unify_fv v2 t1
-unify' t1 t2 = error (unwords ["type mismatch:",show t1,"and",
-                               show t2])
+unify' t1 t2 = throwError (UnificationError (unwords ["type mismatch:",show t1,"and",
+                                                      show t2]))
 
 unify_fv :: TyVar -> Type -> TI ()
 unify_fv tv t@(VarT tv') | tv == tv'   = return ()
@@ -151,7 +158,7 @@ unify_fv tv t@(VarT tv') | tv == tv'   = return ()
 unify_fv tv t = do
   (TVE _ s) <- get
   let c = occurs s tv t 
-  if c then error "occurs check failed"
+  if c then throwError OccursCheckFailed
        else tvext (tv, t)
 
 occurs :: Subst -> TyVar -> Type -> Bool
@@ -160,8 +167,7 @@ occurs _ _ BoolT = False
 occurs _ _ DoubleT = False
 occurs s tv (t1 :> t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (t1 :*: t2) = occurs s tv t1 || occurs s tv t2
-occurs s tv (ArrayT Block t) = occurs s tv t
-occurs _ _ (ArrayT _ _) = error "Only block level allowed ATM" -- TODO
+occurs s tv (ArrayT _ t) = occurs s tv t
 occurs s tv (VarT tv2) =
     case Map.lookup tv2 s of
          Just t  -> occurs s tv t
@@ -172,8 +178,9 @@ infer _ (IntScalar i reg) = return (IntT, IntScalar i reg)
 infer _ (BoolScalar b reg) = return (BoolT, BoolScalar b reg)
 infer _ (DoubleScalar d reg) = return (DoubleT, DoubleScalar d reg)
 infer env (Var x _ reg) = do
-  ty <- instantiate (lkup env x)
-  return (ty, Var x ty reg)
+  ty <- lkup env x
+  ty' <- instantiate ty
+  return (ty', Var x ty' reg)
 infer env (App e1 e2) = do
   (t1,e1') <- infer env e1
   (t2,e2') <- infer env e2
@@ -238,14 +245,13 @@ infer env (Map e1 e2 reg) = do
   unify t1 (tv1 :> tv2)
   unify t2 (ArrayT Block tv1)
   return (ArrayT Block tv2, Map e1' e2' reg)
-infer env (Generate Block e1 e2 reg) = do
+infer env (Generate e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
   unify t1 IntT
   unify t2 (IntT :> tv)
-  return (ArrayT Block tv, Generate Block e1' e2' reg)
-infer _ (Generate _ _ _ _) = error "typeinfer: Only block level support at the moment"
+  return (ArrayT Block tv, Generate e1' e2' reg)
 infer env (ForceLocal e reg) = do
   (t,e') <- infer env e
   tv <- newtv
@@ -359,10 +365,10 @@ tvdependentset (TVE i s_before) s_after =
 initEnv :: TVE
 initEnv = TVE 0 Map.empty
 
-typeinfer :: Program Untyped -> Program Type
+typeinfer :: Program Untyped -> Either TypeError (Program Type)
 typeinfer prog =
- let (typrog, TVE _ s) = runTI (typecheckProg Map.empty prog) initEnv
- in map (mapBody (tvsubExp s)) typrog
+  do (typrog, TVE _ s) <- runTI (typecheckProg Map.empty prog) initEnv
+     return (map (mapBody (tvsubExp s)) typrog)
 
 typecheckProg :: TyEnv -> Program Untyped -> TI (Program Type)
 typecheckProg _ [] = return []

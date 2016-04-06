@@ -15,7 +15,7 @@ import Language.GPUIL.PrettyOpenCL (ppKernel)
 import Language.GPUIL.Optimise (optimise, optimiseExp)
 import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
-import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
+--import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
 
 generateKernel :: Int -> String -> IL () -> Kernel
 generateKernel optIterations name m =
@@ -34,11 +34,11 @@ generateKernel optIterations name m =
              , kernelSharedMem = fmap optimiseExp used
              })
 
-tc :: [VarName] -> [Statement a] -> ()
-tc params stmts =
-  case typeCheck params stmts of
-    Success   -> ()
-    Error msg -> error msg
+-- tc :: [VarName] -> [Statement a] -> ()
+-- tc params stmts =
+--   case typeCheck params stmts of
+--     Success   -> ()
+--     Error msg -> error msg
 
 addSharedMem :: Maybe Bytes -> ([VarName])
 addSharedMem Nothing = []

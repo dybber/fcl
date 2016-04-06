@@ -22,6 +22,17 @@ import Language.FCL
 ---------------
 type CLI = ReaderT Options (ExceptT CompilerError IO)
 
+data CompilerError = IOError IOError
+                   | ParseError ParseError
+                   | TypeError TypeError
+                   | EvalError String
+  deriving Show
+
+exitErr :: String -> IO a
+exitErr msg = do
+  hPutStrLn stderr ("Error: " ++ msg)
+  exitFailure
+
 runCLI :: Options -> CLI a -> IO a
 runCLI opts m = do
   result <- runExceptT (runReaderT m opts)
@@ -134,7 +145,7 @@ parseFiles files = do
 compileFiles :: Program Untyped -> CLI String
 compileFiles ast =
   do logInfo "Typechecking."
-     es <- liftEither TypeError (infer ast)
+     es <- liftEither TypeError (typeinfer ast)
      mapM_ (logInfo . (" " ++) . showType) es
      logInfo "Inlining."
      let esInline = inline es
@@ -144,11 +155,6 @@ compileFiles ast =
      optIter <- asks fclOptimizeIterations
      let cp = compileKernels optIter esInline
      return (unlines (Prelude.map renderKernel cp))
-
-exitErr :: String -> IO a
-exitErr msg = do
-  hPutStrLn stderr ("Error: " ++ msg)
-  exitFailure
 
 ----------------------
 -- Main entry point --
@@ -171,7 +177,7 @@ compile filenames opts =
      ast <- parseFiles (prelude : filenames)
 
      let extensions = map extension filenames
-     when (all (== "fcl") extensions) (error "I can only handle .fcl files.")
+     when (all (== "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
 
      when (fclStopAfterParsing opts) (liftIO (print ast >> exitSuccess))
 

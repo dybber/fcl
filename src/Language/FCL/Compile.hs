@@ -187,32 +187,33 @@ compBody env (Cond e0 e1 e2 _ reg) = do
                      (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
                      (_,_) -> error (show reg ++ ": branches are differing")
     _ -> error "Expecting boolean expression as conditional argument in branch"
-compBody env (Generate _ e0 e1 reg) = do
+compBody env (Generate e0 e1 reg) = do
+  let (_ :> ty1) = typeOf e1
   v0 <- compBody env e0
   v1 <- compBody env e1
   case (v0, v1) of
     (TagInt e0', TagFn f) ->
-      return . TagArray $ Array { arrayElemType = int -- TODO, when type inference is done,
-                                                      -- put something sensible here
+      return . TagArray $ Array { arrayElemType = convertType ty1
                                 , arrayLen = e0'
                                 , arrayLevel = Block
                                 , arrayFun = Pull (\i -> f (TagInt i))
                                 }
     _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
 compBody env (Map e0 e1 reg) = do
+  let (_ :> ty1) = typeOf e0
   f' <- compBody env e0
   e' <- compBody env e1
   case (f', e') of
-    (TagFn f, TagArray (Array n ty lvl idx)) ->
+    (TagFn f, TagArray (Array n _ lvl idx)) ->
       case idx of
         Pull g -> return $ TagArray $
-                    Array { arrayElemType = ty -- TODO this is wrong, find the correct return type
+                    Array { arrayElemType = convertType ty1
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Pull (\x -> g x >>= f)
                           }
         Push g -> return . TagArray $
-                    Array { arrayElemType = ty -- TODO this is wrong
+                    Array { arrayElemType = convertType ty1
                           , arrayLen = n
                           , arrayLevel = lvl
                           , arrayFun = Push (\writer -> g (\e ix -> do v <- f e

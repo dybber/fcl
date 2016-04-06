@@ -85,7 +85,7 @@ data Exp ty =
   | Length (Exp ty) Region
 -- Combinators
   | While (Exp ty) (Exp ty) (Exp ty) Region -- APL-style, representing tail-recursive functions
-  | Generate Level (Exp ty) (Exp ty) Region
+  | Generate (Exp ty) (Exp ty) Region
   | Map (Exp ty) (Exp ty) Region
   | ForceLocal (Exp ty) Region
   | Concat (Exp ty) (Exp ty) Region
@@ -148,9 +148,9 @@ typeOf (Index e0 _ _) =
     _ -> error "typeOf: Argument to Index not of array type"
 typeOf (Length _ _) = IntT
 typeOf (While _ _ e2 _) = typeOf e2
-typeOf (Generate lvl _ f _) =
+typeOf (Generate _ f _) =
   case typeOf f of
-    _ :> ty1 -> ArrayT lvl ty1
+    _ :> ty1 -> ArrayT Block ty1
     _ -> error "typeOf: Second argument to Generate not of function type"
 typeOf (Map e0 e1 _) =
   case (typeOf e0, typeOf e1) of

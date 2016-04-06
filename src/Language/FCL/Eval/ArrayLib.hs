@@ -6,7 +6,8 @@ module Language.FCL.Eval.ArrayLib
   fromList, toList,
   fromFunction,
   index, mapA, foldlA, scanlA,
-  reduceA, joinA, splitA
+  reduceA, joinA, splitA,
+  materializeM
  )
 where
 
@@ -83,3 +84,11 @@ splitA n arr =
                                           , idx = \j -> idx arr (i * n + j)
                                           }
                    }
+
+-- Not very elegant, nor efficient.
+materializeM :: Monad m => FCLArray (m a) -> m (FCLArray a)
+materializeM (FCLArray {len=n, idx=f}) =
+  do vs <- mapM f [0..n-1]
+     return (FCLArray { len=n
+                      , idx = (\i -> vs !! i)
+                      })

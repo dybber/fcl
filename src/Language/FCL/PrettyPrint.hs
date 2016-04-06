@@ -16,3 +16,6 @@ ppType (ArrayT _ ty) = brackets (ppType ty)
 
 prettyPrintType :: Type -> String
 prettyPrintType = render 0 4 . ppType
+
+showType :: Definition Type -> String
+showType (Definition v _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)

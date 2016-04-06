@@ -145,31 +145,31 @@ op :: Parser (Exp Untyped)
 op = withRegion (identifier >>= switch)
   where
     switch "#localSize" = return LocalSize
-    switch "#i2d"      = UnOp I2D       <$> term
-    switch "#addi"     = BinOp AddI     <$> term <*> term
-    switch "#subi"     = BinOp SubI     <$> term <*> term
-    switch "#muli"     = BinOp MulI     <$> term <*> term
-    switch "#divi"     = BinOp DivI     <$> term <*> term
-    switch "#modi"     = BinOp ModI     <$> term <*> term
-    switch "#mini"     = BinOp MinI     <$> term <*> term
-    switch "#eqi"      = BinOp EqI      <$> term <*> term
-    switch "#neqi"     = BinOp NeqI     <$> term <*> term
-    switch "#powi"     = BinOp PowI     <$> term <*> term
-    switch "#shiftLi"  = BinOp ShiftLI  <$> term <*> term
-    switch "#shiftRi"  = BinOp ShiftRI  <$> term <*> term
-    switch "#andi"     = BinOp AndI     <$> term <*> term
-    switch "#xori"     = BinOp XorI     <$> term <*> term
-    switch "#powr"     = BinOp PowR     <$> term <*> term
-    switch "#divr"     = BinOp DivR     <$> term <*> term
-    switch "#fst"      = Proj1E         <$> term <?> "fst"
-    switch "#snd"      = Proj2E         <$> term <?> "snd"
-    switch "#index"    = Index          <$> term <*> term <?> "index"
-    switch "#length"   = Length         <$> term <?> "length"
-    switch "#generate" = Generate Block <$> term <*> term <?> "generate"
-    switch "#while"    = While          <$> term <*> term <*> term <?> "while"
-    switch "#map"      = Map            <$> term <*> term <?> "map"
-    switch "#force"    = ForceLocal     <$> term <?> "force"
-    switch "#concat"   = Concat         <$> term <*> term <?> "concat"
+    switch "#i2d"      = UnOp I2D      <$> term
+    switch "#addi"     = BinOp AddI    <$> term <*> term
+    switch "#subi"     = BinOp SubI    <$> term <*> term
+    switch "#muli"     = BinOp MulI    <$> term <*> term
+    switch "#divi"     = BinOp DivI    <$> term <*> term
+    switch "#modi"     = BinOp ModI    <$> term <*> term
+    switch "#mini"     = BinOp MinI    <$> term <*> term
+    switch "#eqi"      = BinOp EqI     <$> term <*> term
+    switch "#neqi"     = BinOp NeqI    <$> term <*> term
+    switch "#powi"     = BinOp PowI    <$> term <*> term
+    switch "#shiftLi"  = BinOp ShiftLI <$> term <*> term
+    switch "#shiftRi"  = BinOp ShiftRI <$> term <*> term
+    switch "#andi"     = BinOp AndI    <$> term <*> term
+    switch "#xori"     = BinOp XorI    <$> term <*> term
+    switch "#powr"     = BinOp PowR    <$> term <*> term
+    switch "#divr"     = BinOp DivR    <$> term <*> term
+    switch "#fst"      = Proj1E        <$> term <?> "fst"
+    switch "#snd"      = Proj2E        <$> term <?> "snd"
+    switch "#index"    = Index         <$> term <*> term <?> "index"
+    switch "#length"   = Length        <$> term <?> "length"
+    switch "#generate" = Generate      <$> term <*> term <?> "generate"
+    switch "#while"    = While         <$> term <*> term <*> term <?> "while"
+    switch "#map"      = Map           <$> term <*> term <?> "map"
+    switch "#force"    = ForceLocal    <$> term <?> "force"
+    switch "#concat"   = Concat        <$> term <*> term <?> "concat"
     switch n          = return (Var n Untyped)
 
 fn :: Parser (Exp Untyped)
