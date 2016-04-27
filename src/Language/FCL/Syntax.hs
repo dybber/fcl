@@ -95,6 +95,7 @@ data Exp ty =
   | Lamb Name ty (Exp ty) ty Region
   | Let Name (Exp ty) (Exp ty) ty Region
   | App (Exp ty) (Exp ty)
+    
   | Cond (Exp ty) (Exp ty) (Exp ty) ty Region
   | Pair (Exp ty) (Exp ty) Region
   | Proj1E (Exp ty) Region
@@ -112,7 +113,7 @@ data Exp ty =
   | MapPull (Exp ty) (Exp ty) Region
   | MapPush (Exp ty) (Exp ty) Region
   | Force (Exp ty) Region
-  | Push (Exp ty) ty Region
+  | Push Level (Exp ty) ty Region
   | Concat (Exp ty) (Exp ty) Region
   -- | Assemble (Exp ty) (Exp ty) (Exp ty)
   | LocalSize Region
@@ -186,7 +187,7 @@ typeOf (MapPush e0 e1 _) =
   case (typeOf e0, typeOf e1) of
     (_ :> ty1, PushArrayT lvl _) -> PushArrayT lvl ty1
     _ -> error "typeOf: Map"
-typeOf (Push _ ty _) = ty
+typeOf (Push _ _ ty _) = ty
 typeOf (Force e0 _) =
   case (typeOf e0) of
     (PushArrayT _ ty0) -> PullArrayT ty0
@@ -257,7 +258,7 @@ freeIn x (GeneratePull e1 e2 _)   = freeIn x e1 && freeIn x e2
 freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Force e _)              = freeIn x e
-freeIn x (Push e _ _)             = freeIn x e
+freeIn x (Push _ e _ _)             = freeIn x e
 freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
 freeIn _ (LocalSize _)            = True
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
@@ -288,7 +289,7 @@ freeVars (GeneratePull e1 e2 _)   = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Force e _)              = freeVars e
-freeVars (Push e _ _)             = freeVars e
+freeVars (Push _ e _ _)             = freeVars e
 freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
 freeVars (LocalSize _)            = Set.empty
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
@@ -396,9 +397,9 @@ subst s x e =
     Force e1 r ->
        do e1' <- subst s x e1
           return (Force e1' r)
-    Push e1 ty r ->
+    Push lvl e1 ty r ->
        do e1' <- subst s x e1
-          return (Push e1' ty r)
+          return (Push lvl e1' ty r)
     Concat e1 e2 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

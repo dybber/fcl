@@ -6,7 +6,7 @@ fun reverse arr =
 sig distributeReverse : int -> [a] -> <a>grid
 fun distributeReverse splitSize arr =
   splitUp splitSize arr
-   |> mapPull (fn arr2 => push (force (push (reverse arr2))))
+   |> mapPull (fn arr2 => #push<block> (force (#push<block> (reverse arr2))))
    |> reverse
    |> concat splitSize
 

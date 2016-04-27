@@ -263,9 +263,9 @@ compBody env (Force e0 reg) = do
   case v0 of
     TagArray arr -> liftM TagArray (unsafeWrite arr)
     _ -> error (show reg ++ ": ComputeLocal expects array as argument")
-compBody env (Push e0 ty reg) = do
+compBody env (Push lvl e0 ty reg) = do
   v0 <- compBody env e0
-  let (PushArrayT lvl _) = ty
+--  let (PushArrayT lvl _) = ty
   case v0 of
     TagArray arr -> 
       case arrayFun arr of

@@ -210,10 +210,11 @@ pp (MapPush e1 e2 _)    =
 pp (Force e1 _)              =
   do e1' <- pp e1
      return (parens (text "force" :<>: e1'))
-pp (Push e1 ty _)            =
+pp (Push lvl e1 _ _)            =
   do e1' <- pp e1
-     ty' <- ppType ty
-     return (parens (parens (text "push" :<>: e1') :<>: char ':' :<>: ty'))
+--     ty' <- ppType ty
+     lvl' <- ppLevel lvl
+     return (parens (parens (text "push" :+: angles lvl' :<>: e1')))
 pp (Concat e1 e2 _)          =
   do e1' <- pp e1
      e2' <- pp e2

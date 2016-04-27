@@ -65,6 +65,20 @@ fundef tyanno =
 ---------------------
 --   Expressions   --
 ---------------------
+-- term :: Parser (Exp Untyped)
+-- term =
+--   do t <- term_no_anno
+--      anno <- (type_annotation <|> return Nothing)
+--      case anno of
+--        Just ty -> withRegion (return (Annotation t ty))
+--        Nothing -> return t
+
+-- type_annotation :: Parser (Maybe Type)
+-- type_annotation =
+--   do colon
+--      ty <- type'
+--      return (Just ty)
+
 term :: Parser (Exp Untyped)
 term =
    try fn
@@ -169,12 +183,15 @@ op = withRegion (identifier >>= switch)
     switch "#generatePull" = GeneratePull <$> term <*> term <?> "generatePull"
     switch "#while"    = While         <$> term <*> term <*> term <?> "while"
     switch "#whileSeq" = WhileSeq      <$> term <*> term <*> term <?> "whileSeq"
-    switch "#push"     = Push          <$> term <*> (return Untyped) <?> "push"
+    switch "#push"     = Push          <$> angles level <*> term <*> (return Untyped) <?> "push"
     switch "#mapPull"  = MapPull       <$> term <*> term <?> "mapPull"
     switch "#mapPush"  = MapPush       <$> term <*> term <?> "mapPush"
     switch "#force"    = Force         <$> term <?> "force"
     switch "#concat"   = Concat        <$> term <*> term <?> "concat"
     switch n          = return (Var n Untyped)
+
+-- push =
+--   do angles level
 
 fn :: Parser (Exp Untyped)
 fn =
@@ -185,13 +202,14 @@ fn =
     e <- expr
     return (Lamb ident Untyped e Untyped)
 
+
 expr :: Parser (Exp Untyped)
-expr = buildExpressionParser table term
-  where
-    table = [ [Infix (return App) AssocLeft],
-              [Infix (binOp "+" AddI) AssocLeft],
-              [Infix pipeForward AssocLeft]
-            ]
+expr =
+  let table = [ [Infix (return App) AssocLeft],
+                [Infix (binOp "+" AddI) AssocLeft],
+                [Infix pipeForward AssocLeft]
+              ]
+  in buildExpressionParser table term
 
 pipeForward :: Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
 pipeForward = do

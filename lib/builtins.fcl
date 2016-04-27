@@ -7,9 +7,6 @@ fun mapPush f arr = #mapPush f arr
 sig generatePull : int -> (int -> a) -> [a]
 fun generatePull n f = #generatePull n f
 
-sig generatePush : int -> (int -> a) -> <a>lvl
-fun generatePush n f = #generatePush n f
-
 sig lengthPull : [a] -> int
 fun lengthPull arr = #lengthPull arr
 
@@ -58,5 +55,5 @@ fun concat n arr = #concat n arr
 sig force : <a>lvl -> [a]
 fun force x = #force x
 
-sig push : [a] -> <a>lvl
-fun push x = #push x
+-- sig push : [a] -> <a>lvl
+-- fun push x = #push x

@@ -55,12 +55,12 @@ fun seqReduce f b array =
 sig concatMap : int -> (a -> <b>lvl) -> [[a]] -> <b>(1+lvl)
 fun concatMap size f arr = concat size (mapPull f arr)
 
-sig reduceBlock : (a -> a -> a) -> [a] -> <a>lvl
-fun reduceBlock f arr =
-  let cond = fn arr => neqi 1 (lengthPull arr) in
-  let step = fn arr => let x = halve arr
-                       in push (zipWith f (fst x) (snd x))
-  in push (while cond step (step arr))
+-- sig reduceBlock : (a -> a -> a) -> [a] -> <a>lvl
+-- fun reduceBlock f arr =
+--   let cond = fn arr => neqi 1 (lengthPull arr) in
+--   let step = fn arr => let x = halve arr
+--                        in push (zipWith f (fst x) (snd x))
+--   in push (while cond step (step arr))
 
-sig reducePart : (a -> a -> a) -> [a] -> <a>lvl
-fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 512 arr)
+-- sig reducePart : (a -> a -> a) -> [a] -> <a>lvl
+-- fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 512 arr)

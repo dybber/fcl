@@ -19,6 +19,7 @@ data TVE = TVE Int Subst
 data TypeError = UnificationError Type Type
                | LevelUnificationError Level Level
                | NotImplementedError String
+               | UnboundVariableError Name
                | UnboundTypeVariableError Name
                | OccursCheckFailed
  deriving (Eq, Show)
@@ -63,7 +64,7 @@ lkup :: TyEnv -> Name -> TI (TypeScheme Type)
 lkup env x =
   case Map.lookup x env of
     Just ty  -> return ty
-    Nothing -> throwError (UnboundTypeVariableError x)
+    Nothing -> throwError (UnboundVariableError x)
 
 ext :: TyEnv -> Name -> TypeScheme Type -> TyEnv
 ext env x ty = Map.insert x ty env
@@ -113,7 +114,7 @@ tvsubExp s (GeneratePull e1 e2 reg) = GeneratePull (tvsubExp s e1) (tvsubExp s e
 tvsubExp s (MapPull e1 e2 reg) = MapPull (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (MapPush e1 e2 reg) = MapPush (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
-tvsubExp s (Push e1 t reg) = Push (tvsubExp s e1) (tvsub s t) reg
+tvsubExp s (Push lvl e1 t reg) = Push (lvlVarSub s lvl) (tvsubExp s e1) (tvsub s t) reg
 tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp _ (LocalSize reg) = LocalSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
@@ -374,13 +375,12 @@ infer env (Scanl e1 e2 e3 reg) = do
   unify tf (ta :> tb :> ta)
   unify tbs (PullArrayT tb)
   return (PushArrayT threadLevel ta, Scanl e1' e2' e3' reg)
-infer env (Push e1 _ reg) = do
+infer env (Push lvl e1 _ reg) = do
   (te, e1') <- infer env e1
   telem <- newtv
-  lvlVar <- newLvlVar
   unify te (PullArrayT telem)
-  let ty = PushArrayT lvlVar telem
-  return (ty, Push e1' ty reg)
+  let ty = PushArrayT lvl telem
+  return (ty, Push lvl e1' ty reg)
 
 unifyAll :: [Type] -> TI Type
 unifyAll [] = newtv
