@@ -77,7 +77,7 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigne
       double avgtime = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
       printf("Stats for %s, Throughput = %.4f GB/s, Average time = %.5f s, Size = %u integers, Workgroup = %u\n", kernelName,
-             (1.0e-9 * (double)(num_elems * sizeof(float))/avgtime),
+             (1.0e-9 * (double)(2 * num_elems * sizeof(float))/avgtime),
              avgtime, num_elems, BLOCK_SIZE);
 
     }
