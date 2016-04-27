@@ -31,6 +31,9 @@ memMap stmts = mapM go stmts
                                       return (ForAll lvl n e body' i)
    go (DistrPar lvl n e body i)  = do body' <- memMap body
                                       return (DistrPar lvl n e body' i)
+   go (If e tt tf i)             = do tt' <- memMap tt
+                                      tf' <- memMap tf
+                                      return (If e tt' tf' i)
    go stmt = return stmt
 
 allocate :: Bytes -> State (Maybe Bytes) Bytes

@@ -8,7 +8,7 @@ where
 import Language.GPUIL.Cons
 import Language.GPUIL.Syntax
 
-import Language.GPUIL.ConvertLoops (convert)
+--import Language.GPUIL.ConvertLoops (convert)
 
 import Language.GPUIL.PrettyLib (render)
 import Language.GPUIL.PrettyOpenCL (ppKernel)
@@ -24,15 +24,15 @@ generateKernel optIterations name m =
       (stmts', used) = memoryMap stmts
       params' = (addSharedMem used) ++ params
 --  tc params' stmts'
-      (stmts'', _) = convert varCount stmts'
+--      (stmts'', _) = convert varCount stmts'
 --  tc params' stmts''
-      stmts''' = optimise optIterations stmts''
+      stmts'' = optimise optIterations stmts'
 --  tc params' stmts'''
-  in (Kernel { kernelName = name
-             , kernelParams = params'
-             , kernelBody = removeLabels stmts'''
-             , kernelSharedMem = fmap optimiseExp used
-             })
+  in Kernel { kernelName = name
+            , kernelParams = params'
+            , kernelBody = removeLabels stmts''
+            , kernelSharedMem = fmap optimiseExp used
+            }
 
 -- tc :: [VarName] -> [Statement a] -> ()
 -- tc params stmts =
@@ -40,7 +40,7 @@ generateKernel optIterations name m =
 --     Success   -> ()
 --     Error msg -> error msg
 
-addSharedMem :: Maybe Bytes -> ([VarName])
+addSharedMem :: Maybe Bytes -> [VarName]
 addSharedMem Nothing = []
 addSharedMem _ = [("sbase", CPtr [attrLocal] CWord8)]
 
