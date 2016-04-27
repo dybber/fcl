@@ -6,7 +6,8 @@ Build-type:          Simple
 Maintainer:          dybber@dybber.dk
 Cabal-version:       >= 1.10
 
-Data-files: lib/prelude.fcl
+Data-files: lib/builtins.fcl
+            lib/prelude.fcl
 
 Library
   Build-depends: base >= 3 && < 5
@@ -25,6 +26,7 @@ Library
                    Language.FCL.PrettyPrint
                    Language.FCL.TypeInference
                    Language.FCL.Inline
+                   Language.FCL.Simplify
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile

@@ -17,6 +17,11 @@ cases
 This directory contains different use-cases which we want to
 support. Read the README in that directory for more info.
 
+microcl
+-------
+A small OpenCL wrapper library, making it a lot easier to write
+host-code :-)
+
 
 OpenCL installation
 -------------------

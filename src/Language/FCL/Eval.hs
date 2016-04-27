@@ -28,7 +28,7 @@ evalError reg msg = throwE (EvalError reg msg)
 ----------------------------
 -- Evaluation environment --
 ----------------------------
-type VarEnv ty = Map.Map Variable (Value ty)
+type VarEnv ty = Map.Map Name (Value ty)
 
 data Env ty = Env { varEnv :: VarEnv ty }
   deriving (Eq, Show)
@@ -36,16 +36,16 @@ data Env ty = Env { varEnv :: VarEnv ty }
 emptyEnv :: Env ty
 emptyEnv = Env { varEnv = Map.empty }
 
-lookupVar :: Variable -> Env ty -> Maybe (Value ty)
+lookupVar :: Name -> Env ty -> Maybe (Value ty)
 lookupVar x env = Map.lookup x (varEnv env)
 
-insertVar :: Variable -> Value ty -> Env ty -> Env ty
+insertVar :: Name -> Value ty -> Env ty -> Env ty
 insertVar x v env = env { varEnv = Map.insert x v (varEnv env) }
 
 ------------
 -- Values --
 ------------
-data Value ty = LamV (Env ty) Variable (Exp ty)
+data Value ty = LamV (Env ty) Name (Exp ty)
               | IntV Int
               | DoubleV Double
               | PairV (Value ty) (Value ty)
@@ -138,7 +138,14 @@ evalExp env (BinOp op e1 e2 r) = do
     
     PowR    -> DoubleV <$> liftM2 (**) (unDouble r "powr" v1) (unDouble r "powr" v2)
     DivR    -> DoubleV <$> liftM2 (/) (unDouble r "divr" v1) (unDouble r "divr" v2)
-evalExp env (Map ef e reg) = do
+evalExp env (MapPull ef e reg) = do
+  vf <- evalExp env ef
+  v <- evalExp env e
+  case (vf, v) of
+    (LamV env' var ebody, ArrayV arr) -> map_ env' var ebody arr
+    (LamV _ _ _, _) -> evalError (Just reg) "Error when evaluating second argument to map: not an array"
+    _               -> evalError (Just reg) "Error when evaluating first argument to map: not a function"
+evalExp env (MapPush ef e reg) = do
   vf <- evalExp env ef
   v <- evalExp env e
   case (vf, v) of
@@ -151,18 +158,30 @@ evalExp env (Index e0 e1 reg) = do
   case (v0, v1) of
     (ArrayV arr, IntV i) -> return (index arr i)
     _ -> evalError (Just reg) "expecting array and integer as argument to Index"
-evalExp env (Generate e0 e1 reg) = do
+evalExp env (GeneratePull e0 e1 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
   case (v0, v1) of
     (IntV n, LamV env' var ef) -> generate n env' var ef
     _ -> evalError (Just reg) "Generate expects integer expression as first argument and function as second argument"
-evalExp env (Length e0 reg) = do
+evalExp env (GeneratePush e0 e1 _ reg) = do
+  v0 <- evalExp env e0
+  v1 <- evalExp env e1
+  case (v0, v1) of
+    (IntV n, LamV env' var ef) -> generate n env' var ef
+    _ -> evalError (Just reg) "Generate expects integer expression as first argument and function as second argument"
+evalExp env (LengthPull e0 reg) = do
   v0 <- evalExp env e0
   case v0 of
     (ArrayV arr) -> return (IntV (sizeOf arr))
     _ -> evalError (Just reg) "expecting array as argument to Length"
-evalExp env (ForceLocal e0 _) = evalExp env e0
+evalExp env (LengthPush e0 reg) = do
+  v0 <- evalExp env e0
+  case v0 of
+    (ArrayV arr) -> return (IntV (sizeOf arr))
+    _ -> evalError (Just reg) "expecting array as argument to Length"
+evalExp env (Force e0 _) = evalExp env e0
+evalExp env (Push e0 _ _) = evalExp env e0
 evalExp env (Vec ls _ _) = do
   vs <- mapM (evalExp env) ls
   return (ArrayV (fromList vs))
@@ -195,6 +214,18 @@ evalExp env (While e0 e1 e2 reg) = do
         (\x -> evalExp (insertVar var1 x env1) body)
         v2
     _ -> evalError (Just reg) "Argument while evaluating while"
+evalExp env (WhileSeq e0 e1 e2 reg) = do
+  v0 <- evalExp env e0
+  v1 <- evalExp env e1
+  v2 <- evalExp env e2
+  case (v0, v1) of
+    (LamV env0 var0 f, LamV env1 var1 body) ->
+      while
+        reg
+        (\x -> evalExp (insertVar var0 x env0) f)
+        (\x -> evalExp (insertVar var1 x env1) body)
+        v2
+    _ -> evalError (Just reg) "Argument while evaluating while"
 evalExp env (Scanl ef e es reg) = do
   vf <- evalExp env ef
   v <- evalExp env e
@@ -205,17 +236,16 @@ evalExp env (Scanl ef e es reg) = do
     _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (LocalSize reg) = evalError (Just reg) "localSize not implemented"
 
-
 ---------------------
 -- Various helpers --
 ---------------------
-generate :: Show ty => Int -> Env ty -> Variable -> Exp ty -> Eval (Value ty)
+generate :: Show ty => Int -> Env ty -> Name -> Exp ty -> Eval (Value ty)
 generate n env' var ebody = do
   let arr = fromFunction n (\i -> evalExp (insertVar var (IntV i) env') ebody)
   arr' <- materializeM arr
   return (ArrayV arr') 
 
-map_ :: Show ty => Env ty -> Variable -> Exp ty -> FCLArray (Value ty) -> Eval (Value ty)
+map_ :: Show ty => Env ty -> Name -> Exp ty -> FCLArray (Value ty) -> Eval (Value ty)
 map_ env' var ebody arr = do
   let arr' = mapA (\x -> evalExp (insertVar var x env') ebody) arr
   arr'' <- materializeM arr'
@@ -228,7 +258,7 @@ scanM f v (u:us) =
      rest <- scanM f v' us
      return (v : rest)
 
-scanl_ :: Show ty => Env ty -> Variable -> Exp ty -> Value ty -> FCLArray (Value ty) -> Eval (Value ty)
+scanl_ :: Show ty => Env ty -> Name -> Exp ty -> Value ty -> FCLArray (Value ty) -> Eval (Value ty)
 scanl_ env' var ebody v arr = do
   let vs = toList arr
   let f v1 v2 = evalExp (insertVar var (PairV v1 v2) env') ebody
@@ -270,7 +300,6 @@ unArray reg str v =
   case v of
     ArrayV v' -> return v'
     _ -> evalError (Just reg) ("Expecting double in " ++ str)
-
 
 ----------------------
 -- Unused old stuff --

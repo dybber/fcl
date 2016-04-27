@@ -1,113 +1,66 @@
-sig map : (a -> b) -> [a] -> [b]
-fun map f arr = #map f arr
-
-sig generate : int -> (int -> a) -> [a]
-fun generate n f = #generate n f
-
-sig length : [a] -> int
-fun length arr = #length arr
-
-sig addi : int -> int -> int
-fun addi x y = #addi x y
-
-sig subi : int -> int -> int
-fun subi x y = #subi x y
-
-sig divi : int -> int -> int
-fun divi x y = #divi x y
-
-sig muli : int -> int -> int
-fun muli x y = #muli x y
-
-sig modi : int -> int -> int
-fun modi x y = #modi x y
-
-sig index : [a] -> int -> a
-fun index arr i = #index arr i
-
-sig mini : int -> int -> int
-fun mini x y = #mini x y
-
-sig neqi : int -> int -> bool
-fun neqi x y = #neqi x y
-
-sig fst : (a, b) -> a
-fun fst x = #fst x
-
-sig snd : (a, b) -> b
-fun snd x = #snd x
-
-sig while : (a -> bool) -> (a -> a) -> a -> a
-fun while cond step x = #while cond step x
-
-sig concat : int -> [[a]] -> [a]
-fun concat n arr = #concat n arr
-
-sig force : a -> a
-fun force x = #force x
-
 sig id : a -> a
 fun id x = x
 
 sig iota : int -> [int]
-fun iota n = generate n (fn x => x)
+fun iota n = generatePull n (fn x => x)
 
 sig zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 fun zipWith f a1 a2 =
-  generate (mini (length a1) (length a2))
+  generatePull (mini (lengthPull a1) (lengthPull a2))
     (fn ix => f (index a1 ix) (index a2 ix))
 
 sig backpermute : int -> (int -> (int, int)) -> [[a]] -> [a]
 fun backpermute totalSize f array =
-  generate totalSize
+  generatePull totalSize
     (fn ix => let ix0 = f ix
               in index (index array (fst ix0)) (snd ix0))
 
 -- Split an array at a given point
 sig splitAt : int -> [a] -> ([a], [a])
 fun splitAt n arr =
-  (generate n (fn i => index arr i),
-   generate (subi (length arr) n) (fn x => index arr (addi x n)))
+  (generatePull n (fn i => index arr i),
+   generatePull (subi (lengthPull arr) n) (fn x => index arr (addi x n)))
 
 sig halve : [a] -> ([a], [a])
-fun halve arr = splitAt (divi (length arr) 2) arr
+fun halve arr = splitAt (divi (lengthPull arr) 2) arr
 
 sig evenOdds : [a] -> ([a], [a])
 fun evenOdds arr =
-  let n  = length arr
+  let n  = lengthPull arr
   in let n2 = divi n 2
      in
-     (generate (subi n n2) (fn ix => index arr (muli 2 ix)),
-      generate n2     (fn ix => index arr (addi (muli 2 ix) 1)))
+     (generatePull (subi n n2) (fn ix => index arr (muli 2 ix)),
+      generatePull n2     (fn ix => index arr (addi (muli 2 ix) 1)))
 
 sig splitUp : int -> [a] -> [[a]]
 fun splitUp n arr =
-  generate (divi (subi (addi (length arr) n) 1) n)
-    (fn i => generate n
+  generatePull (divi (subi (addi (lengthPull arr) n) 1) n)
+    (fn i => generatePull n
        (fn j => index arr (addi (muli i n) j)))
 
 sig coalesce : int -> [a] -> [[a]]
 fun coalesce n arr =
-  let s = divi (length arr) n
-  in generate s (fn i =>
-       generate n (fn j => index arr (addi i (muli s j))))
+  let s = divi (lengthPull arr) n
+  in generatePull s (fn i =>
+       generatePull n (fn j => index arr (addi i (muli s j))))
 
 sig seqReduce : (a -> a -> a) -> a -> [a] -> a
 fun seqReduce f b array =
-  let n = length array in
+  let n = lengthPull array in
   let cond = fn x => neqi (fst x) n in
   let step  = fn x => (addi (fst x) 1,
                        f (index array (fst x)) (snd x))
-  in snd (while cond step (0,b))
+  in snd (whileSeq cond step (0,b))
 
-sig reduceBlock : (a -> a -> a) -> [a] -> [a]
+sig concatMap : int -> (a -> <b>lvl) -> [[a]] -> <b>(1+lvl)
+fun concatMap size f arr = concat size (mapPull f arr)
+
+sig reduceBlock : (a -> a -> a) -> [a] -> <a>lvl
 fun reduceBlock f arr =
-  let cond = fn arr => neqi 1 (length arr) in
+  let cond = fn arr => neqi 1 (lengthPull arr) in
   let step = fn arr => let x = halve arr
-                       in zipWith f (fst x) (snd x)
-  in while cond step (step arr)
+                       in push (zipWith f (fst x) (snd x))
+  in push (while cond step (step arr))
 
-sig reducePart : (a -> a -> a) -> [a] -> [a]
-fun reducePart f arr =
-   concat 1 (map (reduceBlock f) (splitUp 512 arr))
-
+sig reducePart : (a -> a -> a) -> [a] -> <a>lvl
+fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 512 arr)

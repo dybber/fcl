@@ -1,17 +1,25 @@
 module Language.FCL.Syntax (
   -- Types
   Level(..),
+  threadLevel,
+  warpLevel,
+  blockLevel,
+  gridLevel,
+  LvlVar(..),
   Type(..),
   TyVar(..),
   TypeScheme(..),
-  freevars,
+  freeTyVars,
   Untyped(Untyped),
 
   -- Expressions
-  Variable,
+  Name,
   Exp(..),
   UnOp(..),
   BinOp(..),
+  freeIn,
+  freeVars,
+  apply,
   typeOf,
 
   -- Programs
@@ -20,14 +28,26 @@ module Language.FCL.Syntax (
   mapBody
 ) where
 
+import Control.Monad.Trans.State
+import qualified Data.Set as Set
+
 import Language.FCL.SourceRegion
 
 ---------------------
 -- Syntax of types --
 ---------------------
-data Level = Thread | Warp | Block | Grid
+data LvlVar = LvlVar Int (Maybe String)
+  deriving (Eq, Show, Ord)
+
+threadLevel, warpLevel, blockLevel, gridLevel :: Level
+threadLevel = Zero
+warpLevel   = Step threadLevel
+blockLevel  = Step warpLevel
+gridLevel   = Step blockLevel
+
+data Level = Zero | Step Level | VarL LvlVar
   deriving (Eq, Show)
-       
+           
 data Type =
     IntT
   | BoolT
@@ -35,7 +55,8 @@ data Type =
   | VarT TyVar
   | Type :> Type
   | Type :*: Type
-  | ArrayT Level Type
+  | PullArrayT Type
+  | PushArrayT Level Type
   deriving (Eq, Show)
 
 data TyVar = TyVar Int (Maybe String)
@@ -45,15 +66,15 @@ data TypeScheme ty = TypeScheme [TyVar] ty
   deriving Show
 
 -- | Return the list of type variables in t (possibly with duplicates)
-freevars :: Type -> [TyVar]
-freevars IntT       = []
-freevars BoolT       = []
-freevars DoubleT       = []
-freevars (t1 :> t2) = freevars t1 ++ freevars t2
-freevars (t1 :*: t2) = freevars t1 ++ freevars t2
-freevars (ArrayT Block t) = freevars t
-freevars (ArrayT _ _) = error "Only block level allowed ATM" -- TODO
-freevars (VarT v)  = [v]
+freeTyVars :: Type -> [TyVar]
+freeTyVars IntT       = []
+freeTyVars BoolT       = []
+freeTyVars DoubleT       = []
+freeTyVars (t1 :> t2) = freeTyVars t1 ++ freeTyVars t2
+freeTyVars (t1 :*: t2) = freeTyVars t1 ++ freeTyVars t2
+freeTyVars (PullArrayT t) = freeTyVars t
+freeTyVars (PushArrayT _ t) = freeTyVars t
+freeTyVars (VarT v)  = [v]
 
 data Untyped = Untyped
   deriving (Eq, Show)
@@ -61,8 +82,7 @@ data Untyped = Untyped
 ---------------------------
 -- Syntax of Expressions --
 ---------------------------
-type Variable = String
-
+type Name = String
 
 data Exp ty =
     IntScalar Int Region
@@ -70,10 +90,10 @@ data Exp ty =
   | BoolScalar Bool Region
   | UnOp UnOp (Exp ty) Region
   | BinOp BinOp (Exp ty) (Exp ty) Region
-  | Var Variable ty Region
+  | Var Name ty Region
   | Vec [Exp ty] ty Region
-  | Lamb Variable ty (Exp ty) ty Region
-  | Let Variable (Exp ty) (Exp ty) ty Region
+  | Lamb Name ty (Exp ty) ty Region
+  | Let Name (Exp ty) (Exp ty) ty Region
   | App (Exp ty) (Exp ty)
   | Cond (Exp ty) (Exp ty) (Exp ty) ty Region
   | Pair (Exp ty) (Exp ty) Region
@@ -82,12 +102,18 @@ data Exp ty =
 
 -- Array handling
   | Index (Exp ty) (Exp ty) Region
-  | Length (Exp ty) Region
+  | LengthPull (Exp ty) Region
+  | LengthPush (Exp ty) Region
+
 -- Combinators
   | While (Exp ty) (Exp ty) (Exp ty) Region -- APL-style, representing tail-recursive functions
-  | Generate (Exp ty) (Exp ty) Region
-  | Map (Exp ty) (Exp ty) Region
-  | ForceLocal (Exp ty) Region
+  | WhileSeq (Exp ty) (Exp ty) (Exp ty) Region
+  | GeneratePull (Exp ty) (Exp ty) Region
+  | GeneratePush (Exp ty) (Exp ty) ty Region
+  | MapPull (Exp ty) (Exp ty) Region
+  | MapPush (Exp ty) (Exp ty) Region
+  | Force (Exp ty) Region
+  | Push (Exp ty) ty Region
   | Concat (Exp ty) (Exp ty) Region
   -- | Assemble (Exp ty) (Exp ty) (Exp ty)
   | LocalSize Region
@@ -108,7 +134,6 @@ data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
            | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
            | PowI | DivR | PowR
   deriving (Eq, Show)
-
 
 typeOf :: Exp Type -> Type
 typeOf (IntScalar _ _) = IntT
@@ -144,23 +169,34 @@ typeOf (Proj2E e _) =
     _ -> error "typeOf: Argument to Proj2E not of product type"
 typeOf (Index e0 _ _) =
   case typeOf e0 of
-    ArrayT _ elem_ty -> elem_ty
-    _ -> error "typeOf: Argument to Index not of array type"
-typeOf (Length _ _) = IntT
+    PullArrayT elem_ty -> elem_ty
+    _ -> error "typeOf: Argument to Index not of push-array type"
+typeOf (LengthPull _ _) = IntT
+typeOf (LengthPush _ _) = IntT
 typeOf (While _ _ e2 _) = typeOf e2
-typeOf (Generate _ f _) =
+typeOf (WhileSeq _ _ e2 _) = typeOf e2
+typeOf (GeneratePull _ f _) =
   case typeOf f of
-    _ :> ty1 -> ArrayT Block ty1
+    _ :> ty1 -> PullArrayT ty1
     _ -> error "typeOf: Second argument to Generate not of function type"
-typeOf (Map e0 e1 _) =
+typeOf (GeneratePush _ _ ty _) = ty
+typeOf (MapPull e0 e1 _) =
   case (typeOf e0, typeOf e1) of
-    (_ :> ty1, ArrayT lvl _) -> ArrayT lvl ty1
+    (_ :> ty1, PullArrayT _) -> PullArrayT ty1
     _ -> error "typeOf: Map"
-typeOf (ForceLocal e0 _) = typeOf e0
+typeOf (MapPush e0 e1 _) =
+  case (typeOf e0, typeOf e1) of
+    (_ :> ty1, PushArrayT lvl _) -> PushArrayT lvl ty1
+    _ -> error "typeOf: Map"
+typeOf (Push _ ty _) = ty
+typeOf (Force e0 _) =
+  case (typeOf e0) of
+    (PushArrayT _ ty0) -> PullArrayT ty0
+    _ -> error "typeOf: Force"
 typeOf (Concat _ e0 _) =
   case typeOf e0 of
-    ArrayT _ t -> t
-    _ -> error "typeOf: Concat given non-array as third argument"
+    PushArrayT _ t -> t
+    _ -> error "typeOf: Concat given non-push-array as third argument"
 -- typeOf (Assemble _ _ e0) =
 --   case typeOf e0 of
 --     ArrayT _ t -> t
@@ -169,14 +205,13 @@ typeOf (Vec [] _ _) = error "Cannot type empty list"
 typeOf (Vec es _ _) =
   let (t:ts) = map typeOf es
   in if and $ zipWith (==) (t:ts) ts
-       then ArrayT undefined t
-       else error ""
+       then PullArrayT t
+       else error "All elements in vector literal should be typed identically"
 typeOf (LocalSize _) = IntT
 typeOf (Scanl _ e1 e2 _) =
   case typeOf e2 of
-    ArrayT lvl _ -> ArrayT lvl (typeOf e1)
+    PullArrayT _ -> PushArrayT threadLevel (typeOf e1)
     _ -> error "typeOf: Scanl"
-
 
 ------------------------
 -- Syntax of programs --
@@ -185,7 +220,7 @@ typeOf (Scanl _ e1 e2 _) =
 type Program ty = [Definition ty]
 data Definition ty =
   Definition
-    { defVar        :: Variable
+    { defVar        :: Name
     , defSignature  :: Maybe Type
     , defTypeScheme :: TypeScheme ty
     , defEmitKernel :: Bool
@@ -196,3 +231,194 @@ data Definition ty =
 mapBody :: (Exp ty -> Exp ty)
         -> Definition ty -> Definition ty
 mapBody f def = def { defBody = f (defBody def) }
+
+------------------
+-- Substitution --
+------------------
+freeIn :: Name -> Exp ty -> Bool
+freeIn _ (IntScalar _ _)          = True
+freeIn _ (DoubleScalar _ _)       = True
+freeIn _ (BoolScalar _ _)         = True
+freeIn x (UnOp _ e _)             = freeIn x e
+freeIn x (BinOp _ e1 e2 _)        = freeIn x e1 && freeIn x e2
+freeIn x (Var y _ _)              = x /= y
+freeIn x (Vec es _ _)             = all (freeIn x) es
+freeIn x (Lamb y _ e _ _)         = x == y || freeIn x e
+freeIn x (Let y e ebody _ _)      = x == y || (freeIn x e && freeIn x ebody)
+freeIn x (App e1 e2)              = freeIn x e1 && freeIn x e2
+freeIn x (Cond e1 e2 e3 _ _)      = all (freeIn x) [e1, e2, e3]
+freeIn x (Pair e1 e2 _)           = freeIn x e1 && freeIn x e2
+freeIn x (Proj1E e _)             = freeIn x e
+freeIn x (Proj2E e _)             = freeIn x e
+freeIn x (Index e1 e2 _)          = freeIn x e1 && freeIn x e2
+freeIn x (LengthPull e _)         = freeIn x e
+freeIn x (LengthPush e _)         = freeIn x e
+freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
+freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
+freeIn x (GeneratePull e1 e2 _)   = freeIn x e1 && freeIn x e2
+freeIn x (GeneratePush e1 e2 _ _) = freeIn x e1 && freeIn x e2
+freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
+freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
+freeIn x (Force e _)              = freeIn x e
+freeIn x (Push e _ _)             = freeIn x e
+freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
+freeIn _ (LocalSize _)            = True
+freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
+
+
+freeVars :: Exp ty -> Set.Set Name
+freeVars (IntScalar _ _)          = Set.empty
+freeVars (DoubleScalar _ _)       = Set.empty
+freeVars (BoolScalar _ _)         = Set.empty
+freeVars (UnOp _ e _)             = freeVars e
+freeVars (BinOp _ e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
+freeVars (Var x _ _)              = Set.singleton x
+freeVars (Vec es _ _)             = Set.unions (map freeVars es)
+freeVars (Lamb x _ e _ _)         = Set.difference (freeVars e) (Set.singleton x)
+freeVars (Let x e1 e2 _ _)        = Set.union (freeVars e1)
+                                              (Set.difference (freeVars e2) (Set.singleton x))
+freeVars (App e1 e2)              = Set.union (freeVars e1) (freeVars e2)
+freeVars (Cond e1 e2 e3 _ _)      = Set.unions (map freeVars [e1, e2, e3])
+freeVars (Pair e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
+freeVars (Proj1E e _)             = freeVars e
+freeVars (Proj2E e _)             = freeVars e
+freeVars (Index e1 e2 _)          = Set.union (freeVars e1) (freeVars e2)
+freeVars (LengthPull e _)         = freeVars e
+freeVars (LengthPush e _)         = freeVars e
+freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
+freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
+freeVars (GeneratePull e1 e2 _)   = Set.union (freeVars e1) (freeVars e2)
+freeVars (GeneratePush e1 e2 _ _) = Set.union (freeVars e1) (freeVars e2)
+freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
+freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
+freeVars (Force e _)              = freeVars e
+freeVars (Push e _ _)             = freeVars e
+freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
+freeVars (LocalSize _)            = Set.empty
+freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
+
+freshVar :: State [Name] Name
+freshVar =
+  do (x:xs) <- get
+     put xs
+     return x
+
+subst :: Exp ty -> Name -> Exp ty -> State [Name] (Exp ty)
+subst s x e =
+  case e of
+    (Var y _ _)
+      | x == y    -> return s
+      | otherwise -> return e
+    (App e1 e2)   ->
+          do e1' <- subst s x e1
+             e2' <- subst s x e2
+             return (App e1' e2')
+    (Lamb y ty1 ebody ty2 r)
+      | x == y                    -> return e
+      | Set.member y (freeVars s) ->
+          do z <- freshVar
+             ebody' <- subst (Var "z" ty1 Missing) y ebody
+             ebody'' <- subst s x ebody'
+             return (Lamb z ty1 ebody'' ty2 r)
+      | otherwise ->
+          do ebody' <- subst s x ebody
+             return (Lamb y ty1 ebody' ty2 r)
+    (Let y e1 e2 t r)
+      | x == y                    -> return e
+      | Set.member y (freeVars s) ->
+          do z <- freshVar
+             e1' <- subst s x e1
+             e2' <- subst (Var "z" t Missing) y e2 -- TODO the "t" here is REALLY wrong
+             e2'' <- subst s x e2'
+             return (Let z e1' e2'' t r)
+      | otherwise ->
+          do e1' <- subst s x e1
+             e2' <- subst s x e2
+             return (Let y e1' e2' t r)
+
+   -- Recurse in all other cases
+    IntScalar _ _ -> return e
+    DoubleScalar _ _ -> return e
+    BoolScalar _ _ -> return e
+    UnOp op e1 r ->
+       do e1' <- subst s x e1
+          return (UnOp op e1' r)
+    BinOp op e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (BinOp op e1' e2' r)
+    Vec es ty r ->
+      do es' <- mapM (subst s x) es
+         return (Vec es' ty r)
+    Cond e1 e2 e3 ty r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (Cond e1' e2' e3' ty r)
+    Pair e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (Pair e1' e2' r)
+    Proj1E e1 r ->
+       do e1' <- subst s x e1
+          return (Proj1E e1' r)
+    Proj2E e1 r ->
+       do e1' <- subst s x e1
+          return (Proj2E e1' r)
+    Index e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (Index e1' e2' r)
+    LengthPull e1 r ->
+       do e1' <- subst s x e1
+          return (LengthPull e1' r)
+    LengthPush e1 r ->
+       do e1' <- subst s x e1
+          return (LengthPush e1' r)
+    While e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (While e1' e2' e3' r)
+    WhileSeq e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (WhileSeq e1' e2' e3' r)
+    GeneratePull e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (GeneratePull e1' e2' r)
+    GeneratePush e1 e2 ty r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (GeneratePush e1' e2' ty r)
+    MapPull e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (MapPull e1' e2' r)
+    MapPush e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (MapPush e1' e2' r)
+    Force e1 r ->
+       do e1' <- subst s x e1
+          return (Force e1' r)
+    Push e1 ty r ->
+       do e1' <- subst s x e1
+          return (Push e1' ty r)
+    Concat e1 e2 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (Concat e1' e2' r)
+    LocalSize _ -> return e
+    Scanl e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (Scanl e1' e2' e3' r)
+
+apply :: Name -> Exp ty -> Exp ty -> Exp ty
+apply x ebody e =
+  let vars = ['x' : show (i :: Int) | i <- [0..]]
+  in evalState (subst e x ebody) vars

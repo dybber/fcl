@@ -22,7 +22,11 @@ reservedNames =
    "kernel",
    "if",
    "then",
-   "else"]
+   "else",
+   "thread",
+   "warp",
+   "block",
+   "grid"]
 
 reservedOps :: [String]
 reservedOps = ["|>",

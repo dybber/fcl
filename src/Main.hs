@@ -50,7 +50,9 @@ liftEither _ (Right r) = return r
 data Options =
   Options { fclVerbosity :: Int
           , fclOptimizeIterations :: Int
+          , fclNoPrelude :: Bool
           , fclStopAfterParsing :: Bool
+          , fclStopAfterTypeCheck :: Bool
           , fclEval :: Bool
           , fclShowUsageAndExit :: Bool
           , fclOutputFile :: String
@@ -60,7 +62,9 @@ defaultOptions :: Options
 defaultOptions =
   Options { fclVerbosity = 0
           , fclOptimizeIterations = 10
+          , fclNoPrelude = False
           , fclStopAfterParsing = False
+          , fclStopAfterTypeCheck = False
           , fclEval = False
           , fclShowUsageAndExit = False
           , fclOutputFile = "kernels.cl"
@@ -68,9 +72,12 @@ defaultOptions =
 
 optionDescriptions :: [OptDescr (Options -> Options)]
 optionDescriptions = 
-  [ Option "v" ["verbose"]    (NoArg (\opt -> opt {fclVerbosity = 3})) "Verbose output"
+  [ Option "v" ["verbose"]    (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
+  , Option "d" ["debug"]      (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
   , Option "h" ["help"]       (NoArg (\opt -> opt {fclShowUsageAndExit = True})) "Show help for this command"
+  , Option []  ["no-prelude"] (NoArg (\opt -> opt {fclNoPrelude = True})) "Do not include the FCL prelude"
   , Option []  ["parse-only"] (NoArg (\opt -> opt {fclStopAfterParsing = True})) "Parse and print syntax tree"
+  , Option "t" ["tc-only"]    (NoArg (\opt -> opt {fclStopAfterTypeCheck = True})) "Parse, type check and print top-level types"
   , Option []  ["eval"]       (NoArg (\opt -> opt {fclEval = True})) "Parse and interpret main-function"
   , Option "o" ["output"]     (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "where to emit OpenCL kernels"
   ]
@@ -80,12 +87,13 @@ showUsageAndExit =
   liftIO $
     do prog <- getProgName
        let heading = "Help for FCL (" ++ prog ++ ")"
-       (putStrLn (usageInfo heading optionDescriptions))
+       putStr (usageInfo heading optionDescriptions)
        exitFailure
 
 parseOptions :: [String] -> Either [String] ([String], Options)
 parseOptions args = do
   case getOpt RequireOrder optionDescriptions args of
+    ([], [], []) -> Right ([], defaultOptions {fclShowUsageAndExit = True})
     (opts, files, []) -> Right (files, foldl (.) id opts defaultOptions)
     (_, _, errs) -> Left errs
 
@@ -142,18 +150,26 @@ parseFiles files = do
 -----------------
 -- Compilation --
 -----------------
-compileFiles :: Program Untyped -> CLI String
+compileFiles :: Program Type -> CLI String
 compileFiles ast =
-  do logInfo "Typechecking."
-     es <- liftEither TypeError (typeinfer ast)
-     mapM_ (logInfo . (" " ++) . showType) es
-     logInfo "Inlining."
-     let esInline = inline es
-     logDebug ("AST after inlining: " ++ show esInline)
-     logInfo (show (length esInline) ++ " kernels.")
+  do logInfo "Inlining."
+     let inlined = inline ast
+     logInfo (show (length inlined) ++ " kernels.")
+
+     -- logInfo "Simplifying."
+     -- let simpl = simplify ast
+
+     logInfo "Typechecking again."
+     typed_ast <- liftEither TypeError (typeinfer inlined)
+     mapM_ (logInfo . (" " ++) . showType) typed_ast
+     --logDebug ("AST after inlining and simplify: " ++ show typed_ast)
+
+
+     logDebug (prettyPrintProgram typed_ast)
+     
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
-     let cp = compileKernels optIter esInline
+     let cp = compileKernels optIter typed_ast
      return (unlines (Prelude.map renderKernel cp))
 
 ----------------------
@@ -173,16 +189,30 @@ compile :: [FilePath] -> Options -> CLI ()
 compile filenames opts =
   do when (fclShowUsageAndExit opts) showUsageAndExit
 
-     prelude <- liftIO (getDataFileName "lib/prelude.fcl")
-     ast <- parseFiles (prelude : filenames)
+     builtins <- liftIO (getDataFileName "lib/builtins.fcl")
+     prelude  <- liftIO (getDataFileName "lib/prelude.fcl")
+
+     let files = if fclNoPrelude opts
+                   then builtins : filenames
+                   else builtins : prelude : filenames
+
+     ast <- parseFiles files
+
+     logDebug ("AST: " ++ show ast)
 
      let extensions = map extension filenames
-     when (all (== "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
+     when (any (/= "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
 
      when (fclStopAfterParsing opts) (liftIO (print ast >> exitSuccess))
 
+     logInfo "Typechecking."
+     typed_ast <- liftEither TypeError (typeinfer ast)
+     mapM_ (logInfo . (" " ++) . showType) typed_ast
+
+     when (fclStopAfterTypeCheck opts) (liftIO exitSuccess)
+
      if fclEval opts
-       then do v <- liftEither EvalError (return (eval ast))
+       then do v <- liftEither EvalError (return (eval typed_ast))
                liftIO (print v)
-       else do kernels <- compileFiles ast
+       else do kernels <- compileFiles typed_ast
                liftIO (writeFile (fclOutputFile opts) kernels)

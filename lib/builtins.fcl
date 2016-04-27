@@ -1,0 +1,62 @@
+sig mapPull : (a -> b) -> [a] -> [b]
+fun mapPull f arr = #mapPull f arr
+
+sig mapPush : (a -> b) -> <a>lvl -> <b>lvl
+fun mapPush f arr = #mapPush f arr
+
+sig generatePull : int -> (int -> a) -> [a]
+fun generatePull n f = #generatePull n f
+
+sig generatePush : int -> (int -> a) -> <a>lvl
+fun generatePush n f = #generatePush n f
+
+sig lengthPull : [a] -> int
+fun lengthPull arr = #lengthPull arr
+
+sig lengthPush : <a>lvl -> int
+fun lengthPush arr = #lengthPush arr
+
+sig addi : int -> int -> int
+fun addi x y = #addi x y
+
+sig subi : int -> int -> int
+fun subi x y = #subi x y
+
+sig divi : int -> int -> int
+fun divi x y = #divi x y
+
+sig muli : int -> int -> int
+fun muli x y = #muli x y
+
+sig modi : int -> int -> int
+fun modi x y = #modi x y
+
+sig index : [a] -> int -> a
+fun index arr i = #index arr i
+
+sig mini : int -> int -> int
+fun mini x y = #mini x y
+
+sig neqi : int -> int -> bool
+fun neqi x y = #neqi x y
+
+sig fst : (a, b) -> a
+fun fst x = #fst x
+
+sig snd : (a, b) -> b
+fun snd x = #snd x
+
+sig while : ([a] -> bool) -> ([a] -> <a>lvl) -> <a>lvl -> [a]
+fun while cond step x = #while cond step x
+
+sig whileSeq : (a -> bool) -> (a -> a) -> a -> a
+fun whileSeq cond step x = #whileSeq cond step x
+
+sig concat : int -> [<a>lvl] -> <a>lvl
+fun concat n arr = #concat n arr
+
+sig force : <a>lvl -> [a]
+fun force x = #force x
+
+sig push : [a] -> <a>lvl
+fun push x = #push x

@@ -40,6 +40,9 @@ unpar :: Doc -> Doc
 unpar (Par d) = d
 unpar d = d
 
+angles :: Doc -> Doc
+angles d = char '<' :+: d :+: char '>'
+
 brackets :: Doc -> Doc
 brackets d = char '[' :+: d :+: char ']'
 

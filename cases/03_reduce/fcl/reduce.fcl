@@ -1,5 +1,2 @@
-
---sig reduce : [int] -> [int]
-fun reduceAdd (arr : [int]) = reduce (fn x : int => fn y : int => addi x y) arr
-
-kernel reduceAdd
+sig reduceAdd : [int] -> <int>grid
+kernel reduceAdd arr = reducePart addi arr

@@ -10,16 +10,18 @@ import Control.Monad.Trans.Class (lift)
 
 import Language.FCL.Syntax
 
-type TyEnv = Map.Map Variable (TypeScheme Type)
-type Subst = Map.Map TyVar Type
+type TyEnv = Map.Map Name (TypeScheme Type)
+type Subst = (Map.Map TyVar Type,
+              Map.Map LvlVar Level)
 data TVE = TVE Int Subst
 
 
-data TypeError = UnificationError String
+data TypeError = UnificationError Type Type
+               | LevelUnificationError Level Level
                | NotImplementedError String
-               | UnboundTypeVariableError Variable
+               | UnboundTypeVariableError Name
                | OccursCheckFailed
- deriving (Show, Eq)
+ deriving (Eq, Show)
 
 type TI x = StateT TVE (Except TypeError) x
 
@@ -43,16 +45,27 @@ newNamedTV name = do
 
 tvext :: (TyVar,Type) -> TI ()
 tvext (x,ty) = do
- (TVE i env) <- get
- put (TVE i (Map.insert x ty env))
+ (TVE i (stv, slvl)) <- get
+ put (TVE i (Map.insert x ty stv, slvl))
 
-lkup :: TyEnv -> Variable -> TI (TypeScheme Type)
+newLvlVar :: TI Level
+newLvlVar = do
+ (TVE i s) <- get
+ put (TVE (i+1) s)
+ return (VarL (LvlVar i Nothing))
+
+lvlVarExt :: (LvlVar,Level) -> TI ()
+lvlVarExt (lvlVar,lvl) = do
+ (TVE i (stv, slvl)) <- get
+ put (TVE i (stv, Map.insert lvlVar lvl slvl))
+
+lkup :: TyEnv -> Name -> TI (TypeScheme Type)
 lkup env x =
   case Map.lookup x env of
     Just ty  -> return ty
     Nothing -> throwError (UnboundTypeVariableError x)
 
-ext :: TyEnv -> Variable -> TypeScheme Type -> TyEnv
+ext :: TyEnv -> Name -> TypeScheme Type -> TyEnv
 ext env x ty = Map.insert x ty env
 
 tvsub :: Subst -> Type -> Type
@@ -61,11 +74,20 @@ tvsub _ BoolT = BoolT
 tvsub _ DoubleT = DoubleT
 tvsub s (t1 :> t2) = tvsub s t1 :> tvsub s t2
 tvsub s (t1 :*: t2) = tvsub s t1 :*: tvsub s t2
-tvsub s (VarT tv) =
-  case Map.lookup tv s of
-    Just t -> tvsub s t
+tvsub (stv, slvl) (VarT tv) =
+  case Map.lookup tv stv of
+    Just t -> tvsub (stv, slvl) t
     Nothing -> VarT tv
-tvsub s (ArrayT lvl t) = ArrayT lvl (tvsub s t)
+tvsub s (PullArrayT t) = PullArrayT (tvsub s t)
+tvsub s (PushArrayT lvl t) = PushArrayT (lvlVarSub s lvl) (tvsub s t)
+
+lvlVarSub :: Subst -> Level -> Level
+lvlVarSub _ Zero = Zero
+lvlVarSub s (Step l) = Step (lvlVarSub s l)
+lvlVarSub (stv,slvl) (VarL lvlVar) =
+  case Map.lookup lvlVar slvl of
+    Just t -> lvlVarSub (stv,slvl) t
+    Nothing -> VarL lvlVar
 
 tvsubExp :: Subst -> Exp Type -> Exp Type
 tvsubExp _ (IntScalar i reg) = IntScalar i reg
@@ -82,33 +104,30 @@ tvsubExp s (Cond e1 e2 e3 t reg) = Cond (tvsubExp s e1) (tvsubExp s e2) (tvsubEx
 tvsubExp s (Pair e1 e2 reg) = Pair (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Proj1E e1 reg) = Proj1E (tvsubExp s e1) reg
 tvsubExp s (Proj2E e1 reg) = Proj2E (tvsubExp s e1) reg
-
 tvsubExp s (Index e1 e2 reg) = Index (tvsubExp s e1) (tvsubExp s e2) reg
-tvsubExp s (Length e1 reg) = Length (tvsubExp s e1) reg
-
+tvsubExp s (LengthPull e1 reg) = LengthPull (tvsubExp s e1) reg
+tvsubExp s (LengthPush e1 reg) = LengthPush (tvsubExp s e1) reg
 tvsubExp s (While e1 e2 e3 reg) = While (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
-tvsubExp s (Generate e1 e2 reg) = Generate (tvsubExp s e1) (tvsubExp s e2) reg
-tvsubExp s (Map e1 e2 reg) = Map (tvsubExp s e1) (tvsubExp s e2) reg
-tvsubExp s (ForceLocal e1 reg) = ForceLocal (tvsubExp s e1) reg
+tvsubExp s (WhileSeq e1 e2 e3 reg) = WhileSeq (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
+tvsubExp s (GeneratePull e1 e2 reg) = GeneratePull (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (GeneratePush e1 e2 t reg) = GeneratePush (tvsubExp s e1) (tvsubExp s e2) (tvsub s t) reg
+tvsubExp s (MapPull e1 e2 reg) = MapPull (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (MapPush e1 e2 reg) = MapPush (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
+tvsubExp s (Push e1 t reg) = Push (tvsubExp s e1) (tvsub s t) reg
 tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp _ (LocalSize reg) = LocalSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 
+-- Initialize all type variables in the signature, by associating
+-- a number with each
 prepareSig :: [(String, Type)] -> Type -> TI (Type, [(String, Type)])
-prepareSig env IntT = return (IntT,env)
+-- base cases
+prepareSig env IntT    = return (IntT,env)
 prepareSig env DoubleT = return (DoubleT,env)
-prepareSig env BoolT = return (BoolT,env)
-prepareSig env (t0 :> t1) =
-  do (t0',env') <- prepareSig env t0
-     (t1',env'') <- prepareSig env' t1
-     return (t0' :> t1', env'')
-prepareSig env (t0 :*: t1) =
-  do (t0',env') <- prepareSig env t0
-     (t1',env'') <- prepareSig env' t1
-     return (t0' :*: t1', env'')  
-prepareSig env (ArrayT lvl t) =
-  do (t', env') <- prepareSig env t
-     return (ArrayT lvl t', env')
+prepareSig env BoolT   = return (BoolT,env)
+
+-- Interesting cases
 prepareSig env (VarT (TyVar _ Nothing)) =
   do tv <- newtv
      return (tv, env)
@@ -119,11 +138,27 @@ prepareSig env (VarT (TyVar _ (Just x))) =
       do tv <- newNamedTV x
          return (tv, env)
 
+-- Recurse
+prepareSig env (t0 :> t1) =
+  do (t0',env')  <- prepareSig env t0
+     (t1',env'') <- prepareSig env' t1
+     return (t0' :> t1', env'')
+prepareSig env (t0 :*: t1) =
+  do (t0',env')  <- prepareSig env t0
+     (t1',env'') <- prepareSig env' t1
+     return (t0' :*: t1', env'')  
+prepareSig env (PullArrayT t) =
+  do (t', env') <- prepareSig env t
+     return (PullArrayT t', env')
+prepareSig env (PushArrayT lvl t) =
+  do (t', env') <- prepareSig env t
+     return (PushArrayT lvl t', env')
+
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
 tvchase (VarT x) = do
-  (TVE _ s) <- get
-  case Map.lookup x s of
+  (TVE _ (stv,_)) <- get
+  case Map.lookup x stv of
     Just t -> tvchase t
     Nothing -> return (VarT x)
 tvchase t = return t
@@ -146,11 +181,13 @@ unify' (t1a :> t1r) (t2a :> t2r) =
 unify' (t1l :*: t1r) (t2l :*: t2r) =
   do unify t1l t2l
      unify t1r t2r
-unify' (ArrayT _ t1) (ArrayT _ t2) = unify t1 t2
+unify' (PullArrayT t1) (PullArrayT t2) = unify t1 t2
+unify' (PushArrayT lvl1 t1) (PushArrayT lvl2 t2) = do
+  unifyLvls lvl1 lvl2
+  unify t1 t2
 unify' (VarT v1) t2 = unify_fv v1 t2
 unify' t1 (VarT v2) = unify_fv v2 t1
-unify' t1 t2 = throwError (UnificationError (unwords ["type mismatch:",show t1,"and",
-                                                      show t2]))
+unify' t1 t2 = throwError (UnificationError t1 t2)
 
 unify_fv :: TyVar -> Type -> TI ()
 unify_fv tv t@(VarT tv') | tv == tv'   = return ()
@@ -161,17 +198,42 @@ unify_fv tv t = do
   if c then throwError OccursCheckFailed
        else tvext (tv, t)
 
+unifyLvls :: Level -> Level -> TI ()
+unifyLvls Zero Zero = return ()
+unifyLvls (Step l0) (Step l1) = unifyLvls l0 l1
+unifyLvls (VarL lvlVar) lvl = unifyLvlVar lvlVar lvl
+unifyLvls lvl (VarL lvlVar) = unifyLvlVar lvlVar lvl
+unifyLvls lvl1 lvl2 = throwError (LevelUnificationError lvl1 lvl2)
+
+unifyLvlVar :: LvlVar -> Level -> TI ()
+unifyLvlVar lvlVar1 lvl@(VarL lvlVar2) | lvlVar1 == lvlVar2 = return ()
+                                       | otherwise = lvlVarExt (lvlVar1, lvl)
+unifyLvlVar lvlVar1 lvl = do
+  (TVE _ s) <- get
+  let c = occursLvl s lvlVar1 lvl
+  if c then throwError OccursCheckFailed
+       else lvlVarExt (lvlVar1, lvl)
+
 occurs :: Subst -> TyVar -> Type -> Bool
 occurs _ _ IntT = False
 occurs _ _ BoolT = False
 occurs _ _ DoubleT = False
 occurs s tv (t1 :> t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (t1 :*: t2) = occurs s tv t1 || occurs s tv t2
-occurs s tv (ArrayT _ t) = occurs s tv t
-occurs s tv (VarT tv2) =
-    case Map.lookup tv2 s of
-         Just t  -> occurs s tv t
+occurs s tv (PullArrayT t) = occurs s tv t
+occurs s tv (PushArrayT _ t) = occurs s tv t
+occurs (stv, slvl) tv (VarT tv2) =
+    case Map.lookup tv2 stv of
+         Just t  -> occurs (stv, slvl) tv t
          Nothing -> tv == tv2
+
+occursLvl :: Subst -> LvlVar -> Level -> Bool
+occursLvl _ _ Zero = False
+occursLvl s lvlVar (Step lvl) = occursLvl s lvlVar lvl
+occursLvl (stv, slvl) lvlVar (VarL lvlVar2) =
+    case Map.lookup lvlVar2 slvl of
+         Just t  -> occursLvl (stv, slvl) lvlVar t
+         Nothing -> lvlVar == lvlVar2
 
 infer :: TyEnv -> Exp ty -> TI (Type, Exp Type)
 infer _ (IntScalar i reg) = return (IntT, IntScalar i reg)
@@ -222,48 +284,84 @@ infer env (Index e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
-  unify t1 (ArrayT Block tv)
+  unify t1 (PullArrayT tv)
   unify t2 IntT
   return (tv, Index e1' e2' reg)
-infer env (Length e reg) = do
+infer env (LengthPull e reg) = do
   (t, e') <- infer env e
   tv <- newtv
-  unify t (ArrayT Block tv)
-  return (IntT, Length e' reg)
+  unify t (PullArrayT tv)
+  return (IntT, LengthPull e' reg)
+infer env (LengthPush e reg) = do
+  (t, e') <- infer env e
+  tv <- newtv
+  lvlVar <- newLvlVar
+  unify t (PushArrayT lvlVar tv)
+  return (IntT, LengthPush e' reg)
 infer env (While e1 e2 e3 reg) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  (t3, e3') <- infer env e3
+  tv <- newtv
+  lvlVar <- newLvlVar
+  unify t1 (PullArrayT tv :> BoolT)
+  unify t2 (PullArrayT tv :> PushArrayT lvlVar tv)
+  unify t3 (PushArrayT lvlVar tv)
+  return (PullArrayT tv, While e1' e2' e3' reg)
+infer env (WhileSeq e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
   unify t1 (t3 :> BoolT)
   unify t2 (t3 :> t3)
-  return (t3, While e1' e2' e3' reg)
-infer env (Map e1 e2 reg) = do
+  return (t3, WhileSeq e1' e2' e3' reg)
+infer env (MapPull e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv1 <- newtv
   tv2 <- newtv
   unify t1 (tv1 :> tv2)
-  unify t2 (ArrayT Block tv1)
-  return (ArrayT Block tv2, Map e1' e2' reg)
-infer env (Generate e1 e2 reg) = do
+  unify t2 (PullArrayT tv1)
+  return (PullArrayT tv2, MapPull e1' e2' reg)
+infer env (MapPush e1 e2 reg) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  tv1 <- newtv
+  tv2 <- newtv
+  lvlVar <- newLvlVar
+  unify t1 (tv1 :> tv2)
+  unify t2 (PushArrayT lvlVar tv1)
+  return (PushArrayT lvlVar tv2, MapPull e1' e2' reg)
+infer env (GeneratePull e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
   unify t1 IntT
   unify t2 (IntT :> tv)
-  return (ArrayT Block tv, Generate e1' e2' reg)
-infer env (ForceLocal e reg) = do
+  return (PullArrayT tv, GeneratePull e1' e2' reg)
+infer env (GeneratePush e1 e2 _ reg) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  tv <- newtv
+  lvlVar <- newLvlVar
+  unify t1 IntT
+  unify t2 (IntT :> tv)
+  let ty = PushArrayT lvlVar tv
+  return (ty, GeneratePush e1' e2' ty reg)
+infer env (Force e reg) = do
   (t,e') <- infer env e
   tv <- newtv
-  unify t (ArrayT Block tv)
-  return (t, ForceLocal e' reg)
+  lvlVar <- newLvlVar
+  unify t (PushArrayT lvlVar tv)
+  return (PullArrayT tv, Force e' reg)
 infer env (Concat e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   unify t1 IntT
   tv <- newtv
-  unify t2 (ArrayT Block (ArrayT Block tv))
-  return (ArrayT Block tv, Concat e1' e2' reg)
+  lvlVar <- newLvlVar
+  unify t2 (PullArrayT (PushArrayT lvlVar tv))
+  return (PushArrayT (Step lvlVar) tv, Concat e1' e2' reg)
 infer _ (LocalSize reg) = return (IntT, LocalSize reg)
 infer env (UnOp op e reg) = do
   (t, e') <- infer env e
@@ -277,15 +375,22 @@ infer env (BinOp op e1 e2 reg) = do
 infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
   t <- unifyAll (map fst tes)
-  return (ArrayT Block t, Vec (map snd tes) t reg)
+  return (PullArrayT t, Vec (map snd tes) t reg)
 infer env (Scanl e1 e2 e3 reg) = do
   (tf, e1') <- infer env e1
   (ta, e2') <- infer env e2
   (tbs, e3') <- infer env e3
   tb <- newtv
   unify tf (ta :> tb :> ta)
-  unify tbs (ArrayT Block tb)
-  return (ArrayT Block ta, Scanl e1' e2' e3' reg)
+  unify tbs (PullArrayT tb)
+  return (PushArrayT threadLevel ta, Scanl e1' e2' e3' reg)
+infer env (Push e1 _ reg) = do
+  (te, e1') <- infer env e1
+  telem <- newtv
+  lvlVar <- newLvlVar
+  unify te (PullArrayT telem)
+  let ty = PushArrayT lvlVar telem
+  return (ty, Push e1' ty reg)
 
 unifyAll :: [Type] -> TI Type
 unifyAll [] = newtv
@@ -335,16 +440,16 @@ instantiate (TypeScheme tyvars t) = do
   return (tvsub s t)
  where
    mkFreshvars :: [TyVar] -> TI Subst
-   mkFreshvars [] = return Map.empty
+   mkFreshvars [] = return (Map.empty, Map.empty)
    mkFreshvars (tv:tvs) = do
-     s <- mkFreshvars tvs
+     (stv, slvl) <- mkFreshvars tvs
      fresh <- newtv
-     return (Map.insert tv fresh s)
+     return (Map.insert tv fresh stv, slvl)
 
 -- | Give the list of all type variables that are allocated in TVE but
 -- not bound there
 free :: (Subst, Int) -> [TyVar]
-free (s,c) = filter (\v -> not (Map.member v s)) (map (\x -> TyVar x Nothing) [0..c-1])
+free ((s,_),c) = filter (\v -> not (Map.member v s)) (map (\x -> TyVar x Nothing) [0..c-1])
 
 generalize :: TI (Type, Exp Type) -> TI (TypeScheme Type, Exp Type)
 generalize ta = do
@@ -353,7 +458,7 @@ generalize ta = do
  TVE _ s_after  <- get      -- type env after ta is executed
  let t' = tvsub s_after t
  let tvdep = tvdependentset before s_after
- let fv = filter (not . tvdep) (nub (freevars t'))
+ let fv = filter (not . tvdep) (nub (freeTyVars t'))
  return (TypeScheme fv t', e')
 
 -- | Compute (quite unoptimally) the characteristic function of the set 
@@ -363,26 +468,27 @@ tvdependentset (TVE i s_before) s_after =
   \tv -> any (\tvb -> occurs s_after tv (VarT tvb)) (free (s_before,i))
 
 initEnv :: TVE
-initEnv = TVE 0 Map.empty
+initEnv = TVE 0 (Map.empty, Map.empty)
 
-typeinfer :: Program Untyped -> Either TypeError (Program Type)
+typeinfer :: Program a -> Either TypeError (Program Type)
 typeinfer prog =
   do (typrog, TVE _ s) <- runTI (typecheckProg Map.empty prog) initEnv
      return (map (mapBody (tvsubExp s)) typrog)
 
-typecheckProg :: TyEnv -> Program Untyped -> TI (Program Type)
+typecheckProg :: TyEnv -> Program a -> TI (Program Type)
 typecheckProg _ [] = return []
 typecheckProg tenv (d : ds) = do
   (tysc@(TypeScheme _ ty), ety) <- generalize (infer tenv (defBody d))
   case defSignature d of
     Just sig ->
-      do (newTy, _) <- prepareSig [] sig -- TODO
+      do (newTy, _) <- prepareSig [] sig
          unify newTy ty
     Nothing -> return ()
+  -- TODO TypeScheme tysc should be updated w. info from signature !
   rest <- typecheckProg (Map.insert (defVar d) tysc tenv) ds
   let typedDef = Definition
                    { defVar = defVar d
-                   , defSignature = Nothing
+                   , defSignature = defSignature d
                    , defTypeScheme = tysc
                    , defEmitKernel = defEmitKernel d
                    , defBody = ety

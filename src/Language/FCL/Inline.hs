@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
 
-type Env = Map.Map Variable (TypeScheme Type, Exp Type)
+type Env = Map.Map Name (TypeScheme Type, Exp Type)
 
 emptyEnv :: Env
 emptyEnv = Map.empty
@@ -20,7 +20,7 @@ inlineFuncs env (d : ds) =
   let e' = inlineAll env (defBody d)
       rest = inlineFuncs (Map.insert (defVar d) (defTypeScheme d,e') env) ds
   in if defEmitKernel d
-     then (Definition (defVar d) Nothing (defTypeScheme d) True e') : rest
+     then d { defBody = e'} : rest
      else rest
   
 inlineAll :: Env -> Exp Type -> Exp Type
@@ -43,11 +43,16 @@ inlineAll env (Pair e0 e1 reg)           = Pair         (inlineAll env e0) (inli
 inlineAll env (Proj1E e0 reg)            = Proj1E       (inlineAll env e0) reg
 inlineAll env (Proj2E e0 reg)            = Proj2E       (inlineAll env e0) reg
 inlineAll env (Index e0 e1 reg)          = Index        (inlineAll env e0) (inlineAll env e1) reg
-inlineAll env (Length e0 reg)            = Length       (inlineAll env e0) reg
+inlineAll env (LengthPull e0 reg)        = LengthPull   (inlineAll env e0) reg
+inlineAll env (LengthPush e0 reg)        = LengthPush   (inlineAll env e0) reg
 inlineAll env (While e0 e1 e2 reg)       = While        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
-inlineAll env (Generate e0 e1 reg)       = Generate (inlineAll env e0) (inlineAll env e1) reg
-inlineAll env (Map e0 e1 reg)            = Map          (inlineAll env e0) (inlineAll env e1) reg
-inlineAll env (ForceLocal e0 reg)        = ForceLocal   (inlineAll env e0) reg
+inlineAll env (WhileSeq e0 e1 e2 reg)    = WhileSeq     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
+inlineAll env (GeneratePull e0 e1 reg)   = GeneratePull (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (GeneratePush e0 e1 t reg) = GeneratePush (inlineAll env e0) (inlineAll env e1) t reg
+inlineAll env (MapPull e0 e1 reg)        = MapPull      (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (MapPush e0 e1 reg)        = MapPush      (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Push e0 t reg)            = Push         (inlineAll env e0) t reg
+inlineAll env (Force e0 reg)             = Force        (inlineAll env e0) reg
 inlineAll env (Concat e0 e1 reg)         = Concat       (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (Scanl e0 e1 e2 reg)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 

@@ -3,7 +3,7 @@
 
 sig transpose : int -> int -> [a] -> [a]
 fun transpose rows cols elems =
-  generate (muli rows cols)
+  generatePull (muli rows cols)
            (fn n =>
               let i = divi n rows in
               let j = modi n rows
@@ -21,7 +21,7 @@ fun splitGrid splitSize rows cols elems =
   let mkTile =
         (fn p =>
           fn q =>
-             generate tileSize
+             generatePull tileSize
                       (fn k =>
                          let i = divi k splitSize in -- row in inner array
                          let j = modi k splitSize    -- column in inner array
@@ -29,7 +29,7 @@ fun splitGrid splitSize rows cols elems =
                                               (addi (muli q splitSize)
                                                     (addi (muli m (muli splitSize i))
                                                           j)))))
-  in generate (muli n m)
+  in generatePull (muli n m)
        (fn i =>
           let p = divi i n in -- row in outer
           let q = modi i n -- column in outer
@@ -58,10 +58,11 @@ fun concatGrid splitSize  -- width&height of inner array
 --  - force each tile to shared memory
 --  - transpose outer array
 --  - write back to global memory with concatGrid
-sig transposeChunked : int -> int -> int -> [int] -> [int]
+sig transposeChunked : int -> int -> int -> [int] -> <int>grid
 kernel transposeChunked splitSize rows cols elems =
   splitGrid splitSize rows cols elems
-   |> map (transpose splitSize splitSize)
-   |> map force  -- force into shared memory
+   |> mapPull (transpose splitSize splitSize)
+   |> mapPull (fn arr => force (push arr))  -- force into shared memory
    |> transpose (divi rows splitSize) (divi cols splitSize)
    |> concatGrid splitSize (divi cols splitSize)
+   |> push

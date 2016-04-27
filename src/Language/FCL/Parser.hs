@@ -43,7 +43,7 @@ typesig =
 fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
 fundef tyanno =
   let
-    addArgs :: [Variable] -> Exp Untyped -> Exp Untyped
+    addArgs :: [Name] -> Exp Untyped -> Exp Untyped
     addArgs [] rhs = rhs
     addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped Missing)
   in
@@ -164,11 +164,16 @@ op = withRegion (identifier >>= switch)
     switch "#fst"      = Proj1E        <$> term <?> "fst"
     switch "#snd"      = Proj2E        <$> term <?> "snd"
     switch "#index"    = Index         <$> term <*> term <?> "index"
-    switch "#length"   = Length        <$> term <?> "length"
-    switch "#generate" = Generate      <$> term <*> term <?> "generate"
+    switch "#lengthPull"   = LengthPull    <$> term <?> "lengthPull"
+    switch "#lengthPush"   = LengthPush    <$> term <?> "lengthPush"
+    switch "#generatePull" = GeneratePull <$> term <*> term <?> "generatePull"
+    switch "#generatePush" = GeneratePush <$> term <*> term <*> (return Untyped) <?> "generatePush"
     switch "#while"    = While         <$> term <*> term <*> term <?> "while"
-    switch "#map"      = Map           <$> term <*> term <?> "map"
-    switch "#force"    = ForceLocal    <$> term <?> "force"
+    switch "#whileSeq" = WhileSeq      <$> term <*> term <*> term <?> "whileSeq"
+    switch "#push"     = Push          <$> term <*> (return Untyped) <?> "push"
+    switch "#mapPull"  = MapPull       <$> term <*> term <?> "mapPull"
+    switch "#mapPush"  = MapPush       <$> term <*> term <?> "mapPush"
+    switch "#force"    = Force         <$> term <?> "force"
     switch "#concat"   = Concat        <$> term <*> term <?> "concat"
     switch n          = return (Var n Untyped)
 
@@ -210,7 +215,8 @@ simpleType =
   baseType
   <|> tyVar
   <|> tupleType
-  <|> arrayType
+  <|> pullArrayType
+  <|> pushArrayType
 
 
 baseType :: Parser Type
@@ -218,8 +224,26 @@ baseType = (reserved "int" >> return IntT)
        <|> (reserved "double" >> return DoubleT)
        <|> (reserved "bool" >> return BoolT)
 
-arrayType :: Parser Type
-arrayType = ArrayT Block <$> brackets type'
+level :: Parser Level
+level = (reserved "thread" >> return threadLevel)
+    <|> (reserved "warp" >> return warpLevel)
+    <|> (reserved "block" >> return blockLevel)
+    <|> (reserved "grid" >> return gridLevel)
+    <|> lvlVar
+    <|> parens
+          (do char '1'
+              reservedOp "+"
+              lvl <- level
+              return (Step lvl))
+
+pullArrayType :: Parser Type
+pullArrayType = PullArrayT <$> brackets type'
+
+pushArrayType :: Parser Type
+pushArrayType = do
+ ty <- angles type'
+ lvl <- level
+ return (PushArrayT lvl ty)
 
 tupleType :: Parser Type
 tupleType =
@@ -241,3 +265,8 @@ tyVar :: Parser Type
 tyVar = do
   name <- identifier
   return (VarT (TyVar 0 (Just name)))
+
+lvlVar :: Parser Level
+lvlVar = do
+  name <- identifier
+  return (VarL (LvlVar 0 (Just name)))
