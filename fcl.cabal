@@ -26,7 +26,7 @@ Library
                    Language.FCL.PrettyPrint
                    Language.FCL.TypeInference
                    Language.FCL.Inline
-                   Language.FCL.Simplify
+--                   Language.FCL.Simplify
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
