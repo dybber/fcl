@@ -164,12 +164,6 @@ evalExp env (GeneratePull e0 e1 reg) = do
   case (v0, v1) of
     (IntV n, LamV env' var ef) -> generate n env' var ef
     _ -> evalError (Just reg) "Generate expects integer expression as first argument and function as second argument"
-evalExp env (GeneratePush e0 e1 _ reg) = do
-  v0 <- evalExp env e0
-  v1 <- evalExp env e1
-  case (v0, v1) of
-    (IntV n, LamV env' var ef) -> generate n env' var ef
-    _ -> evalError (Just reg) "Generate expects integer expression as first argument and function as second argument"
 evalExp env (LengthPull e0 reg) = do
   v0 <- evalExp env e0
   case v0 of

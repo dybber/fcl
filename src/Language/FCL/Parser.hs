@@ -167,7 +167,6 @@ op = withRegion (identifier >>= switch)
     switch "#lengthPull"   = LengthPull    <$> term <?> "lengthPull"
     switch "#lengthPush"   = LengthPush    <$> term <?> "lengthPush"
     switch "#generatePull" = GeneratePull <$> term <*> term <?> "generatePull"
-    switch "#generatePush" = GeneratePush <$> term <*> term <*> (return Untyped) <?> "generatePush"
     switch "#while"    = While         <$> term <*> term <*> term <?> "while"
     switch "#whileSeq" = WhileSeq      <$> term <*> term <*> term <?> "whileSeq"
     switch "#push"     = Push          <$> term <*> (return Untyped) <?> "push"

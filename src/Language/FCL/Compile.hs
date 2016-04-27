@@ -195,7 +195,6 @@ compBody env (GeneratePull e0 e1 reg) = do
                                 , arrayFun = Pull (\i -> f (TagInt i))
                                 }
     _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
---compBody env (GeneratePush e0 e1 ty reg) = undefined
 compBody env (MapPull e0 e1 reg) = do
   let (_ :> ty1) = typeOf e0
   f' <- compBody env e0

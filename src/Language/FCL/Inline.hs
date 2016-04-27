@@ -48,7 +48,6 @@ inlineAll env (LengthPush e0 reg)        = LengthPush   (inlineAll env e0) reg
 inlineAll env (While e0 e1 e2 reg)       = While        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (WhileSeq e0 e1 e2 reg)    = WhileSeq     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (GeneratePull e0 e1 reg)   = GeneratePull (inlineAll env e0) (inlineAll env e1) reg
-inlineAll env (GeneratePush e0 e1 t reg) = GeneratePush (inlineAll env e0) (inlineAll env e1) t reg
 inlineAll env (MapPull e0 e1 reg)        = MapPull      (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (MapPush e0 e1 reg)        = MapPush      (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (Push e0 t reg)            = Push         (inlineAll env e0) t reg

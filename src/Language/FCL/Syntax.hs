@@ -109,7 +109,6 @@ data Exp ty =
   | While (Exp ty) (Exp ty) (Exp ty) Region -- APL-style, representing tail-recursive functions
   | WhileSeq (Exp ty) (Exp ty) (Exp ty) Region
   | GeneratePull (Exp ty) (Exp ty) Region
-  | GeneratePush (Exp ty) (Exp ty) ty Region
   | MapPull (Exp ty) (Exp ty) Region
   | MapPush (Exp ty) (Exp ty) Region
   | Force (Exp ty) Region
@@ -179,7 +178,6 @@ typeOf (GeneratePull _ f _) =
   case typeOf f of
     _ :> ty1 -> PullArrayT ty1
     _ -> error "typeOf: Second argument to Generate not of function type"
-typeOf (GeneratePush _ _ ty _) = ty
 typeOf (MapPull e0 e1 _) =
   case (typeOf e0, typeOf e1) of
     (_ :> ty1, PullArrayT _) -> PullArrayT ty1
@@ -256,7 +254,6 @@ freeIn x (LengthPush e _)         = freeIn x e
 freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn x (GeneratePull e1 e2 _)   = freeIn x e1 && freeIn x e2
-freeIn x (GeneratePush e1 e2 _ _) = freeIn x e1 && freeIn x e2
 freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Force e _)              = freeIn x e
@@ -288,7 +285,6 @@ freeVars (LengthPush e _)         = freeVars e
 freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (GeneratePull e1 e2 _)   = Set.union (freeVars e1) (freeVars e2)
-freeVars (GeneratePush e1 e2 _ _) = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Force e _)              = freeVars e
@@ -389,10 +385,6 @@ subst s x e =
        do e1' <- subst s x e1
           e2' <- subst s x e2
           return (GeneratePull e1' e2' r)
-    GeneratePush e1 e2 ty r ->
-       do e1' <- subst s x e1
-          e2' <- subst s x e2
-          return (GeneratePush e1' e2' ty r)
     MapPull e1 e2 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

@@ -110,7 +110,6 @@ tvsubExp s (LengthPush e1 reg) = LengthPush (tvsubExp s e1) reg
 tvsubExp s (While e1 e2 e3 reg) = While (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (WhileSeq e1 e2 e3 reg) = WhileSeq (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (GeneratePull e1 e2 reg) = GeneratePull (tvsubExp s e1) (tvsubExp s e2) reg
-tvsubExp s (GeneratePush e1 e2 t reg) = GeneratePush (tvsubExp s e1) (tvsubExp s e2) (tvsub s t) reg
 tvsubExp s (MapPull e1 e2 reg) = MapPull (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (MapPush e1 e2 reg) = MapPush (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
@@ -339,15 +338,6 @@ infer env (GeneratePull e1 e2 reg) = do
   unify t1 IntT
   unify t2 (IntT :> tv)
   return (PullArrayT tv, GeneratePull e1' e2' reg)
-infer env (GeneratePush e1 e2 _ reg) = do
-  (t1, e1') <- infer env e1
-  (t2, e2') <- infer env e2
-  tv <- newtv
-  lvlVar <- newLvlVar
-  unify t1 IntT
-  unify t2 (IntT :> tv)
-  let ty = PushArrayT lvlVar tv
-  return (ty, GeneratePush e1' e2' ty reg)
 infer env (Force e reg) = do
   (t,e') <- infer env e
   tv <- newtv

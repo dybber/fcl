@@ -199,11 +199,6 @@ pp (GeneratePull e1 e2 _)    =
   do e1' <- pp e1
      e2' <- pp e2
      return (parens (text "generatePull" :<>: e1' :<>: e2'))
-pp (GeneratePush e1 e2 ty _) =
-  do e1' <- pp e1
-     e2' <- pp e2
-     ty' <- ppType ty
-     return (parens (parens (text "generatePush" :<>: e1' :<>: e2') :<>: char ':' :<>: ty'))
 pp (MapPull e1 e2 _)    =
   do e1' <- pp e1
      e2' <- pp e2
