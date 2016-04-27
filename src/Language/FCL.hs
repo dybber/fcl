@@ -1,5 +1,6 @@
 module Language.FCL
- (parseTopLevel, typeinfer, inline, simplify, eval,
+ (parseTopLevel, typeinfer, inline, --simplify,
+  eval,
   compileKernels, renderKernel,
 
   showType, prettyPrintType, prettyPrintExp, prettyPrintProgram,
