@@ -63,4 +63,4 @@ fun reduceBlock f arr =
   in #push<block> (while cond step (step arr))
 
 sig reducePart : (a -> a -> a) -> [a] -> <a>grid
-fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 512 arr)
+fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 256 arr)

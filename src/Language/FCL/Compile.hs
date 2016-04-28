@@ -367,7 +367,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr) =
                       , arrayLen = var var_len
                       }
      cond' <- liftM unBool (cond (TagArray vararr))
-     (var_cond,_) <- letsVar "cond" (TagBool cond')
+     (var_cond,_) <- letsVar "cond" (TagBool cond') -- stop condition
      whileLoop (Language.GPUIL.not (var var_cond)) $
        do -- step
           arr' <- liftM unArray (step (TagArray vararr))

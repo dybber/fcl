@@ -160,44 +160,44 @@ iff cond (f1, f2) = do
   f2' <- run f2
   addStmt (If cond f1' f2' ())
 
--- distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
--- distrPar lvl ub f = do
---   i <- newVar int "i"
---   let_ "ub" int ub >>= (\upperbound -> do
---     body <- run (f (VarE i))
---     addStmt $ DistrPar lvl i upperbound body ())
-
--- forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
--- forAll lvl ub f = do
---   i <- newVar int "i"
---   let_ "ub" int ub >>= (\upperbound -> do
---     body <- run (f (VarE i))
---     addStmt $ ForAll lvl i upperbound body ())
-
 distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
-distrPar Block ub f =
-  let_ "blocksQ" int (ub `divi` numWorkgroups) >>=
-    (\q -> do
-        for q (\i -> do
-           j <- let_ "j" int ((workgroupID `muli` q) `addi` i)
-           f j
-           syncLocal)
-        iff (workgroupID `lti` (ub `modi` numWorkgroups))
-            ( do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
-                 f j
-                 syncLocal
-            , return ()))
-distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
+distrPar lvl ub f = do
+  i <- newVar int "i"
+  let_ "ub" int ub >>= (\upperbound -> do
+    body <- run (f (VarE i))
+    addStmt $ DistrPar lvl i upperbound body ())
 
 forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
-forAll Block ub f =
-  let_ "q" int (ub `divi` localSize) >>=
-    (\q ->
-       do for q (\i -> let_ "j" int ((i `muli` localSize) `addi` localID) >>= f)
-          iff (localID `lti` (ub `modi` localSize))
-              (let_ "j" int ((q `muli` localSize) `addi` localID) >>= f,
-               return ()))
-forAll lvl _ _ = error ("Unsupported level in forALl: " ++ show lvl)
+forAll lvl ub f = do
+  i <- newVar int "i"
+  let_ "ub" int ub >>= (\upperbound -> do
+    body <- run (f (VarE i))
+    addStmt $ ForAll lvl i upperbound body ())
+
+-- distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+-- distrPar Block ub f =
+--   let_ "blocksQ" int (ub `divi` numWorkgroups) >>=
+--     (\q -> do
+--         for q (\i -> do
+--            j <- let_ "j" int ((workgroupID `muli` q) `addi` i)
+--            f j
+--            syncLocal)
+--         iff (workgroupID `lti` (ub `modi` numWorkgroups))
+--             ( do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
+--                  f j
+--                  syncLocal
+--             , return ()))
+-- distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
+
+-- forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+-- forAll Block ub f =
+--   let_ "q" int (ub `divi` localSize) >>=
+--     (\q ->
+--        do for q (\i -> let_ "j" int ((i `muli` localSize) `addi` localID) >>= f)
+--           iff (localID `lti` (ub `modi` localSize))
+--               (let_ "j" int ((q `muli` localSize) `addi` localID) >>= f,
+--                return ()))
+-- forAll lvl _ _ = error ("Unsupported level in forALl: " ++ show lvl)
 
 allocate :: CType -> CExp -> IL VarName
 allocate ty n = do

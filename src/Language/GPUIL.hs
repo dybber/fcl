@@ -8,7 +8,7 @@ where
 import Language.GPUIL.Cons
 import Language.GPUIL.Syntax
 
---import Language.GPUIL.ConvertLoops (convert)
+import Language.GPUIL.ConvertLoops (convert)
 
 import Language.GPUIL.PrettyLib (render)
 import Language.GPUIL.PrettyOpenCL (ppKernel)
@@ -24,13 +24,13 @@ generateKernel optIterations name m =
       (stmts', used) = memoryMap stmts
       params' = (addSharedMem used) ++ params
 --  tc params' stmts'
---      (stmts'', _) = convert varCount stmts'
+      (stmts'', _) = convert varCount stmts'
 --  tc params' stmts''
-      stmts'' = optimise optIterations stmts'
+      stmts''' = optimise optIterations stmts''
 --  tc params' stmts'''
   in Kernel { kernelName = name
             , kernelParams = params'
-            , kernelBody = removeLabels stmts''
+            , kernelBody = removeLabels stmts'''
             , kernelSharedMem = fmap optimiseExp used
             }
 
