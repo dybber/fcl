@@ -22,7 +22,9 @@ fun splitAt n arr =
    generatePull (subi (lengthPull arr) n) (fn x => index arr (addi x n)))
 
 sig halve : [a] -> ([a], [a])
-fun halve arr = splitAt (divi (lengthPull arr) 2) arr
+fun halve arr = 
+  let half = divi (lengthPull arr) 2
+  in splitAt half arr
 
 sig evenOdds : [a] -> ([a], [a])
 fun evenOdds arr =

@@ -77,7 +77,7 @@ void runReduce(char* kernelName) {
 
 
     cl_int num_errors = 0;
-    for (int i = 0; i < nBlocks; i++) {
+    for (int i = 0; i < nBlocks/2; i++) {
       if (out[i] != expected_out[i]) {
         num_errors++;
         if(num_errors > 10) {
