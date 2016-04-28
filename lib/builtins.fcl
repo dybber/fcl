@@ -34,6 +34,9 @@ fun index arr i = #index arr i
 sig mini : int -> int -> int
 fun mini x y = #mini x y
 
+sig eqi : int -> int -> bool
+fun eqi x y = #eqi x y
+
 sig neqi : int -> int -> bool
 fun neqi x y = #neqi x y
 

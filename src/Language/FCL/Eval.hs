@@ -266,9 +266,11 @@ while :: Region
       -> Eval (Value ty)
 while reg f body x = do
   cond <- f x
-  case cond of
-    BoolV True -> while reg f body =<< body x
-    BoolV False -> return x
+  case cond of -- stop condition
+    BoolV False ->
+      do x' <- body x
+         while reg f body x'
+    BoolV True -> return x
     _ -> evalError (Just reg) "Second argument to while should return Bool"
 
 unInt ::  Region -> String -> Value ty -> Eval Int

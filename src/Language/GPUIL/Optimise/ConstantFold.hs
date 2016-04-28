@@ -79,6 +79,8 @@ foldBinOp ModI e0 e1 | e0 == e1 = IntE 0
 
 foldBinOp EqI (IntE v0) (IntE v1) | v0 == v1  = BoolE True
                                   | otherwise = BoolE False
+foldBinOp NeqI (IntE v0) (IntE v1) | v0 /= v1  = BoolE True
+                                   | otherwise = BoolE False
 foldBinOp LtI (IntE v0) (IntE v1) | v0 < v1  = BoolE True
                                   | otherwise = BoolE False
 foldBinOp LtI LocalID (IntE 0) = BoolE False

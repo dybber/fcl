@@ -187,6 +187,7 @@ distrPar Block ub f =
                  f j
                  syncLocal
             , return ()))
+distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
 forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 forAll Block ub f =
@@ -196,7 +197,7 @@ forAll Block ub f =
           iff (localID `lti` (ub `modi` localSize))
               (let_ "j" int ((q `muli` localSize) `addi` localID) >>= f,
                return ()))
-
+forAll lvl _ _ = error ("Unsupported level in forALl: " ++ show lvl)
 
 allocate :: CType -> CExp -> IL VarName
 allocate ty n = do
