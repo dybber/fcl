@@ -89,6 +89,4 @@ splitA n arr =
 materializeM :: Monad m => FCLArray (m a) -> m (FCLArray a)
 materializeM (FCLArray {len=n, idx=f}) =
   do vs <- mapM f [0..n-1]
-     return (FCLArray { len=n
-                      , idx = (\i -> vs !! i)
-                      })
+     return (fromList vs)

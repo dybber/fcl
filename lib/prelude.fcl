@@ -34,7 +34,7 @@ fun evenOdds arr =
 
 sig splitUp : int -> [a] -> [[a]]
 fun splitUp n arr =
-  generatePull (divi (subi (addi (lengthPull arr) n) 1) n)
+  generatePull (divi (lengthPull arr) n)
     (fn i => generatePull n
        (fn j => index arr (addi (muli i n) j)))
 
