@@ -18,3 +18,12 @@ kernel reverseKernel arr = distributeReverse #localSize arr
 --   config #WarpSize = 32 -- (or wavefront size)
 
 
+sig simpleReverse : int -> [a] -> <a>grid
+fun simpleReverse splitSize arr =
+  splitUp splitSize arr
+   |> mapPull (fn arr2 => #push<block> (reverse arr2))
+   |> reverse
+   |> concat splitSize
+
+sig simpleReverseKernel : [int] -> <int>grid
+kernel simpleReverseKernel arr = simpleReverse #localSize arr

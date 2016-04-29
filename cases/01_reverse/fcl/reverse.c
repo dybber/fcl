@@ -18,15 +18,22 @@ void reverse(mclContext ctx,
              int numWgs,
              mclDeviceData input,
              int size,
-             mclDeviceData output) {
+             mclDeviceData output, int useSM) {
+  if(useSM) {
     mclSetKernelArg(kernel, 0, sizeof(cl_int) * BLOCK_SIZE, NULL);
     mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
     mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
     mclSetKernelArg(kernel, 3, sizeof(cl_mem), &output.data);
-    mclInvokeKernel(ctx, kernel, numWgs * BLOCK_SIZE, BLOCK_SIZE);
+  } else {
+    mclSetKernelArg(kernel, 0, sizeof(cl_mem), &input.data);
+    mclSetKernelArg(kernel, 1, sizeof(cl_int), &size);
+    mclSetKernelArg(kernel, 2, sizeof(cl_mem), &output.data);
+  }
+
+  mclInvokeKernel(ctx, kernel, numWgs * BLOCK_SIZE, BLOCK_SIZE);
 }
 
-void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigned int num_elems, int blocks) {
+void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigned int num_elems, int blocks, int useSM) {
     cl_kernel revKernel = mclCreateKernel(p, kernelName);
 
     int* input = (int*)calloc(num_elems, sizeof(int));
@@ -40,7 +47,7 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigne
     mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
 
     // Also serves as warm-up
-    reverse(ctx, revKernel, blocks, buf, num_elems, outbuf);
+    reverse(ctx, revKernel, blocks, buf, num_elems, outbuf, useSM);
     mclFinish(ctx);
 
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
@@ -67,7 +74,7 @@ void test_reverse_kernel(mclContext ctx, cl_program p, char* kernelName, unsigne
       struct timeval begin, end;
       gettimeofday(&begin, NULL);
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-        reverse(ctx, revKernel, blocks, buf, num_elems, outbuf);
+        reverse(ctx, revKernel, blocks, buf, num_elems, outbuf, useSM);
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
@@ -93,7 +100,9 @@ int main () {
 
   int n = 2048*2048 * 4;
 
-  test_reverse_kernel(ctx, p, "reverseKernel", n, 4096);
+  test_reverse_kernel(ctx, p, "reverseKernel", n, 4096, 1);
+
+  test_reverse_kernel(ctx, p, "simpleReverseKernel", n, 4096, 0);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
