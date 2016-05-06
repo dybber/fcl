@@ -102,7 +102,7 @@ void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName, int s
 
 int main () {
   mclContext ctx = mclInitialize(0);
-  cl_program p = mclBuildProgram(ctx, "transpose3.cl");
+  cl_program p = mclBuildProgram(ctx, "transpose.cl");
 
   test_transpose_kernel(ctx, p, "transposeChunked", BLOCK_DIM, 2048, 2048, 256);
 
