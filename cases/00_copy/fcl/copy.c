@@ -89,7 +89,7 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "copy.cl");
 
-  unsigned int n = 2048 * 2048 * 4;
+  unsigned int n = 2048 * 2048;
 
   test_copy_kernel(ctx, p, "copy", n, 4096);
 
