@@ -77,6 +77,7 @@ void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName, int s
       printf("PASSED validation. No errors.\n");
     }
     mclUnmap(ctx, outbuf, out);
+    mclFinish(ctx);
 
     if (num_errors == 0) {
       printf("Timing on %d executions\n", NUM_ITERATIONS);
@@ -91,7 +92,7 @@ void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName, int s
       double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
 
       printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %lu fp32 elements, Workgroup = %u\n", kernelName,
-             (1.0e-9 * (double)(num_elems * sizeof(float))/time),
+             (1.0e-9 * (double)(2 * num_elems * sizeof(float))/time),
              time, num_elems, BLOCK_SIZE);
     }
 

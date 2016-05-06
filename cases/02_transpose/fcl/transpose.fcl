@@ -65,9 +65,9 @@ kernel transposeChunked splitSize rows cols elems =
   let n = divi rows splitSize in -- height of outer array
   let m = divi cols splitSize in -- width of outer array
     splitGrid splitSize tileSize rows cols n m elems
-     |> mapPull (transpose splitSize splitSize)
      |> mapPull (fn arr => #push<block> arr)
      |> mapPull force
+     |> mapPull (transpose splitSize splitSize)
      |> transpose n m
      |> mapPull (fn arr => #push<block> arr)
      |> concatGrid splitSize tileSize m
