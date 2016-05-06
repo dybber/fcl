@@ -115,7 +115,7 @@ data Exp ty =
   | Force (Exp ty) Region
   | Push Level (Exp ty) ty Region
   | Concat (Exp ty) (Exp ty) Region
-  -- | Assemble (Exp ty) (Exp ty) (Exp ty)
+  | Assemble (Exp ty) (Exp ty) (Exp ty) Region
   | LocalSize Region
 
   -- Sequential scan, I don't really want this!
@@ -194,12 +194,12 @@ typeOf (Force e0 _) =
     _ -> error "typeOf: Force"
 typeOf (Concat _ e0 _) =
   case typeOf e0 of
-    PushArrayT _ t -> t
+    PullArrayT (PushArrayT lvl t) -> PushArrayT (Step lvl) t
     _ -> error "typeOf: Concat given non-push-array as third argument"
--- typeOf (Assemble _ _ e0) =
---   case typeOf e0 of
---     ArrayT _ t -> t
---     _ -> error "typeOf: Assemble given non-array as third argument"
+typeOf (Assemble _ _ e0 _) =
+  case typeOf e0 of
+    PullArrayT (PushArrayT lvl t) -> PushArrayT (Step lvl) t
+    _ -> error "typeOf: Assemble given non-pull-array as third argument"
 typeOf (Vec [] _ _) = error "Cannot type empty list"
 typeOf (Vec es _ _) =
   let (t:ts) = map typeOf es
@@ -260,6 +260,7 @@ freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Force e _)              = freeIn x e
 freeIn x (Push _ e _ _)             = freeIn x e
 freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
+freeIn x (Assemble e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn _ (LocalSize _)            = True
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 
@@ -291,6 +292,7 @@ freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Force e _)              = freeVars e
 freeVars (Push _ e _ _)             = freeVars e
 freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
+freeVars (Assemble e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (LocalSize _)            = Set.empty
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 
@@ -404,6 +406,11 @@ subst s x e =
        do e1' <- subst s x e1
           e2' <- subst s x e2
           return (Concat e1' e2' r)
+    Assemble e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (Assemble e1' e2' e3' r)
     LocalSize _ -> return e
     Scanl e1 e2 e3 r ->
        do e1' <- subst s x e1

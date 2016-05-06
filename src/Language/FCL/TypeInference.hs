@@ -116,6 +116,7 @@ tvsubExp s (MapPush e1 e2 reg) = MapPush (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
 tvsubExp s (Push lvl e1 t reg) = Push (lvlVarSub s lvl) (tvsubExp s e1) (tvsub s t) reg
 tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Assemble e1 e2 e3 reg) = Assemble (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp _ (LocalSize reg) = LocalSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 
@@ -353,6 +354,16 @@ infer env (Concat e1 e2 reg) = do
   lvlVar <- newLvlVar
   unify t2 (PullArrayT (PushArrayT lvlVar tv))
   return (PushArrayT (Step lvlVar) tv, Concat e1' e2' reg)
+infer env (Assemble e1 e2 e3 reg) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  (t3, e3') <- infer env e3
+  unify t1 IntT
+  unify t2 ((IntT :*: IntT) :> IntT)
+  tv <- newtv
+  lvlVar <- newLvlVar
+  unify t3 (PullArrayT (PushArrayT lvlVar tv))
+  return (PushArrayT (Step lvlVar) tv, Assemble e1' e2' e3' reg)
 infer _ (LocalSize reg) = return (IntT, LocalSize reg)
 infer env (UnOp op e reg) = do
   (t, e') <- infer env e

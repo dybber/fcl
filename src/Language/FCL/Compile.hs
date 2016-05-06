@@ -87,7 +87,7 @@ compile _ env _ e = do
     TagArray arr -> do
       varOut <- addParam "arrOutput" (pointer [attrGlobal] (arrayElemType arr))
       case arrayFun arr of
-        PushArr lvl f ->
+        PushArr _ f ->
           f (\x -> case x of
                      TagInt i -> assignArray varOut i
                      t -> error ("Can not return arrays with element type " ++ show t))
@@ -263,7 +263,7 @@ compBody env (Force e0 reg) = do
   case v0 of
     TagArray arr -> liftM TagArray (unsafeWrite arr)
     _ -> error (show reg ++ ": ComputeLocal expects array as argument")
-compBody env (Push lvl e0 ty reg) = do
+compBody env (Push lvl e0 _ reg) = do
   v0 <- compBody env e0
 --  let (PushArrayT lvl _) = ty
   case v0 of
@@ -312,6 +312,32 @@ compBody env (Concat i e0 reg) = do
                                     }
         PushArr _ _ -> error "Concat only works when the outer function is a pull array (this should have been checked by the type checker)"
     _ -> error "Concat should be given an integer and an array"
+compBody env (Assemble i ixf e0 reg) = do
+  vi <- compBody env i
+  vixf <- compBody env ixf
+  v0 <- compBody env e0
+  let PullArrayT (PushArrayT lvl bty) = typeOf e0
+  case (vi, vixf, v0) of
+    (TagInt rn, TagFn ixf', TagArray arr) ->
+      case arrayFun arr of
+        PushArr _ _ -> error "Assemble only works when the outer function is a pull array (TODO!)"
+        Pull idx -> do
+          let n = arrayLen arr
+          return . TagArray $ Array { arrayElemType = convertType bty
+                                    , arrayLen = n `muli` rn
+                                    , arrayFun = 
+                                      PushArr (convertLevel lvl)
+                                           (\writer -> distrPar (convertLevel lvl) n $ \bix -> do
+                                                arrp <- idx bix
+                                                let writer' a ix = do ix' <- ixf' (TagPair (TagInt bix) (TagInt ix))
+                                                                      case ix' of
+                                                                        TagInt ix'' -> writer a ix''
+                                                                        _ -> error (show reg ++ " Function argument to Assemble should return an integer value")
+                                                case arrp of
+                                                  TagArray (Array {arrayFun = PushArr _ p }) -> p writer'
+                                                  _ -> error (show reg ++ " Assemble only works with inner-arrays of type push"))
+                                    }
+    _ -> error (show reg ++ " Assemble should be given an integer, a function and an array.")
 compBody _ (LocalSize _)   = return (TagInt localSize)
 
 lets :: String -> Tagged -> IL Tagged

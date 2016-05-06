@@ -11,6 +11,9 @@ import Control.Monad.Trans.Except
 import Control.Monad (liftM, liftM2)
 import Control.Applicative ((<$>))
 
+import Data.List (sortBy)
+import Data.Ord (comparing)
+
 ----------------
 -- Eval Monad --
 ----------------
@@ -196,6 +199,7 @@ evalExp env (Concat en e0 reg) = do
          vs' <- mapM (unArray reg "concat") vs
          return (ArrayV (fromList (concat (map toList vs'))))
     (_,_) -> evalError (Just reg) ("concat expects integer and array as arguments.")
+evalExp env (Assemble en ixf e0 reg) = assemble_ env en ixf e0 reg
 evalExp env (While e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -225,7 +229,7 @@ evalExp env (Scanl ef e es reg) = do
   v <- evalExp env e
   vs <- evalExp env es
   case (vf, vs) of
-    (LamV env' x ebody, ArrayV arr) -> do scanl_ env' x ebody v arr
+    (LamV env' x ebody, ArrayV arr) -> scanl_ env' x ebody v arr
     (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
     _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (LocalSize reg) = evalError (Just reg) "localSize not implemented"
@@ -237,7 +241,7 @@ generate :: Show ty => Int -> Env ty -> Name -> Exp ty -> Eval (Value ty)
 generate n env' var ebody = do
   let arr = fromFunction n (\i -> evalExp (insertVar var (IntV i) env') ebody)
   arr' <- materializeM arr
-  return (ArrayV arr') 
+  return (ArrayV arr')
 
 map_ :: Show ty => Env ty -> Name -> Exp ty -> FCLArray (Value ty) -> Eval (Value ty)
 map_ env' var ebody arr = do
@@ -258,6 +262,24 @@ scanl_ env' var ebody v arr = do
   let f v1 v2 = evalExp (insertVar var (PairV v1 v2) env') ebody
   vs' <- scanM f v vs
   return (ArrayV (fromList vs'))
+
+assemble_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> Region -> Eval (Value ty)
+assemble_ env e0 e1 e2 reg =
+ do n <- evalExp env e0
+    ixf <- evalExp env e1
+    arr <- evalExp env e2
+    case (n, ixf, arr) of
+      (IntV _, LamV env' var ebody, ArrayV arr') ->
+        do let f i j =
+                 case runEval (evalExp (insertVar var (PairV (IntV i) (IntV j)) env') ebody) of
+                   Right (IntV v) -> v
+                   Right _ -> error ""
+                   Left _ -> error ""
+           let vs = toList arr'
+           vs' <- mapM (unArray reg "assemble") vs
+            
+           return (ArrayV (fromList (assemble f (map toList vs'))))
+      _ -> evalError (Just reg) "assemble eval err"
 
 while :: Region
       -> (Value ty -> Eval (Value ty))
@@ -297,19 +319,13 @@ unArray reg str v =
     ArrayV v' -> return v'
     _ -> evalError (Just reg) ("Expecting double in " ++ str)
 
-----------------------
--- Unused old stuff --
-----------------------
--- import Data.List (sortBy)
--- import Data.Ord (comparing)
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f ls = sortBy (comparing f) ls
 
--- sortOn :: Ord b => (a -> b) -> [a] -> [a]
--- sortOn f ls = sortBy (comparing f) ls
-
--- assemble :: (Int -> Int -> Int) -> [[a]] -> [a]
--- assemble f array =
---   let buildAssocList _ _ [] = []
---       buildAssocList i _ ([]:xs) = buildAssocList (i+1) 0 xs
---       buildAssocList i j ((y:ys):xs) =
---         (f i j, y) : buildAssocList i (j+1) (ys:xs)
---   in Prelude.map Prelude.snd (sortOn Prelude.fst (buildAssocList 0 0 array))
+assemble :: (Int -> Int -> Int) -> [[a]] -> [a]
+assemble f array =
+  let buildAssocList _ _ [] = []
+      buildAssocList i _ ([]:xs) = buildAssocList (i+1) 0 xs
+      buildAssocList i j ((y:ys):xs) =
+        (f i j, y) : buildAssocList i (j+1) (ys:xs)
+  in Prelude.map Prelude.snd (sortOn Prelude.fst (buildAssocList 0 0 array))

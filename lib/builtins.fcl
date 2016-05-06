@@ -52,8 +52,15 @@ fun while cond step x = #while cond step x
 sig whileSeq : (a -> bool) -> (a -> a) -> a -> a
 fun whileSeq cond step x = #whileSeq cond step x
 
-sig concat : int -> [<a>lvl] -> <a>lvl
-fun concat n arr = #concat n arr
+-- sig concat : int -> [<a>lvl] -> <a>(1+lvl)
+-- fun concat n arr = #concat n arr
+
+sig assemble : int -> ((int, int) -> int) -> [<a>lvl] -> <a>(1+lvl)
+fun assemble n ixf arr = #assemble n ixf arr
+
+sig concat : int -> [<a>lvl] -> <a>(1+lvl)
+fun concat n arr =
+  assemble n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
 sig force : <a>lvl -> [a]
 fun force x = #force x
