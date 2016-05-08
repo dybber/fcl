@@ -1,6 +1,6 @@
 sig transpose : int -> int -> [a] -> [a]
-fun transpose rows cols elems =
-  generatePull (muli rows cols)
+fun transpose cols rows elems =
+  generatePull (muli cols rows)
            (fn n =>
               let i = divi n rows in
               let j = modi n rows
@@ -11,22 +11,22 @@ fun transpose rows cols elems =
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array
 sig splitGrid : int -> int -> int -> int -> int -> [a] -> [[a]]
-fun splitGrid splitSize tileSize width n groupsPerRow elems =
+fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
   let mkTile =
         (fn groupIDy =>
           fn groupIDx =>
              generatePull tileSize
                       (fn tid =>
-                         let localIDy = divi tid splitSize in -- row in inner array
                          let localIDx = modi tid splitSize in -- column in inner array
-                         let yIndex = addi (muli groupIDx splitSize) localIDy in
+                         let localIDy = divi tid splitSize in -- row in inner array
                          let xIndex = addi (muli groupIDy splitSize) localIDx in
+                         let yIndex = addi (muli groupIDx splitSize) localIDy in
                          let ix = addi (muli yIndex width) xIndex
                          in index elems ix))
-  in generatePull (muli n groupsPerRow)
+  in generatePull (muli groupsWidth groupsHeight)
        (fn gid =>
-          let groupIDy = divi gid groupsPerRow in -- row in outer
-          let groupIDx = modi gid groupsPerRow -- column in outer
+          let groupIDy = divi gid groupsWidth in -- row in outer
+          let groupIDx = modi gid groupsWidth -- column in outer
           in mkTile groupIDy groupIDx)
 
 -- Concatenate a 2D array of 2D arrays
@@ -37,15 +37,15 @@ fun splitGrid splitSize tileSize width n groupsPerRow elems =
 sig concatGrid : int -> int -> int -> int -> [<a>lvl] -> <a>(1+lvl)
 fun concatGrid splitSize  -- width&height of inner array (2)
                tileSize
-               groupsPerRow       -- width&height of outer array (2)
+               groupsWidth       -- width of outer array (2)
                height
                arr =
     let mkGrid =
           (fn sh =>
              let gid = fst sh in -- index into outer (0..3)
              let tid = snd sh in -- index into inner (0..3)
-             let groupIDx = modi gid groupsPerRow in -- column in outer
-             let groupIDy = divi gid groupsPerRow in -- row in outer
+             let groupIDx = modi gid groupsWidth in -- column in outer
+             let groupIDy = divi gid groupsWidth in -- row in outer
              let localIDx = modi tid splitSize in -- column in inner array
              let localIDy = divi tid splitSize in -- row in inner array
              let xIndex = addi (muli groupIDy splitSize) localIDx in
@@ -61,23 +61,22 @@ fun concatGrid splitSize  -- width&height of inner array (2)
 --  - transpose outer array
 --  - write back to global memory with concatGrid
 sig transposeChunked : int -> int -> int -> [int] -> <int>grid
-fun transposeChunked splitSize height width elems =
+fun transposeChunked splitSize width height elems =
   let tileSize = muli splitSize splitSize in
-  let n = divi height splitSize in -- height of outer array
-  let groupsPerRow = divi width splitSize in -- width of outer array
-    splitGrid splitSize tileSize width n groupsPerRow elems
+  let groupsHeight = divi height splitSize in -- height of outer array
+  let groupsWidth = divi width splitSize in -- width of outer array
+    splitGrid splitSize tileSize width groupsWidth groupsHeight elems
      |> mapPull (fn arr => #push<block> arr)
      |> mapPull force
      |> mapPull (transpose splitSize splitSize)
-     |> transpose n groupsPerRow
+     |> transpose groupsWidth groupsHeight
      |> mapPull (fn arr => #push<block> arr)
-     |> concatGrid splitSize tileSize groupsPerRow height
+     |> concatGrid splitSize tileSize groupsWidth height
 
 sig transposeChunked16 : int -> int -> [int] -> <int>grid
 kernel transposeChunked16 = transposeChunked 16
 
 --- Testing
-
 sig make_NxN_Matrix : int -> [int]
 fun make_NxN_Matrix n = generatePull (muli n n) (fn i => i)
 

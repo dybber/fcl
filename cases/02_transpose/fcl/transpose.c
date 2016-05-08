@@ -17,15 +17,15 @@
 void transpose(mclContext ctx,
                cl_kernel kernel,
                int splitSize,
-               int rows,
                int cols,
+               int rows,
                mclDeviceData input,
                int size,
                mclDeviceData output,
                int blocks) {
     mclSetKernelArg(kernel, 0, sizeof(cl_int) * 1024, NULL);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &rows);
-    mclSetKernelArg(kernel, 2, sizeof(cl_int), &cols);
+    mclSetKernelArg(kernel, 1, sizeof(cl_int), &cols);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &rows);
     mclSetKernelArg(kernel, 3, sizeof(cl_mem), &input.data);
     mclSetKernelArg(kernel, 4, sizeof(cl_int), &size);
     mclSetKernelArg(kernel, 5, sizeof(cl_mem), &output.data);
@@ -52,7 +52,7 @@ void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName, int s
     mclDeviceData outbuf = mclAllocDevice(ctx, MCL_W, num_elems, sizeof(int));
 
     // Also serves as warm-up
-    transpose(ctx, transposeKernel, splitSize, rows, cols, buf, num_elems, outbuf, blocks);
+    transpose(ctx, transposeKernel, splitSize, cols, rows, buf, num_elems, outbuf, blocks);
     mclFinish(ctx);
 
     cl_int* out = (cl_int*)mclMap(ctx, outbuf, CL_MAP_READ, num_elems * sizeof(cl_int));
@@ -83,7 +83,7 @@ void test_transpose_kernel(mclContext ctx, cl_program p, char* kernelName, int s
       struct timeval begin, end;
       gettimeofday(&begin, NULL);
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-          transpose(ctx, transposeKernel, splitSize, rows, cols, buf, num_elems, outbuf, blocks);
+        transpose(ctx, transposeKernel, splitSize, cols, rows, buf, num_elems, outbuf, blocks);
       }
       mclFinish(ctx);
       gettimeofday(&end, NULL);
