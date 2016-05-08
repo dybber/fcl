@@ -10,47 +10,48 @@ fun transpose rows cols elems =
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array
-sig splitGrid : int -> int -> int -> int -> int -> int -> [a] -> [[a]]
-fun splitGrid splitSize tileSize rows cols n m elems =
+sig splitGrid : int -> int -> int -> int -> int -> [a] -> [[a]]
+fun splitGrid splitSize tileSize width n groupsPerRow elems =
   let mkTile =
-        (fn p =>
-          fn q =>
+        (fn groupIDy =>
+          fn groupIDx =>
              generatePull tileSize
-                      (fn k =>
-                         let i = divi k splitSize in -- row in inner array
-                         let j = modi k splitSize    -- column in inner array
-                         in index elems (addi (muli p (muli m tileSize))
-                                              (addi (muli q splitSize)
-                                                    (addi (muli m (muli splitSize i))
-                                                          j)))))
-  in generatePull (muli n m)
-       (fn i =>
-          let p = divi i n in -- row in outer
-          let q = modi i n -- column in outer
-          in mkTile p q)
+                      (fn tid =>
+                         let localIDy = divi tid splitSize in -- row in inner array
+                         let localIDx = modi tid splitSize in -- column in inner array
+                         let yIndex = addi (muli groupIDx splitSize) localIDy in
+                         let xIndex = addi (muli groupIDy splitSize) localIDx in
+                         let ix = addi (muli yIndex width) xIndex
+                         in index elems ix))
+  in generatePull (muli n groupsPerRow)
+       (fn gid =>
+          let groupIDy = divi gid groupsPerRow in -- row in outer
+          let groupIDx = modi gid groupsPerRow -- column in outer
+          in mkTile groupIDy groupIDx)
 
 -- Concatenate a 2D array of 2D arrays
 -- First argument @splitSize is the width and height of inner arrays
 -- Second argument @tileSize must be === splitSize*splitSize
--- Third argument @cols is the width and height of the outer array
--- Total number of elements is thus splitSize*splitSize*cols*cols
-sig concatGrid : int -> int -> int -> [<a>lvl] -> <a>(1+lvl)
+-- Third argument @groupsPerRow is the width of the outer array
+-- Total number of elements is thus splitSize*splitSize*groupsPerRow*groupsPerRow
+sig concatGrid : int -> int -> int -> int -> [<a>lvl] -> <a>(1+lvl)
 fun concatGrid splitSize  -- width&height of inner array (2)
                tileSize
-               cols       -- width&height of outer array (2)
+               groupsPerRow       -- width&height of outer array (2)
+               height
                arr =
     let mkGrid =
-          (fn x =>
-             let p = fst x in -- index into outer (0..3)
-             let q = snd x in -- index into inner (0..3)
-             let outerRow = divi p cols in
-             let outerCol = modi p cols in
-             let innerRow = divi q splitSize in
-             let innerCol = modi q splitSize
-             in addi (muli (muli outerRow cols) tileSize)  -- skip complete tiles
-                     (addi (muli (muli innerRow cols) splitSize) -- skip complete rows
-                           (addi (muli outerCol splitSize)        -- skip to the tile
-                                 innerCol)))                    -- skip to row in tile
+          (fn sh =>
+             let gid = fst sh in -- index into outer (0..3)
+             let tid = snd sh in -- index into inner (0..3)
+             let groupIDx = modi gid groupsPerRow in -- column in outer
+             let groupIDy = divi gid groupsPerRow in -- row in outer
+             let localIDx = modi tid splitSize in -- column in inner array
+             let localIDy = divi tid splitSize in -- row in inner array
+             let xIndex = addi (muli groupIDy splitSize) localIDx in
+             let yIndex = addi (muli groupIDx splitSize) localIDy in
+             let ix = addi (muli yIndex height) xIndex
+             in ix)
     in assemble tileSize mkGrid arr
 
 -- Transpose:
@@ -60,18 +61,20 @@ fun concatGrid splitSize  -- width&height of inner array (2)
 --  - transpose outer array
 --  - write back to global memory with concatGrid
 sig transposeChunked : int -> int -> int -> [int] -> <int>grid
-kernel transposeChunked splitSize rows cols elems =
+fun transposeChunked splitSize height width elems =
   let tileSize = muli splitSize splitSize in
-  let n = divi rows splitSize in -- height of outer array
-  let m = divi cols splitSize in -- width of outer array
-    splitGrid splitSize tileSize rows cols n m elems
+  let n = divi height splitSize in -- height of outer array
+  let groupsPerRow = divi width splitSize in -- width of outer array
+    splitGrid splitSize tileSize width n groupsPerRow elems
      |> mapPull (fn arr => #push<block> arr)
      |> mapPull force
      |> mapPull (transpose splitSize splitSize)
-     |> transpose n m
+     |> transpose n groupsPerRow
      |> mapPull (fn arr => #push<block> arr)
-     |> concatGrid splitSize tileSize m
+     |> concatGrid splitSize tileSize groupsPerRow height
 
+sig transposeChunked16 : int -> int -> [int] -> <int>grid
+kernel transposeChunked16 = transposeChunked 16
 
 --- Testing
 

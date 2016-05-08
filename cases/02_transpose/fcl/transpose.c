@@ -24,12 +24,11 @@ void transpose(mclContext ctx,
                mclDeviceData output,
                int blocks) {
     mclSetKernelArg(kernel, 0, sizeof(cl_int) * 1024, NULL);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &splitSize);
-    mclSetKernelArg(kernel, 2, sizeof(cl_int), &rows);
-    mclSetKernelArg(kernel, 3, sizeof(cl_int), &cols);
-    mclSetKernelArg(kernel, 4, sizeof(cl_mem), &input.data);
-    mclSetKernelArg(kernel, 5, sizeof(cl_int), &size);
-    mclSetKernelArg(kernel, 6, sizeof(cl_mem), &output.data);
+    mclSetKernelArg(kernel, 1, sizeof(cl_int), &rows);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &cols);
+    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &input.data);
+    mclSetKernelArg(kernel, 4, sizeof(cl_int), &size);
+    mclSetKernelArg(kernel, 5, sizeof(cl_mem), &output.data);
     mclInvokeKernel(ctx, kernel, blocks * BLOCK_SIZE, BLOCK_SIZE);
 }
 
@@ -105,7 +104,7 @@ int main () {
   mclContext ctx = mclInitialize(0);
   cl_program p = mclBuildProgram(ctx, "transpose.cl");
 
-  test_transpose_kernel(ctx, p, "transposeChunked", BLOCK_DIM, 2048, 2048, 256);
+  test_transpose_kernel(ctx, p, "transposeChunked16", BLOCK_DIM, 2048, 2048, 256);
 
   mclReleaseProgram(p);
   mclReleaseContext(&ctx);
