@@ -31,13 +31,14 @@ __kernel void transposeChunked16(__local uchar* sbase, int input_0, int input_1,
         int yIndex_19 = (groupIDy_29 * 16) + localIDy_17;
 
         int ix_21 = (yIndex_19 * input_1) + xIndex_20;
-        arr_14[i_15] = arrInput_2 [ix_21];
+        
+        arr_14[localIDy_17*(BLOCK_DIM+1)+localIDx_18] = arrInput_2 [ix_21];
         barrier(CLK_LOCAL_MEM_FENCE);
 
         int xIndex_32 = (groupIDy_29 * 16) + localIDx_18;
         int yIndex_33 = (groupIDx_28 * 16) + localIDy_17;
         int ix_34 = (yIndex_33 * input_0) + xIndex_32;
-        arrOutput_7[ix_34] = arr_14 [((localIDx_18 * 16) + localIDy_17)];
+        arrOutput_7[ix_34] = arr_14 [((localIDx_18 * (BLOCK_DIM+1)) + localIDy_17)];
         barrier(CLK_LOCAL_MEM_FENCE);
     }
     /* if (get_group_id(0) < (ub_9 % get_num_groups(0))) { */
