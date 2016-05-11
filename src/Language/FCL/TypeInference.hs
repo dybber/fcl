@@ -15,7 +15,6 @@ type Subst = (Map.Map TyVar Type,
               Map.Map LvlVar Level)
 data TVE = TVE Int Subst
 
-
 data TypeError = UnificationError Type Type
                | LevelUnificationError Level Level
                | NotImplementedError String
@@ -431,6 +430,7 @@ unifyBinOp PowI = unify2 IntT IntT IntT
 unifyBinOp ShiftLI = unify2 IntT IntT IntT
 unifyBinOp ShiftRI = unify2 IntT IntT IntT
 unifyBinOp AndI = unify2 IntT IntT IntT
+unifyBinOp OrI = unify2 IntT IntT IntT
 unifyBinOp XorI = unify2 IntT IntT IntT
 unifyBinOp DivR = unify2 DoubleT DoubleT DoubleT
 unifyBinOp PowR = unify2 DoubleT DoubleT DoubleT

@@ -1,7 +1,7 @@
 module Language.FCL.Eval (eval) where
 
 import qualified Data.Map as Map
-import Data.Bits ((.&.), xor, shiftL, shiftR)
+import Data.Bits ((.&.), (.|.), xor, shiftL, shiftR)
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
@@ -125,13 +125,14 @@ evalExp env (BinOp op e1 e2 r) = do
   case op of
     -- Arithmetic
     AddI    -> IntV <$> liftM2 (+) (unInt r "addi" v1) (unInt r "addi" v2)
-    SubI    -> IntV <$> liftM2 (+) (unInt r "subi" v1) (unInt r "subi" v2)
+    SubI    -> IntV <$> liftM2 (-) (unInt r "subi" v1) (unInt r "subi" v2)
     MulI    -> IntV <$> liftM2 (*) (unInt r "muli" v1) (unInt r "muli" v2)
     DivI    -> IntV <$> liftM2 div (unInt r "divi" v1) (unInt r "divi" v2)
     ModI    -> IntV <$> liftM2 mod (unInt r "modi" v1) (unInt r "modi" v2)
     MinI    -> IntV <$> liftM2 min (unInt r "mini" v1) (unInt r "mini" v2)
     PowI    -> IntV <$> liftM2 (^) (unInt r "powi" v1) (unInt r "powi" v2)
     AndI    -> IntV <$> liftM2 (.&.) (unInt r "andi" v1) (unInt r "andi" v2)
+    OrI     -> IntV <$> liftM2 (.|.) (unInt r "ori" v1) (unInt r "ori" v2)
     XorI    -> IntV <$> liftM2 xor (unInt r "xori" v1) (unInt r "xori" v2)
     ShiftLI -> IntV <$> liftM2 shiftL (unInt r "shiftLi" v1) (unInt r "shiftLi" v2)
     ShiftRI -> IntV <$> liftM2 shiftR (unInt r "shiftRi" v1) (unInt r "shiftRi" v2)

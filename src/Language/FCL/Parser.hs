@@ -172,6 +172,7 @@ op = withRegion (identifier >>= switch)
     switch "#shiftLi"  = BinOp ShiftLI <$> term <*> term
     switch "#shiftRi"  = BinOp ShiftRI <$> term <*> term
     switch "#andi"     = BinOp AndI    <$> term <*> term
+    switch "#ori"      = BinOp OrI     <$> term <*> term
     switch "#xori"     = BinOp XorI    <$> term <*> term
     switch "#powr"     = BinOp PowR    <$> term <*> term
     switch "#divr"     = BinOp DivR    <$> term <*> term
@@ -189,6 +190,7 @@ op = withRegion (identifier >>= switch)
     switch "#force"    = Force         <$> term <?> "force"
     switch "#concat"   = Concat        <$> term <*> term <?> "concat"
     switch "#assemble" = Assemble      <$> term <*> term <*> term <?> "assemble"
+    switch "#scanl"    = Scanl         <$> term <*> term <*> term <?> "scanl"
     switch n          = return (Var n Untyped)
 
 -- push =

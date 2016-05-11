@@ -4,6 +4,11 @@ fun id x = x
 sig iota : int -> [int]
 fun iota n = generatePull n (fn x => x)
 
+sig range : int -> int -> [int]
+fun range begin end =
+  iota (addi (subi end begin) 1)
+   |> mapPull (addi begin)
+
 sig zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 fun zipWith f a1 a2 =
   generatePull (mini (lengthPull a1) (lengthPull a2))
@@ -66,3 +71,9 @@ fun reduceBlock f arr =
 
 sig reducePart : (a -> a -> a) -> [a] -> <a>grid
 fun reducePart f arr = concatMap 1 (reduceBlock f) (splitUp 256 arr)
+
+sig bit : int -> int
+fun bit i = shiftLi 1 i
+
+sig testBit : int -> int -> bool
+fun testBit x i = neqi (andi x (bit i)) 0

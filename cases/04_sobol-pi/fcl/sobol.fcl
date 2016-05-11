@@ -1,0 +1,100 @@
+-- TODO
+--- - implement three dummy functions
+--- - debug problem with scanl type inference
+--- - implement sobolSkip1D in a different - more FCL-isch way
+
+
+sig fromBool : bool -> int
+fun fromBool b = 0 -- #fromBool i
+
+sig ffz : int -> int
+fun ffz n = 0 -- #ffz n
+
+fun scanldummy a b c = #push<thread> (generatePull 10 (fn i => i))
+
+----------------------------------
+
+sig sobol_dirVs : [[int]]
+fun sobol_dirVs =
+  [[536870912,268435456,134217728,67108864,33554432,
+    16777216,8388608,4194304,2097152,1048576,524288,
+    262144,131072,65536,32768,16384,8192,4096,2048,
+    1024,512,256,128,64,32,16,8,4,2,1],
+   [536870912,805306368,671088640,1006632960,570425344,
+    855638016,713031680,1069547520,538968064,808452096,
+    673710080,1010565120,572653568,858980352,715816960,
+    1073725440,536879104,805318656,671098880,1006648320,
+    570434048,855651072,713042560,1069563840,538976288,
+    808464432,673720360,1010580540,572662306,858993459]]
+
+sig grayCode : int -> int
+fun grayCode i = xori i (shiftRi i 1)
+
+sig sobol_num_bits : int
+fun sobol_num_bits = 30
+
+sig sobolInd : int -> [int] -> int
+fun sobolInd ix dirVec =
+  let bitVec = mapPull (fn i => fromBool (testBit (grayCode ix) i))
+                       (iota sobol_num_bits)
+  in seqReduce xori 0 (zipWith muli dirVec bitVec)
+
+sig sobolInd1D : int -> [int] -> [int]
+fun sobolInd1D n dirVec = mapPull (fn ix => sobolInd ix dirVec) (iota (subi n 1))
+
+
+sig sobolIndND : int -> [[int]] -> [[int]]
+fun sobolIndND n dirVs = mapPull (fn ix => mapPull (sobolInd ix) dirVs) (iota n)
+
+sig sobolRec : [int] -> int -> int -> int
+fun sobolRec dirVec previous ix = xori previous (index dirVec (ffz ix))
+
+sig sobolRec1D : int -> int -> [int] -> <int>thread
+fun sobolRec1D startIx n dirVs = 
+  let initial = 
+       sobolInd startIx dirVs
+  in scanldummy (sobolRec dirVs) initial (range startIx (subi (addi startIx n) 2))
+
+sig sobolRec1DChunked : int -> int -> [int] -> <int>warp
+fun sobolRec1DChunked chunkSize n dirVec = 
+  concat chunkSize (mapPull (fn i => sobolRec1D i chunkSize dirVec)
+                   (mapPull (muli chunkSize) (range 0 (divi n chunkSize))))
+
+sig sobolRecND : int -> [[int]] -> [<int>thread]
+fun sobolRecND n dirVs = mapPull (sobolRec1D 0 n) dirVs
+
+sig sobolSkip : [int] -> int -> int -> int -> int
+fun sobolSkip dirVec p prev n =
+  let q_n = ffz (ori n (subi (powi 2 p) 1))
+  in xori prev
+          (xori (index dirVec (subi p 1))
+                (index dirVec q_n))
+
+-- sig sobolSkip1D : int -> int -> [int] -> [int]
+-- fun sobolSkip1D logskip steps dirVec =
+--   let stepSize = powi 2 logskip in
+--   let initial = sobolInd1D stepSize dirVec in
+--   let skip = fn prev => fn start => zipWith (sobolSkip dirVec logskip) prev (range start (subi (addi start stepSize) 1))
+--   in concat stepSize (scanldummy skip initial (mapPull (muli stepSize) (iota (subi steps 3))))
+
+-- Normalise to floating point [0;1]
+
+sig sobol_divisor : double
+fun sobol_divisor = i2d (powi 2 sobol_num_bits)
+
+-- Convert a sobol number to floating point in the interval [0,1]
+
+sig normalise : int -> double
+fun normalise x = divr (i2d x) sobol_divisor
+
+sig normaliseND : [[int]] -> [[double]]
+fun normaliseND = mapPull (mapPull normalise)
+
+
+sig iterations : int
+fun iterations = 50
+
+sig testSobolIndND : [[double]]
+fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
+
+fun main = testSobolIndND -- wont work before dummy functions are implemented

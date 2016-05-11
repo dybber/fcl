@@ -28,6 +28,30 @@ fun muli x y = #muli x y
 sig modi : int -> int -> int
 fun modi x y = #modi x y
 
+sig powi : int -> int -> int
+fun powi x y = #powi x y
+
+sig shiftLi : int -> int -> int
+fun shiftLi x y = #shiftLi x y
+
+sig shiftRi : int -> int -> int
+fun shiftRi x y = #shiftRi x y
+
+sig andi : int -> int -> int
+fun andi x y = #andi x y
+
+sig ori : int -> int -> int
+fun ori x y = #ori x y
+
+sig xori : int -> int -> int
+fun xori x y = #xori x y
+
+sig divr : double -> double -> double
+fun divr x y = #divr x y
+
+sig i2d : int -> double
+fun i2d x = #i2d x
+
 sig index : [a] -> int -> a
 fun index arr i = #index arr i
 
@@ -67,3 +91,6 @@ fun force x = #force x
 
 -- sig push : [a] -> <a>lvl
 -- fun push x = #push x
+
+sig scanl : (a -> b -> a) -> a -> [b] -> <a>thread
+fun scanl op init xs = #scanl op init xs

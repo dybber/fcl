@@ -256,6 +256,7 @@ ppBinOp op e1 e2 =
           EqI -> "eqi"
           NeqI -> "neqi"
           AndI -> "andi"
+          OrI -> "ori"
           XorI -> "xori"
           ShiftLI -> "shiftli"
           ShiftRI -> "shiftri"

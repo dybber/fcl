@@ -131,7 +131,7 @@ data UnOp = AbsI | SignI | NegateI | Not | I2D
   deriving (Eq, Show)
 
 data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
-           | EqI | NeqI | AndI | XorI | ShiftLI | ShiftRI
+           | EqI | NeqI | AndI | OrI | XorI | ShiftLI | ShiftRI
            | PowI | DivR | PowR
   deriving (Eq, Show)
 
