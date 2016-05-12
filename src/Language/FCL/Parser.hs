@@ -160,6 +160,9 @@ op = withRegion (identifier >>= switch)
   where
     switch "#localSize" = return LocalSize
     switch "#i2d"      = UnOp I2D      <$> term
+    switch "#b2i"      = UnOp B2I      <$> term
+    switch "#clz"      = UnOp CLZ      <$> term
+    switch "#negatei"  = UnOp NegateI  <$> term
     switch "#addi"     = BinOp AddI    <$> term <*> term
     switch "#subi"     = BinOp SubI    <$> term <*> term
     switch "#muli"     = BinOp MulI    <$> term <*> term

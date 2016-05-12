@@ -1,7 +1,7 @@
 module Language.FCL.Eval (eval) where
 
 import qualified Data.Map as Map
-import Data.Bits ((.&.), (.|.), xor, shiftL, shiftR)
+import Data.Bits ((.&.), (.|.), xor, shiftL, shiftR, testBit)
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
@@ -191,6 +191,8 @@ evalExp env (UnOp op e0 reg) = do
     Not     -> liftM (BoolV . not)   (unBool reg "not" v0)
     NegateI -> liftM (IntV . negate) (unInt reg "negatei" v0)
     I2D     -> liftM (DoubleV . fromIntegral) (unInt reg "i2d" v0)
+    B2I     -> liftM (IntV . fromBool) (unBool reg "b2i" v0)
+    CLZ     -> liftM (IntV . countLeadingZeros) (unInt reg "clz" v0)
 evalExp env (Concat en e0 reg) = do
   n <- evalExp env en
   v0 <- evalExp env e0
@@ -238,6 +240,19 @@ evalExp _ (LocalSize reg) = evalError (Just reg) "localSize not implemented"
 ---------------------
 -- Various helpers --
 ---------------------
+fromBool :: Num a => Bool -> a
+fromBool True = 1
+fromBool False = 0
+
+countLeadingZeros :: Int -> Int
+countLeadingZeros x = (w-1) - go (w-1)
+  where
+    go i | i < 0       = i -- no bit set
+         | testBit x i = i
+         | otherwise   = go (i-1)
+
+    w = 32
+
 generate :: Show ty => Int -> Env ty -> Name -> Exp ty -> Eval (Value ty)
 generate n env' var ebody = do
   let arr = fromFunction n (\i -> evalExp (insertVar var (IntV i) env') ebody)
@@ -290,10 +305,10 @@ while :: Region
 while reg f body x = do
   cond <- f x
   case cond of -- stop condition
-    BoolV False ->
+    BoolV True ->
       do x' <- body x
          while reg f body x'
-    BoolV True -> return x
+    BoolV False -> return x
     _ -> evalError (Just reg) "Second argument to while should return Bool"
 
 unInt ::  Region -> String -> Value ty -> Eval Int

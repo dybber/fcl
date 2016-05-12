@@ -49,8 +49,17 @@ fun xori x y = #xori x y
 sig divr : double -> double -> double
 fun divr x y = #divr x y
 
+sig negatei : int -> int
+fun negatei b = #negatei b
+
 sig i2d : int -> double
 fun i2d x = #i2d x
+
+sig b2i : bool -> int
+fun b2i b = #b2i b
+
+sig clz : int -> int
+fun clz b = #clz b
 
 sig index : [a] -> int -> a
 fun index arr i = #index arr i

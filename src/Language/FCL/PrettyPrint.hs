@@ -240,6 +240,8 @@ ppUnOp op e1 =
           NegateI -> "negatei"
           Not -> "not"
           I2D -> "i2d"
+          B2I -> "b2i"
+          CLZ -> "clz"
   in do e1' <- pp e1
         return (text opName :<>: e1')
 

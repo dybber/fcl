@@ -1,14 +1,10 @@
 -- TODO
---- - implement three dummy functions
 --- - debug problem with scanl type inference
 --- - implement sobolSkip1D in a different - more FCL-isch way
 
-
-sig fromBool : bool -> int
-fun fromBool b = 0 -- #fromBool i
-
+-- Find first set (using OpenCL built-in clz: count leading zeros)
 sig ffz : int -> int
-fun ffz n = 0 -- #ffz n
+fun ffz x = subi 32 (clz (andi x (negatei x)))
 
 fun scanldummy a b c = #push<thread> (generatePull 10 (fn i => i))
 
@@ -35,7 +31,7 @@ fun sobol_num_bits = 30
 
 sig sobolInd : int -> [int] -> int
 fun sobolInd ix dirVec =
-  let bitVec = mapPull (fn i => fromBool (testBit (grayCode ix) i))
+  let bitVec = mapPull (fn i => b2i (testBit (grayCode ix) i))
                        (iota sobol_num_bits)
   in seqReduce xori 0 (zipWith muli dirVec bitVec)
 
@@ -97,4 +93,5 @@ fun iterations = 50
 sig testSobolIndND : [[double]]
 fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
 
-fun main = testSobolIndND -- wont work before dummy functions are implemented
+  -- wont work before dummy functions are implemented
+fun main = testSobolIndND

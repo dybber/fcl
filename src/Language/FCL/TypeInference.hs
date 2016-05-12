@@ -410,6 +410,8 @@ unifyUnOp SignI = unify1 IntT IntT
 unifyUnOp NegateI = unify1 IntT IntT
 unifyUnOp Not = unify1 BoolT BoolT
 unifyUnOp I2D = unify1 IntT DoubleT
+unifyUnOp B2I = unify1 BoolT IntT
+unifyUnOp CLZ = unify1 IntT IntT
 
 unify2 :: Type -> Type -> Type -> Type -> Type -> TI Type
 unify2 t1' t2' tret t1 t2 = do

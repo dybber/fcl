@@ -127,7 +127,7 @@ data Exp ty =
   -- | Permute Exp Exp
   -- | Append Exp Exp
 
-data UnOp = AbsI | SignI | NegateI | Not | I2D
+data UnOp = AbsI | SignI | NegateI | Not | I2D | B2I | CLZ
   deriving (Eq, Show)
 
 data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
