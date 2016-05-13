@@ -382,7 +382,7 @@ infer env (Scanl e1 e2 e3 reg) = do
   (ta, e2') <- infer env e2
   (tbs, e3') <- infer env e3
   tb <- newtv
-  unify tf (ta :> tb :> ta)
+  unify tf (ta :> (tb :> ta))
   unify tbs (PullArrayT tb)
   return (PushArrayT threadLevel ta, Scanl e1' e2' e3' reg)
 infer env (Push lvl e1 _ reg) = do

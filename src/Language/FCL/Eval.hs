@@ -266,16 +266,18 @@ map_ env' var ebody arr = do
   return (ArrayV arr'')
 
 scanM :: Monad m => (a -> b -> m a) -> a -> [b] -> m [a]
-scanM _ _ []     = return []
+scanM _ v []     = return [v]
 scanM f v (u:us) =
   do v' <- f v u
      rest <- scanM f v' us
      return (v : rest)
 
 scanl_ :: Show ty => Env ty -> Name -> Exp ty -> Value ty -> FCLArray (Value ty) -> Eval (Value ty)
-scanl_ env' var ebody v arr = do
+scanl_ env' x ebody v arr = do
   let vs = toList arr
-  let f v1 v2 = evalExp (insertVar var (PairV v1 v2) env') ebody
+  let f v1 v2 = do fv1 <- evalExp (insertVar x v1 env') ebody
+                   case fv1 of
+                     LamV env'' y ebody' -> evalExp (insertVar y v2 env'') ebody'
   vs' <- scanM f v vs
   return (ArrayV (fromList vs'))
 
@@ -315,7 +317,7 @@ unInt ::  Region -> String -> Value ty -> Eval Int
 unInt reg str v =
   case v of
     IntV v' -> return v'
-    _ -> evalError (Just reg) ("expecting int in " ++ str)
+    u -> evalError (Just reg) ("expecting int in " ++ str ++ " got " ++ show u)
 
 unDouble :: Region -> String -> Value ty -> Eval Double
 unDouble reg str v =

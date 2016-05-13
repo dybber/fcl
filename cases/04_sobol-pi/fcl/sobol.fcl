@@ -1,14 +1,11 @@
 -- TODO
---- - debug problem with scanl type inference
 --- - implement sobolSkip1D in a different - more FCL-isch way
 
 -- Find first set (using OpenCL built-in clz: count leading zeros)
 sig ffz : int -> int
-fun ffz x = subi 32 (clz (andi x (negatei x)))
-
-fun scanldummy a b c = #push<thread> (generatePull 10 (fn i => i))
-
-----------------------------------
+fun ffz x =
+  let y = addi x 1
+  in subi 31 (clz (andi y (negatei y)))
 
 sig sobol_dirVs : [[int]]
 fun sobol_dirVs =
@@ -36,20 +33,22 @@ fun sobolInd ix dirVec =
   in seqReduce xori 0 (zipWith muli dirVec bitVec)
 
 sig sobolInd1D : int -> [int] -> [int]
-fun sobolInd1D n dirVec = mapPull (fn ix => sobolInd ix dirVec) (iota (subi n 1))
-
+fun sobolInd1D n dirVec = mapPull (fn ix => sobolInd ix dirVec) (iota n)
 
 sig sobolIndND : int -> [[int]] -> [[int]]
-fun sobolIndND n dirVs = mapPull (fn ix => mapPull (sobolInd ix) dirVs) (iota n)
+fun sobolIndND n dirVs = mapPull (sobolInd1D n) dirVs
+
+-- Alternative version
+--   sig sobolIndND : int -> [[int]] -> [[int]]
+--   fun sobolIndND n dirVs = mapPull (fn ix => mapPull (sobolInd ix) dirVs) (iota n)
 
 sig sobolRec : [int] -> int -> int -> int
 fun sobolRec dirVec previous ix = xori previous (index dirVec (ffz ix))
 
 sig sobolRec1D : int -> int -> [int] -> <int>thread
 fun sobolRec1D startIx n dirVs = 
-  let initial = 
-       sobolInd startIx dirVs
-  in scanldummy (sobolRec dirVs) initial (range startIx (subi (addi startIx n) 2))
+  let initial = sobolInd startIx dirVs
+  in scanl (sobolRec dirVs) initial (range startIx (subi (addi startIx n) 2))
 
 sig sobolRec1DChunked : int -> int -> [int] -> <int>warp
 fun sobolRec1DChunked chunkSize n dirVec = 
@@ -66,15 +65,18 @@ fun sobolSkip dirVec p prev n =
           (xori (index dirVec (subi p 1))
                 (index dirVec q_n))
 
--- sig sobolSkip1D : int -> int -> [int] -> [int]
--- fun sobolSkip1D logskip steps dirVec =
---   let stepSize = powi 2 logskip in
---   let initial = sobolInd1D stepSize dirVec in
---   let skip = fn prev => fn start => zipWith (sobolSkip dirVec logskip) prev (range start (subi (addi start stepSize) 1))
---   in concat stepSize (scanldummy skip initial (mapPull (muli stepSize) (iota (subi steps 3))))
+fun sobolSkipPart logskip steps dirVec initial =
+  let stepSize = powi 2 logskip
+  in scanl (sobolSkip dirVec logskip)
+           initial
+           (mapPull (muli stepSize) (iota (subi steps 1)))
+
+fun sobolSkip1D logskip steps dirVec =
+  let stepSize = powi 2 logskip in
+  let initials = sobolInd1D stepSize dirVec
+  in mapPull (sobolSkipPart logskip steps dirVec) initials
 
 -- Normalise to floating point [0;1]
-
 sig sobol_divisor : double
 fun sobol_divisor = i2d (powi 2 sobol_num_bits)
 
@@ -93,5 +95,12 @@ fun iterations = 50
 sig testSobolIndND : [[double]]
 fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
 
-  -- wont work before dummy functions are implemented
-fun main = testSobolIndND
+sig testSobolRecND : [<double>thread]
+fun testSobolRecND = mapPull (mapPush normalise) (sobolRecND iterations sobol_dirVs)
+
+fun main = testSobolRecND
+
+--   -- wont work before dummy functions are implemented
+-- fun main =
+--   let vec = index sobol_dirVs 0
+--   in sobolSkip1D 3 6 vec

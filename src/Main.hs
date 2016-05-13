@@ -196,12 +196,11 @@ compile filenames opts =
                    then builtins : filenames
                    else builtins : prelude : filenames
 
-     ast <- parseFiles files
-
-     logDebug ("AST: " ++ show ast)
-
      let extensions = map extension filenames
      when (any (/= "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
+     
+     ast <- parseFiles files
+     logDebug ("AST: " ++ show ast)
 
      when (fclStopAfterParsing opts) (liftIO (print ast >> exitSuccess))
 
