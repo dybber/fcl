@@ -17,6 +17,16 @@ transpose rows cols elems =
                   j = n `mod` rows
               in elems !! (j * rows + i))
 
+
+-- row-major
+transpose2D :: Int -> Int -> [[a]] -> [[a]]
+transpose2D rows cols elems =
+  generate rows
+    (\i -> generate cols
+       (\j -> (elems !! j) !! i))
+
+
+
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array

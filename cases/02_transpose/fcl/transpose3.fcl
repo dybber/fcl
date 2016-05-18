@@ -35,7 +35,7 @@ fun splitGrid splitSize rows cols elems =
           let q = modi i n -- column in outer
           in mkTile p q)
 
-sig concatGrid : int -> int -> [[a]] -> [a]
+sig concatGrid : int -> int -> [<a>level] -> <a>(level+1)
 fun concatGrid splitSize  -- width&height of inner array
                cols       -- width&height of outer array
                arr =
@@ -62,7 +62,7 @@ sig transposeChunked : int -> int -> int -> [int] -> <int>grid
 kernel transposeChunked splitSize rows cols elems =
   splitGrid splitSize rows cols elems
    |> mapPull (transpose splitSize splitSize)
-   |> mapPull (fn arr => force (push arr))  -- force into shared memory
+   |> mapPull (fn arr => force (#push<block> arr))  -- force into shared memory
    |> transpose (divi rows splitSize) (divi cols splitSize)
    |> concatGrid splitSize (divi cols splitSize)
-   |> push
+   |> (fn arr => #push<block> arr)

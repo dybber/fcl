@@ -60,11 +60,11 @@ fun concatGrid splitSize  -- width&height of inner array (2)
 --  - force each tile to shared memory
 --  - transpose outer array
 --  - write back to global memory with concatGrid
-sig transposeChunked : int -> int -> int -> [int] -> <int>grid
+sig transposeChunked : int -> int -> int -> [a] -> <a>grid
 fun transposeChunked splitSize width height elems =
   let tileSize = muli splitSize splitSize in
-  let groupsHeight = divi height splitSize in -- height of outer array
   let groupsWidth = divi width splitSize in -- width of outer array
+  let groupsHeight = divi height splitSize in -- height of outer array
     splitGrid splitSize tileSize width groupsWidth groupsHeight elems
      |> mapPull (fn arr => #push<block> arr)
      |> mapPull force

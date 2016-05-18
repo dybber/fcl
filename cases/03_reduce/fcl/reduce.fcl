@@ -1,2 +1,4 @@
 sig reduceAdd : [int] -> <int>grid
 kernel reduceAdd arr = reducePart addi arr
+
+fun main = reduceAdd (generatePull 2048 (fn i => i))

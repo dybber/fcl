@@ -1,6 +1,3 @@
--- TODO
---- - implement sobolSkip1D in a different - more FCL-isch way
-
 -- Find first set (using OpenCL built-in clz: count leading zeros)
 sig ffz : int -> int
 fun ffz x =
@@ -88,19 +85,26 @@ fun normalise x = divr (i2d x) sobol_divisor
 sig normaliseND : [[int]] -> [[double]]
 fun normaliseND = mapPull (mapPull normalise)
 
-
 sig iterations : int
 fun iterations = 50
 
+-- status: works
 sig testSobolIndND : [[double]]
 fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
 
+-- status: works
 sig testSobolRecND : [<double>thread]
 fun testSobolRecND = mapPull (mapPush normalise) (sobolRecND iterations sobol_dirVs)
 
-fun main = testSobolRecND
+-- status:
+--   * generates right numbers
+--   * still needs to be reordered (but written coalesced),
+--   * needs to support higher dimensions (now only generates first dimension)
+fun testSobolSkip1D =
+  let vec = index sobol_dirVs 0
+  in sobolSkip1D 3 6 vec
 
---   -- wont work before dummy functions are implemented
--- fun main =
---   let vec = index sobol_dirVs 0
---   in sobolSkip1D 3 6 vec
+
+-- fun main = testSobolIndND
+-- fun main = testSobolRecND
+fun main = testSobolSkip1D
