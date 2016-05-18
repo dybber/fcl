@@ -142,43 +142,8 @@ ppStmt (Decl n e _) =
   ppDecl n :+: text " = " :+: unpar(ppExp e) :+: char ';'
 ppStmt (SyncLocalMem _) = text "barrier(CLK_LOCAL_MEM_FENCE);"
 ppStmt (SyncGlobalMem _) = text "barrier(CLK_GLOBAL_MEM_FENCE);"
-ppStmt (ForAll lvl n e body _) =
-  let var = ppVar n
-  in (text "forall{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
-        :+: var :+: text " < " :+: ppExp e :+: char ';'
-        :+: var :+: text "++) {")
-     :+:
-       indent (ppStmts body)
-     :+:
-     Newline
-     :+:
-     text "}"
-ppStmt (DistrPar lvl n e body _) =
-  let var = ppVar n
-  in (text "distrpar{" :+: ppLevel lvl :+: text "} (int " :+: var :+: text " = 0; "
-        :+: var :+: text " < " :+: ppExp e :+: char ';'
-        :+: var :+: text "++) {")
-     :+:
-       indent (ppStmts body)
-     :+:
-     Newline
-     :+:
-     text "}"
--- ppStmt (DistrPar _ _ _ _) =
---   error $ concat ["Cannot pretty print DistrPar, ",
---                   "use `XX.funcYY` to convert to sequential for-loops"]
--- ppStmt (ForAll _ _ _ _) =
---   error $ concat ["Cannot pretty print ForAll, ",
---                   "use `XX.funcYY` to convert to sequential for-loops"]
 ppStmt (Allocate (name,_) _ _) = text ("// allocate " ++ name)
 ppStmt (Comment msg _) = text ("// " ++ msg)
-
-
-ppLevel :: Level -> Doc
-ppLevel Thread = text "thread"
-ppLevel Warp   = text "warp"
-ppLevel Block  = text "block"
-ppLevel Grid   = text "grid"
 
 
 

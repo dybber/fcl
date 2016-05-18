@@ -27,10 +27,6 @@ memMap stmts = mapM go stmts
                                       return (For n e body' i)
    go (SeqWhile e body i)        = do body' <- memMap body
                                       return (SeqWhile e body' i)
-   go (ForAll lvl n e body i)    = do body' <- memMap body
-                                      return (ForAll lvl n e body' i)
-   go (DistrPar lvl n e body i)  = do body' <- memMap body
-                                      return (DistrPar lvl n e body' i)
    go (If e tt tf i)             = do tt' <- memMap tt
                                       tf' <- memMap tf
                                       return (If e tt' tf' i)

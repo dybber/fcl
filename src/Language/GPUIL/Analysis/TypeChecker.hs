@@ -92,18 +92,6 @@ checkStmt env (For var@(_,ty) e0 ss _) =
      newEnv <- addVar env var
      checkStmts newEnv ss
      return env
-checkStmt env (ForAll _ var@(_,ty) e0 ss _) =
-  do ty0 <- checkExp env e0
-     when (ty0 /= ty || ty /= CInt32) $ throw "Loop variable should be integer"
-     newEnv <- addVar env var
-     checkStmts newEnv ss
-     return env
-checkStmt env (DistrPar _ var@(_,ty) e0 ss _) =
-  do ty0 <- checkExp env e0
-     when (ty0 /= ty || ty /= CInt32) $ throw "Loop variable should be integer"
-     newEnv <- addVar env var
-     checkStmts newEnv ss
-     return env
 checkStmt env (SeqWhile e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= CBool) $ throw "Loop variable should be bool in while-loop"

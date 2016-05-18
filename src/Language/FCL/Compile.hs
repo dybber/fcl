@@ -4,7 +4,7 @@ import qualified Data.Map as Map
 import Control.Monad (liftM)
 
 import Language.FCL.SourceRegion
-import Language.FCL.Syntax hiding (Level)
+import Language.FCL.Syntax
 import qualified Language.FCL.Syntax as FCL
 import Language.GPUIL
 
@@ -120,15 +120,6 @@ convertType (PushArrayT _ ty) = pointer [] (convertType ty)
 convertType (_ :> _) = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _) = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _) = error "convertType: All type variables should have been resolved by now"
-
-convertLevel :: FCL.Level -> Level
-convertLevel Zero = Thread
-convertLevel (Step (Zero)) = Warp
-convertLevel (Step (Step Zero)) = Block
-convertLevel (Step (Step (Step Zero))) = Grid
-convertLevel (Step _) = error "convertLevel: error"
-convertLevel (VarL _) = error "convertLevel: All level variables should have been resolved by now"
-
 
 compBody :: Map.Map Name Tagged -> Exp Type -> IL Tagged
 compBody _ (IntScalar i _)    = return (TagInt (constant i))
@@ -269,10 +260,10 @@ compBody env (Push lvl e0 _ reg) = do
   case v0 of
     TagArray arr -> 
       case arrayFun arr of
-        Pull idx -> return (TagArray (arr { arrayFun = PushArr (convertLevel lvl)
+        Pull idx -> return (TagArray (arr { arrayFun = PushArr lvl
                                                (\writer ->
                                                   forAll
-                                                    (convertLevel lvl)
+                                                    lvl
                                                     (arrayLen arr)
                                                     (\i -> do value <- idx i
                                                               writer value i))
@@ -301,8 +292,8 @@ compBody env (Concat i e0 reg) = do
           return . TagArray $ Array { arrayElemType = convertType bty
                                     , arrayLen = n `muli` rn
                                     , arrayFun = 
-                                      PushArr (convertLevel lvl)
-                                           (\writer -> distrPar Block n $ \bix -> do
+                                      PushArr lvl
+                                           (\writer -> distrPar blockLevel n $ \bix -> do
                                                 arrp <- idx bix
                                                 offset <- lets "offset" (TagInt (bix `muli` rn))
                                                 let writer' a ix = writer a ((unInt offset) `addi` ix)
@@ -326,8 +317,8 @@ compBody env (Assemble i ixf e0 reg) = do
           return . TagArray $ Array { arrayElemType = convertType bty
                                     , arrayLen = n `muli` rn
                                     , arrayFun = 
-                                      PushArr (convertLevel lvl)
-                                           (\writer -> distrPar (convertLevel lvl) n $ \bix -> do
+                                      PushArr lvl
+                                           (\writer -> distrPar lvl n $ \bix -> do
                                                 arrp <- idx bix
                                                 let writer' a ix = do ix' <- ixf' (TagPair (TagInt bix) (TagInt ix))
                                                                       case ix' of
@@ -424,6 +415,7 @@ whileSeq (TagFn cond) (TagFn step) v =
      return v
 whileSeq _ _ _ = error "incompatible arguments for whileSeq"
 
+
 unsafeWrite :: Array Tagged -> IL (Array Tagged)
 unsafeWrite arr =
      case arrayFun arr of
@@ -450,6 +442,34 @@ pullFrom name@(_, CPtr _ ty) n =
                                          -- integers
         }
 pullFrom _ _ = error "pullFrom: must be applied to pointer-typed variable"
+
+distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+distrPar (Step (Step Zero)) ub' f =
+  do ub <- let_ "ub" int ub'
+     q <- let_ "blocksQ" int (ub `divi` numWorkgroups)
+     for q (\i -> do
+               j <- let_ "j" int ((workgroupID `muli` q) `addi` i)
+               f j
+               syncLocal)
+     iff (workgroupID `lti` (ub `modi` numWorkgroups))
+         (do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
+             f j
+             syncLocal
+         , return ())
+distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
+
+forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+forAll (Step (Step Zero)) ub' f =
+  do ub <- let_ "ub" int ub'
+     q <- let_ "q" int (ub `divi` localSize)
+     for q (\i -> do v <- let_ "j" int ((i `muli` localSize) `addi` localID)
+                     f v)
+     iff (localID `lti` (ub `modi` localSize))
+       (do v <- let_ "j" int ((q `muli` localSize) `addi` localID)
+           f v
+       , return ())
+forAll lvl _ _ = error ("Unsupported level in forAll: " ++ show lvl)
+
 
 compileBinOp :: BinOp -> Tagged -> Tagged -> Region -> Tagged
 compileBinOp AddI (TagInt i0) (TagInt i1) _ = TagInt (addi i0 i1)

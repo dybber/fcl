@@ -66,13 +66,8 @@ data IExp =
   | LocalSize | NumGroups | WarpSize
  deriving (Eq, Show, Ord)
 
-data Level = Thread | Warp | Block | Grid
- deriving (Eq, Show)
-
 data Statement a =
     For VarName IExp [Statement a] a
-  | DistrPar Level VarName IExp [Statement a] a
-  | ForAll Level VarName IExp [Statement a] a
   | SeqWhile IExp [Statement a] a
   | If IExp [Statement a] [Statement a] a
   | Assign VarName IExp a
@@ -86,8 +81,6 @@ data Statement a =
 
 labelOf :: Statement t -> t
 labelOf (For _ _ _ lbl) = lbl
-labelOf (DistrPar _ _ _ _ lbl) = lbl
-labelOf (ForAll _ _ _ _ lbl) = lbl
 labelOf (SeqWhile _ _ lbl) = lbl
 labelOf (If _ _ _ lbl) = lbl
 labelOf (Assign _ _ lbl) = lbl
@@ -130,8 +123,6 @@ removeLabels stmts = map rm stmts
   where
     rm :: Statement a -> Statement ()
     rm (For v e ss _)          = For v e           (map rm ss) ()
-    rm (ForAll lvl v e ss _)   = ForAll lvl v e    (map rm ss) ()
-    rm (DistrPar lvl v e ss _) = DistrPar lvl v e  (map rm ss) ()
     rm (SeqWhile v ss _)       = SeqWhile v        (map rm ss) ()
     rm (If e ss0 ss1 _)        = If e              (map rm ss0) (map rm ss1) ()
     rm (Assign v e _)          = Assign v e        ()

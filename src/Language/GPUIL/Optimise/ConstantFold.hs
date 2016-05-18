@@ -93,13 +93,13 @@ constantFold stmts = concat $ map process stmts
  where
    process :: Statement a -> [Statement a]
    process (For v e body i)          = [For v (foldExp e) (constantFold body) i]
-   process (DistrPar lvl v e body i) = [DistrPar lvl v e (constantFold body) i]
+   -- process (DistrPar lvl v e body i) = [DistrPar lvl v e (constantFold body) i]
    -- process (ForAll lvl v e body i)   = [ForAll lvl v e (constantFold body) i]
-   process (ForAll lvl v e body i)   =
-     case foldExp e of
-       IntE 0 -> []
-       IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
-       _ -> [ForAll lvl v (foldExp e) (constantFold body) i]
+   -- process (ForAll lvl v e body i)   =
+   --   case foldExp e of
+   --     IntE 0 -> []
+   --     IntE 1 -> [Decl v (IntE 0) i] ++ constantFold body
+   --     _ -> [ForAll lvl v (foldExp e) (constantFold body) i]
    -- process (For v e body i)   =
    --   case foldExp e of
    --     IntE 0 -> []
