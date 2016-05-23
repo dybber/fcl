@@ -17,7 +17,7 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 generateKernel :: Int -> String -> IL () -> Kernel
 generateKernel optIterations name m =
-  let (stmts, params, varCount) = runIL m
+  let (stmts, params, _) = runIL m
 --  tc params stmts
       (stmts', used) = memoryMap stmts
       params' = (addSharedMem used) ++ params

@@ -232,7 +232,7 @@ evalExp env (Scanl ef e es reg) = do
   v <- evalExp env e
   vs <- evalExp env es
   case (vf, vs) of
-    (LamV env' x ebody, ArrayV arr) -> scanl_ env' x ebody v arr
+    (LamV env' x ebody, ArrayV arr) -> scanl_ env' x ebody v arr reg
     (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
     _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (LocalSize reg) = evalError (Just reg) "localSize not implemented"
@@ -272,12 +272,13 @@ scanM f v (u:us) =
      rest <- scanM f v' us
      return (v : rest)
 
-scanl_ :: Show ty => Env ty -> Name -> Exp ty -> Value ty -> FCLArray (Value ty) -> Eval (Value ty)
-scanl_ env' x ebody v arr = do
+scanl_ :: Show ty => Env ty -> Name -> Exp ty -> Value ty -> FCLArray (Value ty) -> Region -> Eval (Value ty)
+scanl_ env' x ebody v arr reg = do
   let vs = toList arr
   let f v1 v2 = do fv1 <- evalExp (insertVar x v1 env') ebody
                    case fv1 of
                      LamV env'' y ebody' -> evalExp (insertVar y v2 env'') ebody'
+                     _ -> evalError (Just reg) "scanl_: first argument should be a function"
   vs' <- scanM f v vs
   return (ArrayV (fromList vs'))
 

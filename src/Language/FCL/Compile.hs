@@ -1,7 +1,7 @@
 module Language.FCL.Compile (compileKernel, compileKernels) where
 
 import qualified Data.Map as Map
-import Control.Monad (liftM)
+import Control.Monad (liftM, (<=<))
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
@@ -12,9 +12,12 @@ data Array a = ArrPull { arrayLen :: CExp
                        , arrayFun :: CExp -> IL a
                        }
              | ArrPush Level (Array a)
-             | ArrMapPush (Tagged -> IL Tagged) (Array a) CType
-             -- | ArrConcat Level CExp (Array a)
              | ArrAssemble Level CExp (Tagged -> IL Tagged) (Array a)
+
+mapArray :: (a -> IL b) -> CType -> Array a -> Array b
+mapArray f outType (ArrPull len _ g) = ArrPull len outType (f <=< g)
+mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
+mapArray f outType (ArrAssemble lvl n ixt arr) = ArrAssemble lvl n ixt (mapArray f outType arr)
 
 data Tagged = TagInt CExp
             | TagBool CExp
@@ -26,8 +29,6 @@ data Tagged = TagInt CExp
 instance Show (Array a) where
   show (ArrPull _ _ _) = "<<pull-array>>"
   show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
-  show (ArrMapPush _ arr _) = "map <fn> (" ++ show arr ++ ")"
-  -- show (ArrConcat lvl e arr) = "concat<" ++ show lvl ++ "> (" ++ show e ++ ") (" ++ show arr ++ ")"
   show (ArrAssemble lvl e _ arr) = "assemble<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
 
 instance Show Tagged where
@@ -179,16 +180,11 @@ compBody env (GeneratePull e0 e1 reg) = do
                                 }
     _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
 compBody env (MapPull e0 e1 reg) = do
-  let (_ :> ty1) = typeOf e0
+  let (_ :> outType) = typeOf e0
   f' <- compBody env e0
   e' <- compBody env e1
   case (f', e') of
-    (TagFn f, TagArray (ArrPull n _ idx)) ->
-      return $ TagArray $
-                    ArrPull { arrayElemType = convertType ty1
-                          , arrayLen = n
-                          , arrayFun = \x -> idx x >>= f
-                          }
+    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
     _ -> error $ concat [show reg,
                          ": ",
                          "MapPull expects function as first argument and",
@@ -197,11 +193,11 @@ compBody env (MapPull e0 e1 reg) = do
                          "\nand\n    ",
                          show e']
 compBody env (MapPush e0 e1 reg) = do
-  let (_ :> ty1) = typeOf e0
+  let (_ :> outType) = typeOf e0
   f' <- compBody env e0
   e' <- compBody env e1
   case (f', e') of
-    (TagFn f, TagArray arr) -> return (TagArray (ArrMapPush f arr (convertType ty1)))
+    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
     _ -> error $ concat [show reg,
                          ": ",
                          "MapPush expects function as first argument and",
@@ -245,13 +241,6 @@ compBody env (WhileSeq e0 e1 e2 _) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   whileSeq v0 v1 v2
--- compBody env (Concat i e0 _) = do
---   vi <- compBody env i
---   v0 <- compBody env e0
---   let PullArrayT (PushArrayT lvl _) = typeOf e0
---   case (vi, v0) of
---     (TagInt rn, TagArray arr) -> return (TagArray (ArrConcat lvl rn arr))
---     _ -> error "Concat should be given an integer and an array"
 compBody env (Assemble i ixf e0 reg) = do
   vi <- compBody env i
   vixf <- compBody env ixf
@@ -291,17 +280,12 @@ letsVar name s =
 size :: Array Tagged -> CExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)         = size arr
-size (ArrMapPush _ arr _)    = size arr
--- size (ArrConcat _ n arr)     = n `muli` size arr
-size (ArrAssemble _ n _ arr) = n `muli` size arr
+size (ArrAssemble _ rn _ arr) = rn `muli` size arr
 
 baseType :: Array Tagged -> CType
 baseType (ArrPull _ (CPtr _ bty) _)       = bty
 baseType (ArrPull _ bty _)       = bty
 baseType (ArrPush _ arr)         = baseType arr
-baseType (ArrMapPush _ _ (CPtr _ rty))    = rty
-baseType (ArrMapPush _ _ rty)    = rty
--- baseType (ArrConcat _ _ arr)     = baseType arr
 baseType (ArrAssemble _ _ _ arr) = baseType arr
 
 type Writer a = a -> CExp -> IL ()
@@ -324,20 +308,8 @@ forceTo writer (ArrPush lvl (ArrPull len _ idx)) = do
   forAll lvl len
     (\i -> do value <- idx i
               writer value i)
-forceTo writer (ArrMapPush f arr _) =
-  let writer' e ix = do v <- f e
-                        writer v ix
-  in forceTo writer' arr
 forceTo _ (ArrPush _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
--- forceTo writer (ArrConcat lvl n (ArrPull _ _ idx)) = do
---   distrPar lvl n $ \bix -> do
---     arrp <- idx bix
---     block_offset <- lets "block_offset" (TagInt (bix `muli` n))
---     let writer' a ix = writer a ((unInt block_offset) `addi` ix)
---     case arrp of
---       TagArray arrp' -> forceTo writer' arrp'
---       _ -> error "Concat should be applied to an array of arrays!"
-forceTo writer (ArrAssemble lvl rn f (ArrPull n _ idx)) = do
+forceTo writer (ArrAssemble lvl _ f (ArrPull n _ idx)) = do
   distrPar lvl n $ \bix -> do
     arrp <- idx bix
     let writer' a ix =
@@ -348,7 +320,6 @@ forceTo writer (ArrAssemble lvl rn f (ArrPull n _ idx)) = do
       _ -> error "Assemble should be applied to an array of arrays!"
 forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should raise type error." ++
                                          "Needs iteration scheme before it can be forced.")
--- forceTo _ (ArrConcat _ _ _)     = error "force: concat only accepts pull-arrays. This should have raised a type error."
 forceTo _ (ArrAssemble _ _ _ _) = error "force: assemble only accepts pull-arrays. This should have raised a type error."
 
 whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
