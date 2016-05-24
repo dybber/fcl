@@ -110,12 +110,6 @@ isScalar _           = False
 
 isVar :: IExp -> Bool
 isVar (VarE _)  = True
-isVar GlobalID  = True
-isVar LocalID   = True
-isVar GroupID   = True
-isVar LocalSize = True
-isVar NumGroups = True
-isVar WarpSize  = True
 isVar _         = False
 
 removeLabels :: [Statement a] -> [Statement ()]

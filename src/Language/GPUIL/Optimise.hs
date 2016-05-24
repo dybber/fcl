@@ -2,6 +2,7 @@ module Language.GPUIL.Optimise (optimise, optimiseExp) where
 
 import Language.GPUIL.Optimise.ConstantFold (constantFold, foldExp)
 import Language.GPUIL.Optimise.ConstantPropagation (constantProp)
+import Language.GPUIL.Optimise.CopyPropagation (copyProp)
 import Language.GPUIL.Optimise.DeadCodeElimination (deadCodeElimination)
 
 import Language.GPUIL.Analysis
@@ -22,11 +23,12 @@ optimise1 :: Graph Label -> [Statement Label] -> [Statement Label]
 optimise1 graph ss =
   let (defs, reachInMap, _) = reach ss graph
       ss' = constantProp ss reachInMap defs
-      ss'' = constantFold ss'
+      ss'' = copyProp ss' reachInMap defs
+      ss''' = constantFold ss''
 
-      (_, liveOutMap) = liveness ss'' graph
-      ss''' = deadCodeElimination ss'' liveOutMap
-  in ss'''
+      (_, liveOutMap) = liveness ss''' graph
+      ss'''' = deadCodeElimination ss''' liveOutMap
+  in ss''''
 
 optimiseExp :: IExp -> IExp
 optimiseExp = foldExp

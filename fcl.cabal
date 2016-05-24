@@ -46,6 +46,7 @@ Library
                    Language.GPUIL.Optimise
                    Language.GPUIL.Optimise.ConstantFold
                    Language.GPUIL.Optimise.ConstantPropagation
+                   Language.GPUIL.Optimise.CopyPropagation
                    Language.GPUIL.Optimise.DeadCodeElimination
 
   Default-Language: Haskell2010
