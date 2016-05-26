@@ -387,12 +387,10 @@ distrPar (Step (Step Zero)) ub' f =
      q <- let_ "blocksQ" int (ub `divi` numWorkgroups)
      for q (\i -> do
                j <- let_ "j" int ((workgroupID `muli` q) `addi` i)
-               f j
-               syncLocal)
+               f j)
      iff (workgroupID `lti` (ub `modi` numWorkgroups))
          (do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
              f j
-             syncLocal
          , return ())
 distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
@@ -406,6 +404,7 @@ forAll (Step (Step Zero)) ub' f =
        (do v <- let_ "j" int ((q `muli` localSize) `addi` localID)
            f v
        , return ())
+     syncLocal
 forAll lvl _ _ = error ("Unsupported level in forAll: " ++ show lvl)
 
 
