@@ -489,11 +489,7 @@ typecheckProg tenv (d : ds) = do
     Nothing -> return ()
   -- TODO TypeScheme tysc should be updated w. info from signature !
   rest <- typecheckProg (Map.insert (defVar d) tysc tenv) ds
-  let typedDef = Definition
-                   { defVar = defVar d
-                   , defSignature = defSignature d
-                   , defTypeScheme = tysc
-                   , defEmitKernel = defEmitKernel d
+  let typedDef = d { defTypeScheme = tysc
                    , defBody = ety
                    }  
   return (typedDef : rest)

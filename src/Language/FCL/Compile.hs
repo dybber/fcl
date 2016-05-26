@@ -52,7 +52,8 @@ compileKernel optIterations def =
   let e = defBody def
       kernel_name = defVar def
       kernel_body = compile 0 emptyEnv (typeOf e) e
-  in generateKernel optIterations kernel_name kernel_body
+      wgSize = blockSize =<< defKernelConfig def
+  in generateKernel optIterations kernel_name kernel_body wgSize
 
 addArgument :: Type -> IL Tagged
 addArgument (PullArrayT bty) =

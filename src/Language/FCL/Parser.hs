@@ -40,6 +40,18 @@ typesig =
      ty <- type'
      return (Just (ident,ty))
 
+kernelConfig :: Parser (Maybe KernelConfig)
+kernelConfig =
+  do reserved "config"
+     ident <- identifier
+     reservedOp "="
+     conf <- case ident of
+               "#BlockSize" -> do i <- natural
+                                  return (Just (KernelConfig (Just (fromInteger i))))
+               str -> error ("Unsupported kernel configuration option: " ++ str)
+     return conf
+  <|> return Nothing
+
 fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
 fundef tyanno =
   let
@@ -51,14 +63,16 @@ fundef tyanno =
                       <|> (reserved "kernel" >> return True)
        name <- identifier
        args <- many identifier
-       symbol "="
+       reservedOp "="
        rhs <- expr
+       conf <- kernelConfig
        let function = addArgs (reverse args) rhs
        return (Definition
                  { defVar = name
                  , defSignature = fmap snd tyanno
                  , defTypeScheme = TypeScheme [] Untyped
                  , defEmitKernel = make_kernel
+                 , defKernelConfig = conf
                  , defBody = function
                  })
        

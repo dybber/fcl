@@ -26,7 +26,8 @@ reservedNames =
    "thread",
    "warp",
    "block",
-   "grid"]
+   "grid",
+   "config"]
 
 reservedOps :: [String]
 reservedOps = ["|>",

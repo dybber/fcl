@@ -15,11 +15,36 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 --import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
 
-generateKernel :: Int -> String -> IL () -> Kernel
-generateKernel optIterations name m =
+
+-- replace static dyn block-size with static blockSize
+staticBlockSize Nothing           stmts = stmts
+staticBlockSize (Just blockSize) stmts = map replaceSS stmts
+  where
+    replace :: IExp -> IExp
+    replace LocalSize         = IntE (blockSize)
+    replace (UnaryOpE op e0)  = UnaryOpE op (replace e0)
+    replace (BinOpE op e0 e1) = BinOpE op (replace e0) (replace e1)
+    replace (IfE e0 e1 e2)    = IfE (replace e0) (replace e1) (replace e2)
+    replace (IndexE v e)      = IndexE v (replace e)
+    replace (CastE v e)       = CastE v (replace e)
+    replace e                   = e
+    
+    replaceSS (Assign v e lbl)          = Assign v (replace e) lbl
+    replaceSS (Decl v e lbl)            = Decl v (replace e) lbl
+    replaceSS (AssignSub v e0 e1 lbl)   = AssignSub v (replace e0) (replace e1) lbl
+    replaceSS (Allocate v e lbl)        = Allocate v (replace e) lbl
+    replaceSS (For v e ss lbl)          = For v (replace e) (map replaceSS ss) lbl
+    replaceSS (If e0 ss0 ss1 lbl)       = If (replace e0) (map replaceSS ss0) (map replaceSS ss1) lbl
+    replaceSS (SeqWhile e ss lbl)       = SeqWhile e (map replaceSS ss) lbl
+    replaceSS stmt                      = stmt
+
+
+
+generateKernel :: Int -> String -> IL () -> Maybe Int -> Kernel
+generateKernel optIterations name m blockSize =
   let (stmts, params, _) = runIL m
 --  tc params stmts
-      (stmts', used) = memoryMap stmts
+      (stmts', used) = memoryMap (staticBlockSize blockSize stmts)
       params' = (addSharedMem used) ++ params
 --  tc params' stmts'
       stmts'' = optimise optIterations stmts'
@@ -28,6 +53,7 @@ generateKernel optIterations name m =
             , kernelParams = params'
             , kernelBody = removeLabels stmts''
             , kernelSharedMem = fmap optimiseExp used
+            , kernelBlockSize = blockSize
             }
 
 -- tc :: [VarName] -> [Statement a] -> ()

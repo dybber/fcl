@@ -97,6 +97,7 @@ data Kernel =
          , kernelParams :: [VarName]
          , kernelBody :: [Statement ()]
          , kernelSharedMem :: Maybe IExp
+         , kernelBlockSize :: Maybe Int
          }
   deriving (Eq, Show)
 

@@ -23,6 +23,7 @@ module Language.FCL.Syntax (
   typeOf,
 
   -- Programs
+  KernelConfig(..),
   Definition(..),
   Program,
   mapBody
@@ -217,12 +218,20 @@ typeOf (Scanl _ e1 e2 _) =
 ------------------------
 
 type Program ty = [Definition ty]
+
+data KernelConfig =
+  KernelConfig
+    { blockSize :: Maybe Int
+    }
+  deriving Show
+
 data Definition ty =
   Definition
     { defVar        :: Name
     , defSignature  :: Maybe Type
     , defTypeScheme :: TypeScheme ty
     , defEmitKernel :: Bool
+    , defKernelConfig :: Maybe KernelConfig
     , defBody       :: Exp ty
     }
   deriving Show

@@ -21,7 +21,7 @@ prettyPrintProgram :: Program Type -> String
 prettyPrintProgram prog = render 0 4 $ evalState (ppProgram prog) startEnv
 
 showType :: Definition Type -> String
-showType (Definition v _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
+showType (Definition v _ _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
 
 
 -- Names used when pretty printing type variables
