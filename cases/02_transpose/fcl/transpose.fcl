@@ -75,6 +75,7 @@ fun transposeChunked splitSize width height elems =
 
 sig transposeChunked16 : int -> int -> [int] -> <int>grid
 kernel transposeChunked16 = transposeChunked 16
+  config #BlockSize = 256
 
 --- Testing
 sig make_NxN_Matrix : int -> [int]
