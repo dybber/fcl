@@ -17,6 +17,7 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 
 -- replace static dyn block-size with static blockSize
+staticBlockSize :: Maybe Int -> [Statement a] -> [Statement a]
 staticBlockSize Nothing           stmts = stmts
 staticBlockSize (Just blockSize) stmts = map replaceSS stmts
   where

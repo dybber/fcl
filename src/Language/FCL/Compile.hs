@@ -209,18 +209,18 @@ compBody env (MapPush e0 e1 reg) = do
 compBody env (LengthPull e0 reg) = do
   v <- compBody env e0
   case v of
-    TagArray arr -> return $ TagInt (arrayLen arr)
+    TagArray arr -> return (TagInt (size arr))
     e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
 compBody env (LengthPush e0 reg) = do
   v <- compBody env e0
   case v of
-    TagArray arr -> return $ TagInt (arrayLen arr)
+    TagArray arr -> return (TagInt (size arr))
     e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
 compBody env (Index e0 e1 reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
   case (v0, v1) of
-    (TagArray arr, TagInt i) -> arrayFun arr i
+    (TagArray (ArrPull _ _ idx), TagInt i) -> idx i
     _ -> error (show reg ++ ": Index expects array and integer argument")
 compBody env (Force e0 reg) = do
   v0 <- compBody env e0
@@ -324,34 +324,33 @@ forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should rai
 forceTo _ (ArrAssemble _ _ _ _) = error "force: assemble only accepts pull-arrays. This should have raised a type error."
 
 whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
-whileArray (TagFn cond) (TagFn step) (TagArray (ArrPull len bty idx)) =
+whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
   do -- Declare array
-     var_array <- allocate bty len
-     (var_len,_) <- letsVar "arraySize" (TagInt len)
-
-     let arr' = ArrPull (var var_len) bty idx
+     len <- lets "len" (TagInt (size arr))
+     var_array <- allocate (baseType arr) (unInt len)
+     (var_len,_) <- letsVar "arraySize" len
 
      let writer tv i =
            case tv of
              TagInt v -> assignArray var_array v i
              e -> error (show e)
 
-     forceTo writer arr'
+     forceTo writer arr
 
-     let vararr = pullFrom var_array (var var_len)
+     let vararr = TagArray (pullFrom var_array (var var_len))
 
-     cond' <- liftM unBool (cond (TagArray vararr))
-     (var_cond,_) <- letsVar "cond" (TagBool cond') -- stop condition
-     whileLoop (Language.GPUIL.not (var var_cond)) $
-       do -- step
-          arr'' <- liftM unArray (step (TagArray vararr))
-          assign var_len (arrayLen arr'')
-          
-          forceTo writer arr'
-          cond'' <- liftM unBool (cond (TagArray arr'))
+     cond' <- cond vararr
+     (var_cond,_) <- letsVar "cond" cond' -- stop condition
+     whileLoop (var var_cond) $
+       do arr' <- step vararr
+          assign var_len (size (unArray arr'))
+          -- TODO update arr' length to point to the var_len variable
+          forceTo writer (unArray arr')
+          cond'' <- liftM unBool (cond arr')
           assign var_cond cond''
-     return (TagArray vararr)
-whileArray _ _ _ = error "incompatible arguments for while"
+     return vararr
+whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
+whileArray (TagFn _) (TagFn _) _ = error "first two arguments to while should be conditional and step function, respectively"
 
 whileSeq :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileSeq (TagFn cond) (TagFn step) v =

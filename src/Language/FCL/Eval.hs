@@ -208,11 +208,11 @@ evalExp env (While e0 e1 e2 reg) = do
   v1 <- evalExp env e1
   v2 <- evalExp env e2
   case (v0, v1) of
-    (LamV env0 var0 f, LamV env1 var1 body) ->
+    (LamV env0 var0 cond, LamV env1 var1 step) ->
       while
         reg
-        (\x -> evalExp (insertVar var0 x env0) f)
-        (\x -> evalExp (insertVar var1 x env1) body)
+        (\x -> evalExp (insertVar var0 x env0) cond)
+        (\x -> evalExp (insertVar var1 x env1) step)
         v2
     _ -> evalError (Just reg) "Argument while evaluating while"
 evalExp env (WhileSeq e0 e1 e2 reg) = do
@@ -305,12 +305,12 @@ while :: Region
       -> (Value ty -> Eval (Value ty))
       -> Value ty
       -> Eval (Value ty)
-while reg f body x = do
-  cond <- f x
-  case cond of -- stop condition
+while reg cond step x = do
+  c <- cond x
+  case c of -- stop condition
     BoolV True ->
-      do x' <- body x
-         while reg f body x'
+      do x' <- step x
+         while reg cond step x'
     BoolV False -> return x
     _ -> evalError (Just reg) "Second argument to while should return Bool"
 

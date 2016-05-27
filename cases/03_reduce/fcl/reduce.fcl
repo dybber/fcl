@@ -1,4 +1,6 @@
-sig reduceAdd : [int] -> <int>grid
+sig reduceAdd : [int] -> <int>lvl
 kernel reduceAdd arr = reducePart addi arr
+  config #BlockSize = 128
 
 fun main = reduceAdd (generatePull 2048 (fn i => i))
+
