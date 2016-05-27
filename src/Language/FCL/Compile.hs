@@ -176,46 +176,14 @@ compBody env (GeneratePull e0 e1 reg) = do
   case (v0, v1) of
     (TagInt e0', TagFn f) ->
       return . TagArray $ ArrPull { arrayElemType = convertType ty1
-                                , arrayLen = e0'
-                                , arrayFun = \i -> f (TagInt i)
-                                }
+                                  , arrayLen = e0'
+                                  , arrayFun = \i -> f (TagInt i)
+                                  }
     _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
-compBody env (MapPull e0 e1 reg) = do
-  let (_ :> outType) = typeOf e0
-  f' <- compBody env e0
-  e' <- compBody env e1
-  case (f', e') of
-    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
-    _ -> error $ concat [show reg,
-                         ": ",
-                         "MapPull expects function as first argument and",
-                         "pull array as second argument, got:\n    ",
-                         show f',
-                         "\nand\n    ",
-                         show e']
-compBody env (MapPush e0 e1 reg) = do
-  let (_ :> outType) = typeOf e0
-  f' <- compBody env e0
-  e' <- compBody env e1
-  case (f', e') of
-    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
-    _ -> error $ concat [show reg,
-                         ": ",
-                         "MapPush expects function as first argument and",
-                         "push array as second argument, got:\n    ",
-                         show f',
-                         "\nand\n    ",
-                         show e']
-compBody env (LengthPull e0 reg) = do
-  v <- compBody env e0
-  case v of
-    TagArray arr -> return (TagInt (size arr))
-    e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
-compBody env (LengthPush e0 reg) = do
-  v <- compBody env e0
-  case v of
-    TagArray arr -> return (TagInt (size arr))
-    e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
+compBody env (MapPull e0 e1 reg) = map_ env e0 e1 reg
+compBody env (MapPush e0 e1 reg) = map_ env e0 e1 reg
+compBody env (LengthPull e0 reg) = length_ env e0 reg
+compBody env (LengthPush e0 reg) = length_ env e0 reg
 compBody env (Index e0 e1 reg) = do
   v0 <- compBody env e0
   v1 <- compBody env e1
@@ -277,6 +245,28 @@ letsVar name s =
     TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
     TagPair _ _ -> error "letsVar TagPair" -- TODO
     TagArray _ -> error "letsVar TagArray" -- TODO
+
+length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
+length_ env e0 reg = do
+  v <- compBody env e0
+  case v of
+    TagArray arr -> return (TagInt (size arr))
+    e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
+
+map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> IL Tagged
+map_ env e0 e1 reg = do
+  let (_ :> outType) = typeOf e0
+  f' <- compBody env e0
+  e' <- compBody env e1
+  case (f', e') of
+    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
+    _ -> error $ concat [show reg,
+                         ": ",
+                         "Map expects function as first argument and",
+                         "an array as second argument, got:\n    ",
+                         show f',
+                         "\nand\n    ",
+                         show e']
 
 size :: Array Tagged -> CExp
 size (ArrPull len _ _)       = len
@@ -350,7 +340,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
           assign var_cond cond''
      return vararr
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
-whileArray (TagFn _) (TagFn _) _ = error "first two arguments to while should be conditional and step function, respectively"
+whileArray _ _ _ = error "first two arguments to while should be conditional and step function, respectively"
 
 whileSeq :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileSeq (TagFn cond) (TagFn step) v =
@@ -392,6 +382,19 @@ distrPar (Step (Step Zero)) ub' f =
          (do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
              f j
          , return ())
+distrPar (Step Zero) ub' f = -- warp level
+  do ub <- let_ "ub" int ub'
+     numWarps <- let_ "numWarps" int (localSize `divi` (constant (32 :: Int)))
+     warpsQ <- let_ "warpsQ" int (ub `divi` numWarps)
+     warpsR <- let_ "warpsR" int (ub `modi` numWarps)
+     lwid <- let_ "lwid" int (localID `divi` constant (32 :: Int))
+     for warpsQ
+       (\i -> do warpID <- let_ "warpID" int ((lwid `muli` warpsQ) `addi` i)
+                 f warpID)
+     iff (lwid `lti` warpsR)
+         (do warpID <- let_ "warpID" int ((numWarps `muli` warpsQ) `addi` lwid)
+             f warpID
+         , return ())
 distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
 forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
@@ -403,6 +406,19 @@ forAll (Step (Step Zero)) ub' f =
      iff (localID `lti` (ub `modi` localSize))
        (do v <- let_ "j" int ((q `muli` localSize) `addi` localID)
            f v
+       , return ())
+     syncLocal
+forAll (Step Zero) ub' f =
+  do ub <- let_ "ub" int ub'
+     let nt = constant (32 :: Int)
+     q <- let_ "q" int (ub `divi` nt)
+     r <- let_ "r" int (ub `modi` nt)
+     wid <- let_ "wid" int (localID `modi` nt)
+     for q (\i -> do warpID <- let_ "warpID" int ((i `muli` nt) `addi` wid)
+                     f warpID)
+     iff (wid `lti` r)
+       (do warpID <- let_ "warpID" int ((q `muli` nt) `addi` wid)
+           f warpID
        , return ())
      syncLocal
 forAll lvl _ _ = error ("Unsupported level in forAll: " ++ show lvl)

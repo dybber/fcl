@@ -127,7 +127,7 @@ void runReduce(char* kernelName) {
 }
 
 int main(int argc, char* const * argv) {
-  runReduce("reduceAdd");
+  runReduce("red2Add");
 
   return 0;
 }

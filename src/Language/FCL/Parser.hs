@@ -46,7 +46,7 @@ kernelConfig =
      ident <- identifier
      reservedOp "="
      conf <- case ident of
-               "#BlockSize" -> do i <- natural
+               "#LocalSize" -> do i <- natural
                                   return (Just (KernelConfig (Just (fromInteger i))))
                str -> error ("Unsupported kernel configuration option: " ++ str)
      return conf
@@ -172,7 +172,7 @@ let' =
 op :: Parser (Exp Untyped)
 op = withRegion (identifier >>= switch)
   where
-    switch "#localSize" = return LocalSize
+    switch "#LocalSize" = return LocalSize
     switch "#i2d"      = UnOp I2D      <$> term
     switch "#b2i"      = UnOp B2I      <$> term
     switch "#clz"      = UnOp CLZ      <$> term
