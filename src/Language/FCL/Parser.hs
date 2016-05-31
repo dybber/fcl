@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Language.FCL.Parser
-  (parseTopLevel, ParseError)
+  (parseTopLevel, parseType, ParseError)
 where
 
 import Control.Applicative hiding ((<|>), many)
@@ -17,6 +17,9 @@ import Language.FCL.Syntax
 ----------------------
 parseTopLevel :: String -> String -> Either ParseError (Program Untyped)
 parseTopLevel filename programText = parse topLevel filename programText
+
+parseType :: String -> String -> Either ParseError Type
+parseType filename input = parse type' filename input
 
 ---------------------------
 -- Top-level definitions --
@@ -40,17 +43,23 @@ typesig =
      ty <- type'
      return (Just (ident,ty))
 
-kernelConfig :: Parser (Maybe KernelConfig)
-kernelConfig =
+parseConfig :: KernelConfig -> String -> Parser KernelConfig
+parseConfig cfg "#LocalSize" =
+  do i <- natural
+     return (cfg { configBlockSize = Just (fromInteger i) })
+parseConfig cfg "#WarpSize" =
+  do i <- natural
+     return (cfg { configWarpSize = fromInteger i})
+parseConfig _ str = error ("Unsupported kernel configuration option: " ++ str)
+
+kernelConfig :: KernelConfig -> Parser KernelConfig
+kernelConfig cfg =
   do reserved "config"
      ident <- identifier
      reservedOp "="
-     conf <- case ident of
-               "#LocalSize" -> do i <- natural
-                                  return (Just (KernelConfig (Just (fromInteger i))))
-               str -> error ("Unsupported kernel configuration option: " ++ str)
-     return conf
-  <|> return Nothing
+     cfg' <- parseConfig cfg ident
+     kernelConfig cfg'
+  <|> return cfg
 
 fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
 fundef tyanno =
@@ -65,7 +74,7 @@ fundef tyanno =
        args <- many identifier
        reservedOp "="
        rhs <- expr
-       conf <- kernelConfig
+       conf <- kernelConfig defaultKernelConfig
        let function = addArgs (reverse args) rhs
        return (Definition
                  { defVar = name
@@ -252,8 +261,7 @@ simpleType =
   baseType
   <|> tyVar
   <|> tupleType
-  <|> pullArrayType
-  <|> pushArrayType
+  <|> arrayType
 
 
 baseType :: Parser Type
@@ -267,20 +275,17 @@ level = (reserved "thread" >> return threadLevel)
     <|> (reserved "block" >> return blockLevel)
     <|> (reserved "grid" >> return gridLevel)
     <|> lvlVar
-    <|> parens
-          (do char '1'
-              reservedOp "+"
-              lvl <- level
-              return (Step lvl))
+    <|> do char '1'
+           reservedOp "+"
+           lvl <- level
+           return (Step lvl)
 
-pullArrayType :: Parser Type
-pullArrayType = PullArrayT <$> brackets type'
-
-pushArrayType :: Parser Type
-pushArrayType = do
- ty <- angles type'
- lvl <- level
- return (PushArrayT lvl ty)
+arrayType :: Parser Type
+arrayType = do
+  ty <- brackets type'
+  try (do lvl <- angles level
+          return (PushArrayT lvl ty))
+    <|> return (PullArrayT ty)
 
 tupleType :: Parser Type
 tupleType =

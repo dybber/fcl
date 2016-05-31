@@ -17,12 +17,14 @@ import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 
 -- replace static dyn block-size with static blockSize
-staticBlockSize :: Maybe Int -> [Statement a] -> [Statement a]
-staticBlockSize Nothing           stmts = stmts
-staticBlockSize (Just blockSize) stmts = map replaceSS stmts
+staticBlockSize :: Maybe Int -> Int -> [Statement a] -> [Statement a]
+staticBlockSize blockSize warpSize_ stmts = map replaceSS stmts
   where
     replace :: IExp -> IExp
-    replace LocalSize         = IntE (blockSize)
+    replace LocalSize         = case blockSize of
+                                  Nothing -> LocalSize
+                                  Just n -> IntE n
+    replace WarpSize          = IntE warpSize_
     replace (UnaryOpE op e0)  = UnaryOpE op (replace e0)
     replace (BinOpE op e0 e1) = BinOpE op (replace e0) (replace e1)
     replace (IfE e0 e1 e2)    = IfE (replace e0) (replace e1) (replace e2)
@@ -41,11 +43,11 @@ staticBlockSize (Just blockSize) stmts = map replaceSS stmts
 
 
 
-generateKernel :: Int -> String -> IL () -> Maybe Int -> Kernel
-generateKernel optIterations name m blockSize =
+generateKernel :: Int -> String -> IL () -> Maybe Int -> Int -> Kernel
+generateKernel optIterations name m blockSize warpSize_ =
   let (stmts, params, _) = runIL m
 --  tc params stmts
-      (stmts', used) = memoryMap (staticBlockSize blockSize stmts)
+      (stmts', used) = memoryMap (staticBlockSize blockSize warpSize_ stmts)
       params' = (addSharedMem used) ++ params
 --  tc params' stmts'
       stmts'' = optimise optIterations stmts'
@@ -55,6 +57,7 @@ generateKernel optIterations name m blockSize =
             , kernelBody = removeLabels stmts''
             , kernelSharedMem = fmap optimiseExp used
             , kernelBlockSize = blockSize
+            , kernelWarpSize = warpSize_
             }
 
 -- tc :: [VarName] -> [Statement a] -> ()

@@ -113,7 +113,7 @@ ppType (PullArrayT ty) = return . brackets =<< ppType ty
 ppType (PushArrayT lvl ty) =
   do ty' <- ppType ty
      prettylvl <- ppLevel lvl
-     return (angles ty' :+: prettylvl)
+     return (brackets ty' :+: angles prettylvl)
 
 -- Pretty print levels
 ppLevel :: Level -> PP Doc

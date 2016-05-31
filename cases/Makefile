@@ -1,4 +1,4 @@
-CASES_FCL=00_copy 01_reverse
+CASES_FCL=00_copy 01_reverse 02_transpose 03_reduce
 CASES_OPENCL=00_copy 01_reverse 02_transpose 03_reduce
 CASES_OPENCL_DIRS=$(CASES_OPENCL:%=%/OpenCL/)
 CASES_FCL_DIRS=$(CASES_FCL:%=%/fcl/)

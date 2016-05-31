@@ -33,7 +33,7 @@ type VarName = (String, CType)
 
 -- Builtin operators
 data UnaryOp =
-    Not | I2D | NegateInt | NegateDouble |
+    Not | NegateInt | NegateDouble |
     NegateBitwise |
     Ceil | Floor | Exp | Ln | AbsI | AbsD
   deriving (Eq, Show, Ord)
@@ -98,6 +98,7 @@ data Kernel =
          , kernelBody :: [Statement ()]
          , kernelSharedMem :: Maybe IExp
          , kernelBlockSize :: Maybe Int
+         , kernelWarpSize :: Int
          }
   deriving (Eq, Show)
 

@@ -24,6 +24,7 @@ module Language.FCL.Syntax (
 
   -- Programs
   KernelConfig(..),
+  defaultKernelConfig,
   Definition(..),
   Program,
   mapBody
@@ -221,9 +222,17 @@ type Program ty = [Definition ty]
 
 data KernelConfig =
   KernelConfig
-    { blockSize :: Maybe Int
+    { configBlockSize :: Maybe Int
+    , configWarpSize  :: Int
     }
   deriving Show
+
+defaultKernelConfig :: KernelConfig
+defaultKernelConfig =
+  KernelConfig
+    { configBlockSize = Nothing
+    , configWarpSize = 32
+    }
 
 data Definition ty =
   Definition
@@ -231,7 +240,7 @@ data Definition ty =
     , defSignature  :: Maybe Type
     , defTypeScheme :: TypeScheme ty
     , defEmitKernel :: Bool
-    , defKernelConfig :: Maybe KernelConfig
+    , defKernelConfig :: KernelConfig
     , defBody       :: Exp ty
     }
   deriving Show

@@ -3,27 +3,30 @@ fun reverse arr =
   let n = lengthPull arr
   in generatePull n (fn i => index arr (subi (subi n i) 1))
 
-sig distributeReverse : int -> [a] -> <a>grid
+sig reverseBlock : [int] -> [int]<block>
+kernel reverseBlock arr =#push<block> (reverse arr)
+
+sig distributeReverse : int -> [a] -> [a]<grid>
 fun distributeReverse splitSize arr =
   splitUp splitSize arr
    |> mapPull (fn arr2 => #push<block> (force (#push<block> (reverse arr2))))
    |> reverse
    |> concat splitSize
 
-sig reverseKernel : [int] -> <int>grid
-kernel reverseKernel arr = distributeReverse #localSize arr
+sig reverseKernel : [int] -> [int]<grid>
+kernel reverseKernel arr = distributeReverse #LocalSize arr
 
 -- kernel reverseGrid512 arr = reverseGrid #BlockSize arr
 --   config #BlockSize = 512
 --   config #WarpSize = 32 -- (or wavefront size)
 
 
-sig simpleReverse : int -> [a] -> <a>grid
+sig simpleReverse : int -> [a] -> [a]<grid>
 fun simpleReverse splitSize arr =
   splitUp splitSize arr
    |> mapPull (fn arr2 => #push<block> (reverse arr2))
    |> reverse
    |> concat splitSize
 
-sig simpleReverseKernel : [int] -> <int>grid
-kernel simpleReverseKernel arr = simpleReverse #localSize arr
+sig simpleReverseKernel : [int] -> [int]<grid>
+kernel simpleReverseKernel arr = simpleReverse #LocalSize arr

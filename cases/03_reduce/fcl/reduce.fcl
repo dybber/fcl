@@ -2,17 +2,17 @@
 -- red1: evenOdds
 -- red2: halve
 
-sig red2 : (a -> a -> a) -> [a] -> <a>lvl
+sig red2 : (a -> a -> a) -> [a] -> [a]<lvl>
 fun red2 f arr =
   let cond = fn arr => neqi 1 (lengthPull arr) in
   let step = fn arr => let x = halve arr
                        in #push<block> (zipWith f (fst x) (snd x))
   in #push<block> (while cond step (step arr))
 
-sig red2Part : (a -> a -> a) -> [a] -> <a>grid
+sig red2Part : (a -> a -> a) -> [a] -> [a]<grid>
 fun red2Part f arr = concatMap 1 (red2 f) (splitUp (muli 2 #LocalSize) arr)
 
-sig red2Add : [int] -> <int>lvl
+sig red2Add : [int] -> [int]<lvl>
 kernel red2Add arr = red2Part addi arr
   config #LocalSize = 128
 
@@ -25,37 +25,37 @@ kernel red2Add arr = red2Part addi arr
 -- reduceLocal/reduceBlock/reduceGrid: using the hierarchy
 
 
-sig reduceWarp : (a -> a -> a) -> [a] -> <a>warp
+sig reduceWarp : (a -> a -> a) -> [a] -> [a]<warp>
 fun reduceWarp f arr =
   let cond = fn arr => neqi 1 (lengthPull arr) in
   let step = fn arr => let x = halve arr
                        in #push<warp> (zipWith f (fst x) (snd x))
   in #push<warp> (while cond step (step arr))
 
-sig reduceLocal : (a -> a -> a) -> [a] -> <a>lvl
+sig reduceLocal : (a -> a -> a) -> [a] -> [a]<lvl>
 fun reduceLocal f arr =
   let cond = fn arr => neqi 1 (lengthPull arr) in
   let step = fn arr => let x = halve arr
                        in #push<block> (zipWith f (fst x) (snd x))
   in #push<block> (while cond step (step arr))
 
-sig reduceBlock : (a -> a -> a) -> [a] -> <a>block
+sig reduceBlock : (a -> a -> a) -> [a] -> [a]<block>
 fun reduceBlock f arr =
   splitUp 32 arr
-   |> mapPull (fn subarr => reduceWarp f subarr)
+   |> mapPull (reduceWarp f)
    |> concat 32
    |> force
    |> reduceLocal f
 
-sig reduceGrid : (a -> a -> a) -> [a] -> <a>grid
+sig reduceGrid : (a -> a -> a) -> [a] -> [a]<grid>
 fun reduceGrid f arr =
-  splitUp 4096 arr
+  splitUp 512 arr
    |> mapPull (reduceBlock f)
-   |> concat 4096
+   |> concat 512
 
 
-sig reduceGridAdd : [int] -> <int>lvl
+sig reduceGridAdd : [int] -> [int]<lvl>
 kernel reduceGridAdd arr = reduceGrid addi arr
-  config #LocalSize = 2048
+  config #LocalSize = 256
 
 fun main = red2Add (generatePull 2048 (fn i => i))

@@ -1,10 +1,13 @@
-build:
-	$(MAKE) -C microcl all
-	cabal build
+usage:
+	@echo "use 'make install', 'make build', 'make build-cases', 'make clean'"
 
 install:
 	$(MAKE) -C microcl all
 	cabal install
+
+build:
+	$(MAKE) -C microcl all
+	cabal build
 
 build-cases: build-fcl-cases build-opencl-cases
 
@@ -21,3 +24,6 @@ benchmark-fcl: build-cases
 
 benchmark-opencl: build-cases
 	$(MAKE) -C cases/ run-opencl
+
+clean-cases:
+	$(MAKE) -C cases/ clean

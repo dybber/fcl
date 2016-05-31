@@ -8,7 +8,7 @@ module Language.GPUIL.Cons (
  -- Expressions
  constant, if_, (?), let_, letVar, index, (!), cast,
  -- Getter's (launch parameters and current thread info)
- globalID, localID, localSize, workgroupID, numWorkgroups,
+ globalID, localID, localSize, workgroupID, numWorkgroups, warpSize,
  var,
 
  -- Unary operators
@@ -275,6 +275,9 @@ localSize = LocalSize
 numWorkgroups :: CExp
 numWorkgroups =  NumGroups
 
+warpSize :: CExp
+warpSize = WarpSize
+
 -----------------
 --  Operators  --
 -----------------
@@ -283,7 +286,7 @@ not :: CExp -> CExp
 not = UnaryOpE Not
 
 i2d :: CExp -> CExp
-i2d = UnaryOpE I2D
+i2d e = CastE CDouble e
 negatei :: CExp -> CExp
 negatei = UnaryOpE NegateInt
 negated :: CExp -> CExp

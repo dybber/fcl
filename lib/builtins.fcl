@@ -1,7 +1,7 @@
 sig mapPull : (a -> b) -> [a] -> [b]
 fun mapPull f arr = #mapPull f arr
 
-sig mapPush : (a -> b) -> <a>lvl -> <b>lvl
+sig mapPush : (a -> b) -> [a]<lvl> -> [b]<lvl>
 fun mapPush f arr = #mapPush f arr
 
 sig generatePull : int -> (int -> a) -> [a]
@@ -10,7 +10,7 @@ fun generatePull n f = #generatePull n f
 sig lengthPull : [a] -> int
 fun lengthPull arr = #lengthPull arr
 
-sig lengthPush : <a>lvl -> int
+sig lengthPush : [a]<lvl> -> int
 fun lengthPush arr = #lengthPush arr
 
 sig addi : int -> int -> int
@@ -79,27 +79,27 @@ fun fst x = #fst x
 sig snd : (a, b) -> b
 fun snd x = #snd x
 
-sig while : ([a] -> bool) -> ([a] -> <a>lvl) -> <a>lvl -> [a]
+sig while : ([a] -> bool) -> ([a] -> [a]<lvl>) -> [a]<lvl> -> [a]
 fun while cond step x = #while cond step x
 
 sig whileSeq : (a -> bool) -> (a -> a) -> a -> a
 fun whileSeq cond step x = #whileSeq cond step x
 
--- sig concat : int -> [<a>lvl] -> <a>(1+lvl)
+-- sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
 -- fun concat n arr = #concat n arr
 
-sig assemble : int -> ((int, int) -> int) -> [<a>lvl] -> <a>(1+lvl)
+sig assemble : int -> ((int, int) -> int) -> [[a]<lvl>] -> [a]<1+lvl>
 fun assemble n ixf arr = #assemble n ixf arr
 
-sig concat : int -> [<a>lvl] -> <a>(1+lvl)
+sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
 fun concat n arr =
   assemble n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
-sig force : <a>lvl -> [a]
+sig force : [a]<lvl> -> [a]
 fun force x = #force x
 
--- sig push : [a] -> <a>lvl
+-- sig push : [a] -> [a]<lvl>
 -- fun push x = #push x
 
-sig scanl : (a -> b -> a) -> a -> [b] -> <a>thread
+sig scanl : (a -> b -> a) -> a -> [b] -> [a]<thread>
 fun scanl op init xs = #scanl op init xs

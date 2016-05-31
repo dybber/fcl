@@ -59,7 +59,7 @@ fun seqReduce f b array =
                        f (index array (fst x)) (snd x))
   in snd (whileSeq cond step (0,b))
 
-sig concatMap : int -> (a -> <b>lvl) -> [[a]] -> <b>(1+lvl)
+sig concatMap : int -> (a -> [b]<lvl>) -> [[a]] -> [b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
 sig bit : int -> int

@@ -52,8 +52,8 @@ compileKernel optIterations def =
   let e = defBody def
       kernel_name = defVar def
       kernel_body = compile 0 emptyEnv (typeOf e) e
-      wgSize = blockSize =<< defKernelConfig def
-  in generateKernel optIterations kernel_name kernel_body wgSize
+      config = defKernelConfig def
+  in generateKernel optIterations kernel_name kernel_body (configBlockSize config) (configWarpSize config)
 
 addArgument :: Type -> IL Tagged
 addArgument (PullArrayT bty) =
@@ -219,6 +219,28 @@ compBody env (Assemble i ixf e0 reg) = do
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrAssemble lvl rn ixf' arr))
     _ -> error (show reg ++ " Assemble should be given an integer, a function and an array.")
 compBody _ (LocalSize _)   = return (TagInt localSize)
+-- compBody env (Scanl e0 e1 e2 reg) = do
+--   v0 <- compBody env e0
+--   let op x y =
+--         case v0 of
+--           TagFn op -> case op x of
+--                         TagFn op' -> op' y
+--                         _ -> error ""
+--           _ -> error ""
+--   v1 <- compBody env e1
+--   v2 <- compBody env e2
+--   let arr = unArray v2
+--   let outSize = size arr `addi` 1
+--   name <- allocate (baseType arr) outSize
+--   (x,x_tagged) <- letsVar "arraySize" v1
+--   for (size arr) (\i ->
+--     do assignArray name (var x) i
+--        v <- op x_tagged (arr ! i)
+--        assign x v
+--     )
+--   assignArray name (var x) (size arr)
+--   return (TagArray (pullFrom name outSize))
+  
 
 lets :: String -> Tagged -> IL Tagged
 lets name s =
@@ -285,13 +307,13 @@ force :: Array Tagged -> IL (Array Tagged)
 force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type error." ++
                                "Needs iteration scheme before it can be forced.")
 force arr = do
-  let len = size arr
-  name <- allocate (baseType arr) len
-  let writer tv i =
+  let len = size arr                     -- calculate size of complete nested array structure
+  name <- allocate (baseType arr) len    -- allocate shared memory
+  let writer tv i =                      -- creater writer function (right now: only integer arrays supported!)
         case tv of
           TagInt v -> assignArray name v i
           e -> error (show e)
-  forceTo writer arr
+  forceTo writer arr                     -- recursively generate loops for each layer
   return (pullFrom name len)
 
 forceTo :: Writer Tagged -> Array Tagged -> IL ()
@@ -384,10 +406,10 @@ distrPar (Step (Step Zero)) ub' f =
          , return ())
 distrPar (Step Zero) ub' f = -- warp level
   do ub <- let_ "ub" int ub'
-     numWarps <- let_ "numWarps" int (localSize `divi` (constant (32 :: Int)))
+     numWarps <- let_ "numWarps" int (localSize `divi` warpSize)
      warpsQ <- let_ "warpsQ" int (ub `divi` numWarps)
      warpsR <- let_ "warpsR" int (ub `modi` numWarps)
-     lwid <- let_ "lwid" int (localID `divi` constant (32 :: Int))
+     lwid <- let_ "lwid" int (localID `divi` warpSize)
      for warpsQ
        (\i -> do warpID <- let_ "warpID" int ((lwid `muli` warpsQ) `addi` i)
                  f warpID)
@@ -410,14 +432,13 @@ forAll (Step (Step Zero)) ub' f =
      syncLocal
 forAll (Step Zero) ub' f =
   do ub <- let_ "ub" int ub'
-     let nt = constant (32 :: Int)
-     q <- let_ "q" int (ub `divi` nt)
-     r <- let_ "r" int (ub `modi` nt)
-     wid <- let_ "wid" int (localID `modi` nt)
-     for q (\i -> do warpID <- let_ "warpID" int ((i `muli` nt) `addi` wid)
+     q <- let_ "q" int (ub `divi` warpSize)
+     r <- let_ "r" int (ub `modi` warpSize)
+     wid <- let_ "wid" int (localID `modi` warpSize)
+     for q (\i -> do warpID <- let_ "warpID" int ((i `muli` warpSize) `addi` wid)
                      f warpID)
      iff (wid `lti` r)
-       (do warpID <- let_ "warpID" int ((q `muli` nt) `addi` wid)
+       (do warpID <- let_ "warpID" int ((q `muli` warpSize) `addi` wid)
            f warpID
        , return ())
      syncLocal

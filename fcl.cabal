@@ -36,7 +36,9 @@ Library
                    Language.GPUIL.Cons
                    Language.GPUIL.SimpleAllocator
                    Language.GPUIL.PrettyLib
+                   Language.GPUIL.PrettyC
                    Language.GPUIL.PrettyOpenCL
+                   Language.GPUIL.PrettyCUDA
                    Language.GPUIL.Analysis
                    Language.GPUIL.Analysis.Graph
                    Language.GPUIL.Analysis.Dataflow

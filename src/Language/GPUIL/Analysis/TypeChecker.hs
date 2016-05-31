@@ -1,9 +1,9 @@
 module Language.GPUIL.Analysis.TypeChecker where
 
 -------- TODO --------
--- * Check levels
 -- * Figure out what to do with get_local_size etc
 --   are they int32, int64, uint32, uint64?
+--     - this is device dependent!
 ----------------------
 import Language.GPUIL.Syntax
 import qualified Data.Map as Map
@@ -182,7 +182,6 @@ checkBinOp op ty0 ty1 = throw $ concat
 
 checkUnOp :: UnaryOp -> CType -> Err CType
 checkUnOp Not CBool = return CBool
-checkUnOp I2D CInt32 = return CDouble
 checkUnOp NegateInt CInt32 = return CInt32
 checkUnOp NegateBitwise CInt32 = return CInt32
 checkUnOp NegateDouble CDouble = return CDouble
