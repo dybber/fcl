@@ -12,6 +12,7 @@ data Array a = ArrPull { arrayLen :: CExp
                        , arrayFun :: CExp -> IL a
                        }
              | ArrPush Level (Array a)
+             | ArrScanl (Tagged -> Tagged -> IL Tagged) Tagged CType (Array a)
              | ArrInterleave Level CExp (Tagged -> IL Tagged) (Array a)
 
 mapArray :: (a -> IL b) -> CType -> Array a -> Array b
@@ -219,28 +220,22 @@ compBody env (Interleave i ixf e0 reg) = do
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
 compBody _ (LocalSize _)   = return (TagInt localSize)
--- compBody env (Scanl e0 e1 e2 reg) = do
---   v0 <- compBody env e0
---   let op x y =
---         case v0 of
---           TagFn op -> case op x of
---                         TagFn op' -> op' y
---                         _ -> error ""
---           _ -> error ""
---   v1 <- compBody env e1
---   v2 <- compBody env e2
---   let arr = unArray v2
---   let outSize = size arr `addi` 1
---   name <- allocate (baseType arr) outSize
---   (x,x_tagged) <- letsVar "arraySize" v1
---   for (size arr) (\i ->
---     do assignArray name (var x) i
---        v <- op x_tagged (arr ! i)
---        assign x v
---     )
---   assignArray name (var x) (size arr)
---   return (TagArray (pullFrom name outSize))
-  
+compBody env (Scanl e0 e1 e2 reg) = do
+  v0 <- compBody env e0
+  init <- compBody env e1
+  arr <- compBody env e2
+  let (_ :> (_ :> returnType)) = typeOf e0
+  let op x y =
+        case v0 of
+          TagFn op' ->
+            do op'' <- op' x
+               case op'' of
+                 TagFn op'' -> op'' y
+                 _ -> error ""
+          _ -> error ""
+  let cty = convertType returnType
+  return (TagArray (ArrScanl op init cty (unArray arr)))
+
 
 lets :: String -> Tagged -> IL Tagged
 lets name s =
@@ -293,12 +288,14 @@ map_ env e0 e1 reg = do
 size :: Array Tagged -> CExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)         = size arr
+size (ArrScanl _ _ _ arr)       = size arr `addi` (constant (1 :: Int))
 size (ArrInterleave _ rn _ arr) = rn `muli` size arr
 
 baseType :: Array Tagged -> CType
 baseType (ArrPull _ (CPtr _ bty) _)       = bty
 baseType (ArrPull _ bty _)       = bty
 baseType (ArrPush _ arr)         = baseType arr
+baseType (ArrScanl _ _ outTy _)         = outTy
 baseType (ArrInterleave _ _ _ arr) = baseType arr
 
 type Writer a = a -> CExp -> IL ()
@@ -331,6 +328,21 @@ forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) = do
     case arrp of
       TagArray arrp' -> forceTo writer' arrp'
       _ -> error "Interleave should be applied to an array of arrays!"
+forceTo writer (ArrScanl op init _ (ArrPull n _ idx)) = do
+  (tmp_var,tmp) <- letsVar "tmp" init
+  writer init (constant (0 :: Int))
+  for n (\i ->
+    do ix <- let_ "i" int (i `addi` (constant (1 :: Int)))
+       value <- idx ix
+       v <- tmp `op` value
+       case v of
+         TagInt x -> assign tmp_var x
+         TagBool x -> assign tmp_var x
+         TagDouble x -> assign tmp_var x
+         _ -> error "unsupported type in scanl"
+       writer tmp ix)
+  return ()
+
 forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should raise type error." ++
                                          "Needs iteration scheme before it can be forced.")
 forceTo _ (ArrInterleave _ _ _ _) = error "force: interleave only accepts pull-arrays. This should have raised a type error."

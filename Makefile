@@ -9,9 +9,17 @@ build:
 	$(MAKE) -C microcl all
 	cabal build
 
+clean:
+	$(MAKE) -C microcl clean
+	cabal clean
+
+# Cases
+benchmark: benchmark-fcl benchmark-opencl
+
 build-cases: build-fcl-cases build-opencl-cases
 
-benchmark: benchmark-fcl benchmark-opencl
+clean-cases:
+	$(MAKE) -C cases/ clean
 
 build-fcl-cases: install
 	$(MAKE) -C cases/ build-fcl
@@ -24,6 +32,3 @@ benchmark-fcl: build-cases
 
 benchmark-opencl: build-cases
 	$(MAKE) -C cases/ run-opencl
-
-clean-cases:
-	$(MAKE) -C cases/ clean

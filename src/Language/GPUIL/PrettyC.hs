@@ -19,7 +19,6 @@ ppUnaryOp op d0 = name :+: parens d0
          Ln -> text "ln"
          AbsI -> text "abs"
          AbsD -> text "abs"
-         _ -> error "can not happen"
 
 ppBinOp :: BinOp -> Doc -> Doc -> Doc
 ppBinOp AddI d0 d1 = d0 :<>: char '+' :<>: d1
