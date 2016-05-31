@@ -53,6 +53,6 @@ inlineAll env (MapPush e0 e1 reg)        = MapPush      (inlineAll env e0) (inli
 inlineAll env (Push lvl e0 t reg)        = Push         lvl (inlineAll env e0) t reg
 inlineAll env (Force e0 reg)             = Force        (inlineAll env e0) reg
 inlineAll env (Concat e0 e1 reg)         = Concat       (inlineAll env e0) (inlineAll env e1) reg
-inlineAll env (Assemble e0 e1 e2 reg)    = Assemble     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
+inlineAll env (Interleave e0 e1 e2 reg)  = Interleave   (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (Scanl e0 e1 e2 reg)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 

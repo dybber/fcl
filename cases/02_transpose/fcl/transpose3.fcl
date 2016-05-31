@@ -1,4 +1,4 @@
--- Transpose without assemble or concat
+-- Transpose without interleave or concat
 -- but just with backpermute (which is just a generate and some indexing)
 
 sig transpose : int -> int -> [a] -> [a]

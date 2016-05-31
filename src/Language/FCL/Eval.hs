@@ -202,7 +202,7 @@ evalExp env (Concat en e0 reg) = do
          vs' <- mapM (unArray reg "concat") vs
          return (ArrayV (fromList (concat (map toList vs'))))
     (_,_) -> evalError (Just reg) ("concat expects integer and array as arguments.")
-evalExp env (Assemble en ixf e0 reg) = assemble_ env en ixf e0 reg
+evalExp env (Interleave en ixf e0 reg) = interleave_ env en ixf e0 reg
 evalExp env (While e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -282,8 +282,8 @@ scanl_ env' x ebody v arr reg = do
   vs' <- scanM f v vs
   return (ArrayV (fromList vs'))
 
-assemble_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> Region -> Eval (Value ty)
-assemble_ env e0 e1 e2 reg =
+interleave_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> Region -> Eval (Value ty)
+interleave_ env e0 e1 e2 reg =
  do n <- evalExp env e0
     ixf <- evalExp env e1
     arr <- evalExp env e2
@@ -295,10 +295,10 @@ assemble_ env e0 e1 e2 reg =
                    Right _ -> error ""
                    Left _ -> error ""
            let vs = toList arr'
-           vs' <- mapM (unArray reg "assemble") vs
+           vs' <- mapM (unArray reg "interleave") vs
             
-           return (ArrayV (fromList (assemble f (map toList vs'))))
-      _ -> evalError (Just reg) "assemble eval err"
+           return (ArrayV (fromList (interleave f (map toList vs'))))
+      _ -> evalError (Just reg) "interleave eval err"
 
 while :: Region
       -> (Value ty -> Eval (Value ty))
@@ -341,8 +341,8 @@ unArray reg str v =
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
 sortOn f ls = sortBy (comparing f) ls
 
-assemble :: (Int -> Int -> Int) -> [[a]] -> [a]
-assemble f array =
+interleave :: (Int -> Int -> Int) -> [[a]] -> [a]
+interleave f array =
   let buildAssocList _ _ [] = []
       buildAssocList i _ ([]:xs) = buildAssocList (i+1) 0 xs
       buildAssocList i j ((y:ys):xs) =

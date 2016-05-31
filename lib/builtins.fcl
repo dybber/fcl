@@ -88,12 +88,12 @@ fun whileSeq cond step x = #whileSeq cond step x
 -- sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
 -- fun concat n arr = #concat n arr
 
-sig assemble : int -> ((int, int) -> int) -> [[a]<lvl>] -> [a]<1+lvl>
-fun assemble n ixf arr = #assemble n ixf arr
+sig interleave : int -> ((int, int) -> int) -> [[a]<lvl>] -> [a]<1+lvl>
+fun interleave n ixf arr = #interleave n ixf arr
 
 sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
 fun concat n arr =
-  assemble n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
+  interleave n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
 sig force : [a]<lvl> -> [a]
 fun force x = #force x

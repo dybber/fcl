@@ -215,7 +215,7 @@ op = withRegion (identifier >>= switch)
     switch "#mapPush"  = MapPush       <$> term <*> term <?> "mapPush"
     switch "#force"    = Force         <$> term <?> "force"
     switch "#concat"   = Concat        <$> term <*> term <?> "concat"
-    switch "#assemble" = Assemble      <$> term <*> term <*> term <?> "assemble"
+    switch "#interleave" = Interleave      <$> term <*> term <*> term <?> "interleave"
     switch "#scanl"    = Scanl         <$> term <*> term <*> term <?> "scanl"
     switch n          = return (Var n Untyped)
 

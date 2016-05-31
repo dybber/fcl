@@ -52,10 +52,10 @@ splitGrid splitSize rows cols elems =
 
 
 -----------------------------
--- Concat grid w. assemble --
+-- Concat grid w. interleave --
 -----------------------------
-assemble :: ((Int, Int) -> Int) -> [[a]] -> [a]
-assemble f array =
+interleave :: ((Int, Int) -> Int) -> [[a]] -> [a]
+interleave f array =
   let buildAssocList _ _ [] = []
       buildAssocList i _ ([]:xs) = buildAssocList (i+1) 0 xs
       buildAssocList i j ((y:ys):xs) =
@@ -80,10 +80,10 @@ concatGrid splitSize  -- width&height of inner array (2)
                 + innerRow * cols * splitSize -- skip complete rows (innerRow * 4)
                 + outerCol * splitSize        -- skip to the tile   (
                 + innerCol                    -- skip to row in tile
-    in assemble mkGrid arr
+    in interleave mkGrid arr
 
--- Assemble is bad, as order of writes are dictated by the argument
--- function, and not assemble itself.
+-- Interleave seems bad, as order of writes are dictated by the
+-- argument function, and not interleave itself.
 -- 
 
 --------------------------------

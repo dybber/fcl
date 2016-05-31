@@ -52,7 +52,7 @@ fun concatGrid splitSize  -- width&height of inner array (2)
              let yIndex = addi (muli groupIDx splitSize) localIDy in
              let ix = addi (muli yIndex height) xIndex
              in ix)
-    in assemble tileSize mkGrid arr
+    in interleave tileSize mkGrid arr
 
 -- Transpose:
 --  - split up in tiles

@@ -219,12 +219,12 @@ pp (Concat e1 e2 _)          =
   do e1' <- pp e1
      e2' <- pp e2
      return (parens (text "concat" :<>: e1' :<>: e2'))
-pp (Assemble e1 e2 e3 _)          =
+pp (Interleave e1 e2 e3 _)          =
   do e1' <- pp e1
      e2' <- pp e2
      e3' <- pp e3
-     return (parens (text "assemble" :<>: e1' :<>: e2' :<>: e3'))
-pp (LocalSize _)             = return (text "#localSize")
+     return (parens (text "interleave" :<>: e1' :<>: e2' :<>: e3'))
+pp (LocalSize _)             = return (text "#LocalSize")
 pp (Scanl e1 e2 e3 _)        =
   do e1' <- pp e1
      e2' <- pp e2

@@ -12,12 +12,12 @@ data Array a = ArrPull { arrayLen :: CExp
                        , arrayFun :: CExp -> IL a
                        }
              | ArrPush Level (Array a)
-             | ArrAssemble Level CExp (Tagged -> IL Tagged) (Array a)
+             | ArrInterleave Level CExp (Tagged -> IL Tagged) (Array a)
 
 mapArray :: (a -> IL b) -> CType -> Array a -> Array b
 mapArray f outType (ArrPull len _ g) = ArrPull len outType (f <=< g)
 mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
-mapArray f outType (ArrAssemble lvl n ixt arr) = ArrAssemble lvl n ixt (mapArray f outType arr)
+mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
 
 data Tagged = TagInt CExp
             | TagBool CExp
@@ -29,7 +29,7 @@ data Tagged = TagInt CExp
 instance Show (Array a) where
   show (ArrPull _ _ _) = "<<pull-array>>"
   show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
-  show (ArrAssemble lvl e _ arr) = "assemble<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
+  show (ArrInterleave lvl e _ arr) = "interleave<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
 
 instance Show Tagged where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
@@ -210,14 +210,14 @@ compBody env (WhileSeq e0 e1 e2 _) = do
   v1 <- compBody env e1
   v2 <- compBody env e2
   whileSeq v0 v1 v2
-compBody env (Assemble i ixf e0 reg) = do
+compBody env (Interleave i ixf e0 reg) = do
   vi <- compBody env i
   vixf <- compBody env ixf
   v0 <- compBody env e0
   let PullArrayT (PushArrayT lvl _) = typeOf e0
   case (vi, vixf, v0) of
-    (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrAssemble lvl rn ixf' arr))
-    _ -> error (show reg ++ " Assemble should be given an integer, a function and an array.")
+    (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
+    _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
 compBody _ (LocalSize _)   = return (TagInt localSize)
 -- compBody env (Scanl e0 e1 e2 reg) = do
 --   v0 <- compBody env e0
@@ -293,13 +293,13 @@ map_ env e0 e1 reg = do
 size :: Array Tagged -> CExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)         = size arr
-size (ArrAssemble _ rn _ arr) = rn `muli` size arr
+size (ArrInterleave _ rn _ arr) = rn `muli` size arr
 
 baseType :: Array Tagged -> CType
 baseType (ArrPull _ (CPtr _ bty) _)       = bty
 baseType (ArrPull _ bty _)       = bty
 baseType (ArrPush _ arr)         = baseType arr
-baseType (ArrAssemble _ _ _ arr) = baseType arr
+baseType (ArrInterleave _ _ _ arr) = baseType arr
 
 type Writer a = a -> CExp -> IL ()
 
@@ -322,7 +322,7 @@ forceTo writer (ArrPush lvl (ArrPull len _ idx)) = do
     (\i -> do value <- idx i
               writer value i)
 forceTo _ (ArrPush _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
-forceTo writer (ArrAssemble lvl _ f (ArrPull n _ idx)) = do
+forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) = do
   distrPar lvl n $ \bix -> do
     arrp <- idx bix
     let writer' a ix =
@@ -330,10 +330,10 @@ forceTo writer (ArrAssemble lvl _ f (ArrPull n _ idx)) = do
              writer a (unInt ix')
     case arrp of
       TagArray arrp' -> forceTo writer' arrp'
-      _ -> error "Assemble should be applied to an array of arrays!"
+      _ -> error "Interleave should be applied to an array of arrays!"
 forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should raise type error." ++
                                          "Needs iteration scheme before it can be forced.")
-forceTo _ (ArrAssemble _ _ _ _) = error "force: assemble only accepts pull-arrays. This should have raised a type error."
+forceTo _ (ArrInterleave _ _ _ _) = error "force: interleave only accepts pull-arrays. This should have raised a type error."
 
 whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
