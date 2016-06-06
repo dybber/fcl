@@ -1,5 +1,5 @@
 module Language.FCL
- (parseTopLevel, typeinfer, inline, --simplify,
+ (parseTopLevel, typeinfer, inline, simplify,
   eval,
   compileKernels, renderKernel,
 
@@ -14,7 +14,7 @@ where
 import Language.FCL.Parser      (parseTopLevel, ParseError)
 import Language.FCL.TypeInference (typeinfer, TypeError)
 import Language.FCL.Inline      (inline)
---import Language.FCL.Simplify    (simplify)
+import Language.FCL.Simplify    (simplify)
 import Language.FCL.Compile     (compileKernels)
 import Language.FCL.Syntax      (Program, Type, Untyped)
 import Language.FCL.PrettyPrint (showType, prettyPrintType, prettyPrintExp, prettyPrintProgram)

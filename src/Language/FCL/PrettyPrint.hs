@@ -138,7 +138,7 @@ pp (UnOp op e1 _)        = parens <$> (ppUnOp op e1)
 pp (BinOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
 pp (Var x ty _)          =
   do ty' <- ppType ty
-     return (parens (text x :<>: char ':' :<>: ty'))
+     return (text x) -- (parens (text x :<>: char ':' :<>: ty'))
 pp (Vec es _ _)          =
   do es' <- mapM pp es
      return (brackets (sep (char ',') es'))
@@ -151,19 +151,20 @@ pp (Lamb x tyx e1 ty1 _) =
      ty1' <- ppType ty1
      e1' <- pp e1
      return (
-       parens(
-           parens (text "fn" :<>: text x :<>: char ':' :<>: tyx'
-                   :<>: text "=>" :<>: e1')
-           :<>: char ':' :<>: ty1'))
+       -- parens(
+           parens (text "fn" :<>: text x -- :<>: char ':' :<>: tyx'
+                   :<>: text "=>" :<>: e1'))
+           -- :<>: char ':' :<>: ty1'))
 pp (Let x e1 e2 ty _)    =
   do e1' <- pp e1
      e2' <- pp e2
      ty' <- ppType ty
-     return (parens(
+     return (-- parens(
                 parens (text "let" :<>: text x
                         :<>: text "=" :<>: e1'
                         :<>: text "in" :<>: e2')
-                :<>: char ':' :<>: ty'))
+                -- :<>: char ':' :<>: ty')
+            )
 pp (Cond e1 e2 e3 _ _) =
   do e1' <- pp e1
      e2' <- pp e2
@@ -182,7 +183,7 @@ pp (Proj2E e1 _)             = parens <$> (text "snd" :<>:) <$> pp e1
 pp (Index e1 e2 _)           =
   do e1' <- pp e1
      e2' <- pp e2
-     return (e1' :+: brackets e2')
+     return (text "index" :<>: e1' :<>: e2')
 pp (LengthPull e1 _)         = parens <$> (text "lengthPull" :<>:) <$> pp e1
 pp (LengthPush e1 _)         = parens <$> (text "lengthPush" :<>:) <$> pp e1
 pp (While e1 e2 e3 _)        =

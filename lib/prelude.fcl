@@ -51,7 +51,7 @@ fun coalesce n arr =
   in generatePull s (fn i =>
        generatePull n (fn j => index arr (addi i (muli s j))))
 
-sig seqReduce : (a -> a -> a) -> a -> [a] -> a
+sig seqReduce : (a -> b -> a) -> a -> [b] -> a
 fun seqReduce f b array =
   let n = lengthPull array in
   let cond = fn x => neqi (fst x) n in

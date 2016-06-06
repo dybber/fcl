@@ -156,11 +156,11 @@ compileFiles ast =
      let inlined = inline ast
      logInfo (show (length inlined) ++ " kernels.")
 
-     -- logInfo "Simplifying."
-     -- let simpl = simplify ast
+     logInfo "Simplifying."
+     let simpl = simplify inlined
 
      logInfo "Typechecking again."
-     typed_ast <- liftEither TypeError (typeinfer inlined)
+     typed_ast <- liftEither TypeError (typeinfer simpl)
      mapM_ (logInfo . (" " ++) . showType) typed_ast
      --logDebug ("AST after inlining and simplify: " ++ show typed_ast)
 

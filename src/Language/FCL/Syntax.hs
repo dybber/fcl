@@ -261,27 +261,26 @@ freeIn x (BinOp _ e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Var y _ _)              = x /= y
 freeIn x (Vec es _ _)             = all (freeIn x) es
 freeIn x (Lamb y _ e _ _)         = x == y || freeIn x e
-freeIn x (Let y e ebody _ _)      = x == y || (freeIn x e && freeIn x ebody)
+freeIn x (Let y e ebody _ _)      = freeIn x e && (x == y || freeIn x ebody)
 freeIn x (App e1 e2)              = freeIn x e1 && freeIn x e2
 freeIn x (Cond e1 e2 e3 _ _)      = all (freeIn x) [e1, e2, e3]
-freeIn x (Pair e1 e2 _)           = freeIn x e1 && freeIn x e2
-freeIn x (Proj1E e _)             = freeIn x e
-freeIn x (Proj2E e _)             = freeIn x e
-freeIn x (Index e1 e2 _)          = freeIn x e1 && freeIn x e2
 freeIn x (LengthPull e _)         = freeIn x e
 freeIn x (LengthPush e _)         = freeIn x e
-freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
-freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
+freeIn x (Push _ e _ _)           = freeIn x e
+freeIn x (Force e _)              = freeIn x e
+freeIn x (Proj1E e _)             = freeIn x e
+freeIn x (Proj2E e _)             = freeIn x e
+freeIn x (Pair e1 e2 _)           = freeIn x e1 && freeIn x e2
+freeIn x (Index e1 e2 _)          = freeIn x e1 && freeIn x e2
 freeIn x (GeneratePull e1 e2 _)   = freeIn x e1 && freeIn x e2
 freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
-freeIn x (Force e _)              = freeIn x e
-freeIn x (Push _ e _ _)             = freeIn x e
 freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
-freeIn x (Interleave e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
-freeIn _ (LocalSize _)            = True
+freeIn x (Interleave e1 e2 e3 _)  = all (freeIn x) [e1, e2, e3]
+freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
+freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
-
+freeIn _ (LocalSize _)            = True
 
 freeVars :: Exp ty -> Set.Set Name
 freeVars (IntScalar _ _)          = Set.empty
@@ -296,23 +295,23 @@ freeVars (Let x e1 e2 _ _)        = Set.union (freeVars e1)
                                               (Set.difference (freeVars e2) (Set.singleton x))
 freeVars (App e1 e2)              = Set.union (freeVars e1) (freeVars e2)
 freeVars (Cond e1 e2 e3 _ _)      = Set.unions (map freeVars [e1, e2, e3])
-freeVars (Pair e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
-freeVars (Proj1E e _)             = freeVars e
-freeVars (Proj2E e _)             = freeVars e
-freeVars (Index e1 e2 _)          = Set.union (freeVars e1) (freeVars e2)
+freeVars (Force e _)              = freeVars e
+freeVars (Push _ e _ _)           = freeVars e
 freeVars (LengthPull e _)         = freeVars e
 freeVars (LengthPush e _)         = freeVars e
-freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
-freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
+freeVars (Proj1E e _)             = freeVars e
+freeVars (Proj2E e _)             = freeVars e
+freeVars (Pair e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
+freeVars (Index e1 e2 _)          = Set.union (freeVars e1) (freeVars e2)
 freeVars (GeneratePull e1 e2 _)   = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
-freeVars (Force e _)              = freeVars e
-freeVars (Push _ e _ _)             = freeVars e
 freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
-freeVars (Interleave e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
-freeVars (LocalSize _)            = Set.empty
+freeVars (Interleave e1 e2 e3 _)  = Set.unions (map freeVars [e1, e2, e3])
+freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
+freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
+freeVars (LocalSize _)            = Set.empty
 
 freshVar :: State [Name] Name
 freshVar =
@@ -334,7 +333,7 @@ subst s x e =
       | x == y                    -> return e
       | Set.member y (freeVars s) ->
           do z <- freshVar
-             ebody' <- subst (Var "z" ty1 Missing) y ebody
+             ebody' <- subst (Var z ty1 Missing) y ebody
              ebody'' <- subst s x ebody'
              return (Lamb z ty1 ebody'' ty2 r)
       | otherwise ->
@@ -436,7 +435,7 @@ subst s x e =
           e3' <- subst s x e3
           return (Scanl e1' e2' e3' r)
 
-apply :: Name -> Exp ty -> Exp ty -> Exp ty
-apply x ebody e =
+apply :: (Name, Exp ty) -> Exp ty -> Exp ty
+apply (x, ebody) e =
   let vars = ['x' : show (i :: Int) | i <- [0..]]
   in evalState (subst e x ebody) vars

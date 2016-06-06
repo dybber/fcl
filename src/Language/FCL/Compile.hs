@@ -104,7 +104,7 @@ tagExp :: Type -> CExp -> Tagged
 tagExp IntT e    = TagInt e
 tagExp DoubleT e = TagDouble e
 tagExp BoolT e   = TagDouble e
-tagExp _ _       = error "tagExp"
+tagExp t _       = error ("tagExp: " ++ show t)
 
 convertType :: Type -> CType
 convertType IntT              = int
