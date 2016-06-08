@@ -6,8 +6,7 @@ Build-type:          Simple
 Maintainer:          dybber@dybber.dk
 Cabal-version:       >= 1.10
 
-Data-files: lib/builtins.fcl
-            lib/prelude.fcl
+Data-files: lib/prelude.fcl
 
 Library
   Build-depends: base >= 3 && < 5
