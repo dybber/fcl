@@ -116,7 +116,7 @@ tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
 tvsubExp s (Push lvl e1 t reg) = Push (lvlVarSub s lvl) (tvsubExp s e1) (tvsub s t) reg
 tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Interleave e1 e2 e3 reg) = Interleave (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
-tvsubExp _ (LocalSize reg) = LocalSize reg
+tvsubExp _ (BlockSize reg) = BlockSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 
 -- Initialize all type variables in the signature, by associating
@@ -363,7 +363,7 @@ infer env (Interleave e1 e2 e3 reg) = do
   lvlVar <- newLvlVar
   unify t3 (PullArrayT (PushArrayT lvlVar tv))
   return (PushArrayT (Step lvlVar) tv, Interleave e1' e2' e3' reg)
-infer _ (LocalSize reg) = return (IntT, LocalSize reg)
+infer _ (BlockSize reg) = return (IntT, BlockSize reg)
 infer env (UnOp op e reg) = do
   (t, e') <- infer env e
   tret <- unifyUnOp op t

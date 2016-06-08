@@ -44,7 +44,7 @@ typesig =
      return (Just (ident,ty))
 
 parseConfig :: KernelConfig -> String -> Parser KernelConfig
-parseConfig cfg "#LocalSize" =
+parseConfig cfg "#BlockSize" =
   do i <- natural
      return (cfg { configBlockSize = Just (fromInteger i) })
 parseConfig cfg "#WarpSize" =
@@ -178,49 +178,54 @@ let' =
     e2 <- expr
     return (Let ident e1 e2 Untyped)
 
+unop :: (Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+unop opr = return (\r -> Lamb "x" Untyped (opr (Var "x" Untyped Missing) r) Untyped r)
+
+binop :: (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+binop opr = return (\r -> Lamb "x" Untyped (Lamb "y" Untyped (opr (Var "x" Untyped Missing) (Var "y" Untyped Missing) r) Untyped r) Untyped r)
+
+triop :: (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+triop opr = return (\r -> Lamb "x" Untyped (Lamb "y" Untyped (Lamb "z" Untyped (opr (Var "x" Untyped Missing) (Var "y" Untyped Missing) (Var "z" Untyped Missing) r) Untyped r) Untyped r) Untyped r)
+
 op :: Parser (Exp Untyped)
 op = withRegion (identifier >>= switch)
   where
-    switch "#LocalSize" = return LocalSize
-    switch "#i2d"      = UnOp I2D      <$> term
-    switch "#b2i"      = UnOp B2I      <$> term
-    switch "#clz"      = UnOp CLZ      <$> term
-    switch "#negatei"  = UnOp NegateI  <$> term
-    switch "#addi"     = BinOp AddI    <$> term <*> term
-    switch "#subi"     = BinOp SubI    <$> term <*> term
-    switch "#muli"     = BinOp MulI    <$> term <*> term
-    switch "#divi"     = BinOp DivI    <$> term <*> term
-    switch "#modi"     = BinOp ModI    <$> term <*> term
-    switch "#mini"     = BinOp MinI    <$> term <*> term
-    switch "#eqi"      = BinOp EqI     <$> term <*> term
-    switch "#neqi"     = BinOp NeqI    <$> term <*> term
-    switch "#powi"     = BinOp PowI    <$> term <*> term
-    switch "#shiftLi"  = BinOp ShiftLI <$> term <*> term
-    switch "#shiftRi"  = BinOp ShiftRI <$> term <*> term
-    switch "#andi"     = BinOp AndI    <$> term <*> term
-    switch "#ori"      = BinOp OrI     <$> term <*> term
-    switch "#xori"     = BinOp XorI    <$> term <*> term
-    switch "#powr"     = BinOp PowR    <$> term <*> term
-    switch "#divr"     = BinOp DivR    <$> term <*> term
-    switch "#fst"      = Proj1E        <$> term <?> "fst"
-    switch "#snd"      = Proj2E        <$> term <?> "snd"
-    switch "#index"    = Index         <$> term <*> term <?> "index"
-    switch "#lengthPull"   = LengthPull    <$> term <?> "lengthPull"
-    switch "#lengthPush"   = LengthPush    <$> term <?> "lengthPush"
-    switch "#generatePull" = GeneratePull <$> term <*> term <?> "generatePull"
-    switch "#while"    = While         <$> term <*> term <*> term <?> "while"
-    switch "#whileSeq" = WhileSeq      <$> term <*> term <*> term <?> "whileSeq"
-    switch "#push"     = Push          <$> angles level <*> term <*> (return Untyped) <?> "push"
-    switch "#mapPull"  = MapPull       <$> term <*> term <?> "mapPull"
-    switch "#mapPush"  = MapPush       <$> term <*> term <?> "mapPush"
-    switch "#force"    = Force         <$> term <?> "force"
-    switch "#concat"   = Concat        <$> term <*> term <?> "concat"
-    switch "#interleave" = Interleave      <$> term <*> term <*> term <?> "interleave"
-    switch "#scanl"    = Scanl         <$> term <*> term <*> term <?> "scanl"
-    switch n          = return (Var n Untyped)
-
--- push =
---   do angles level
+    switch "#BlockSize"  = return BlockSize
+    switch "i2d"        = unop (UnOp I2D)
+    switch "b2i"        = unop (UnOp B2I)
+    switch "clz"        = unop (UnOp CLZ)
+    switch "negatei"    = unop (UnOp NegateI)
+    switch "addi"       = binop (BinOp AddI)
+    switch "subi"       = binop (BinOp SubI)
+    switch "muli"       = binop (BinOp MulI)
+    switch "divi"       = binop (BinOp DivI)
+    switch "modi"       = binop (BinOp ModI)
+    switch "mini"       = binop (BinOp MinI)
+    switch "eqi"        = binop (BinOp EqI)
+    switch "neqi"       = binop (BinOp NeqI)
+    switch "powi"       = binop (BinOp PowI)
+    switch "shiftLi"    = binop (BinOp ShiftLI)
+    switch "shiftRi"    = binop (BinOp ShiftRI)
+    switch "andi"       = binop (BinOp AndI)
+    switch "ori"        = binop (BinOp OrI)
+    switch "xori"       = binop (BinOp XorI)
+    switch "powr"       = binop (BinOp PowR)
+    switch "divr"       = binop (BinOp DivR)
+    switch "fst"        = unop Proj1E
+    switch "snd"        = unop Proj2E
+    switch "lengthPull" = unop LengthPull
+    switch "lengthPush" = unop LengthPush
+    switch "force"      = unop Force
+    switch "#push"      = Push          <$> angles level <*> term <*> (return Untyped) <?> "push"
+    switch "index"      = binop Index
+    switch "generatePull" = binop GeneratePull
+    switch "mapPull"    = binop MapPull
+    switch "mapPush"    = binop MapPush
+    switch "while"      = triop While
+    switch "whileSeq"   = triop WhileSeq
+    switch "interleave" = triop Interleave
+    switch "scanl"      = triop Scanl
+    switch n            = return (Var n Untyped)
 
 fn :: Parser (Exp Untyped)
 fn =
@@ -231,11 +236,13 @@ fn =
     e <- expr
     return (Lamb ident Untyped e Untyped)
 
-
 expr :: Parser (Exp Untyped)
 expr =
   let table = [ [Infix (return App) AssocLeft],
-                [Infix (binOp "+" AddI) AssocLeft],
+                [Infix (binOp "*" MulI) AssocLeft, Infix (binOp "/" DivI) AssocLeft, Infix (binOp "%" ModI) AssocLeft],
+                [Infix (binOp "+" AddI) AssocLeft, Infix (binOp "-" SubI) AssocLeft],
+                [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft],
+                [Infix (binOp "==" EqI) AssocLeft, Infix (binOp "!=" NeqI) AssocLeft],
                 [Infix pipeForward AssocLeft]
               ]
   in buildExpressionParser table term

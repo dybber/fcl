@@ -21,6 +21,7 @@ module Language.FCL.Syntax (
   freeVars,
   apply,
   typeOf,
+  isScalar,
 
   -- Programs
   KernelConfig(..),
@@ -97,6 +98,9 @@ data Exp ty =
   | Lamb Name ty (Exp ty) ty Region
   | Let Name (Exp ty) (Exp ty) ty Region
   | App (Exp ty) (Exp ty)
+
+  | LambLvl Name ty (Exp ty) ty Region
+  | AppLvl (Exp ty) (Exp ty)
     
   | Cond (Exp ty) (Exp ty) (Exp ty) ty Region
   | Pair (Exp ty) (Exp ty) Region
@@ -118,7 +122,7 @@ data Exp ty =
   | Push Level (Exp ty) ty Region
   | Concat (Exp ty) (Exp ty) Region
   | Interleave (Exp ty) (Exp ty) (Exp ty) Region
-  | LocalSize Region
+  | BlockSize Region
 
   -- Sequential scan, I don't really want this!
   | Scanl (Exp ty) (Exp ty) (Exp ty) Region
@@ -132,10 +136,16 @@ data Exp ty =
 data UnOp = AbsI | SignI | NegateI | Not | I2D | B2I | CLZ
   deriving (Eq, Show)
 
-data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
+data BinOpb = AddI | SubI | MulI | DivI | ModI | MinI
            | EqI | NeqI | AndI | OrI | XorI | ShiftLI | ShiftRI
            | PowI | DivR | PowR
   deriving (Eq, Show)
+
+isScalar :: Exp ty -> Bool
+isScalar (IntScalar _ _) = True
+isScalar (DoubleScalar _ _) = True
+isScalar (BoolScalar _ _) = True
+isScalar _ = False
 
 typeOf :: Exp Type -> Type
 typeOf (IntScalar _ _) = IntT
@@ -208,7 +218,7 @@ typeOf (Vec es _ _) =
   in if and $ zipWith (==) (t:ts) ts
        then PullArrayT t
        else error "All elements in vector literal should be typed identically"
-typeOf (LocalSize _) = IntT
+typeOf (BlockSize _) = IntT
 typeOf (Scanl _ e1 e2 _) =
   case typeOf e2 of
     PullArrayT _ -> PushArrayT threadLevel (typeOf e1)
@@ -280,7 +290,7 @@ freeIn x (Interleave e1 e2 e3 _)  = all (freeIn x) [e1, e2, e3]
 freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
-freeIn _ (LocalSize _)            = True
+freeIn _ (BlockSize _)            = True
 
 freeVars :: Exp ty -> Set.Set Name
 freeVars (IntScalar _ _)          = Set.empty
@@ -311,7 +321,7 @@ freeVars (Interleave e1 e2 e3 _)  = Set.unions (map freeVars [e1, e2, e3])
 freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
-freeVars (LocalSize _)            = Set.empty
+freeVars (BlockSize _)            = Set.empty
 
 freshVar :: State [Name] Name
 freshVar =
@@ -344,7 +354,7 @@ subst s x e =
       | Set.member y (freeVars s) ->
           do z <- freshVar
              e1' <- subst s x e1
-             e2' <- subst (Var "z" t Missing) y e2 -- TODO the "t" here is REALLY wrong
+             e2' <- subst (Var z t Missing) y e2 -- TODO the "t" here is REALLY wrong
              e2'' <- subst s x e2'
              return (Let z e1' e2'' t r)
       | otherwise ->
@@ -428,7 +438,7 @@ subst s x e =
           e2' <- subst s x e2
           e3' <- subst s x e3
           return (Interleave e1' e2' e3' r)
-    LocalSize _ -> return e
+    BlockSize _ -> return e
     Scanl e1 e2 e3 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

@@ -1,6 +1,10 @@
 sig id : a -> a
 fun id x = x
 
+sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
+fun concat n arr =
+  interleave n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
+
 sig iota : int -> [int]
 fun iota n = generatePull n (fn x => x)
 

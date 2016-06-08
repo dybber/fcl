@@ -6,6 +6,7 @@ import Control.Monad (liftM, (<=<))
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
 import Language.GPUIL
+--import Language.GPUIL.Syntax (IExp(IntE))
 
 data Array a = ArrPull { arrayLen :: CExp
                        , arrayElemType :: CType
@@ -219,7 +220,7 @@ compBody env (Interleave i ixf e0 reg) = do
   case (vi, vixf, v0) of
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
-compBody _ (LocalSize _)   = return (TagInt localSize)
+compBody _ (BlockSize _)   = return (TagInt localSize)
 compBody env (Scanl e0 e1 e2 reg) = do
   v0 <- compBody env e0
   init <- compBody env e1

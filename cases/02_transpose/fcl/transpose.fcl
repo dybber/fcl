@@ -2,9 +2,9 @@ sig transpose : int -> int -> [a] -> [a]
 fun transpose cols rows elems =
   generatePull (muli cols rows)
            (fn n =>
-              let i = divi n rows in
-              let j = modi n rows
-              in index elems (addi (muli j rows) i))
+              let i = n / rows in
+              let j = n % rows
+              in index elems (j * rows + i))
 
 
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
@@ -17,16 +17,16 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
           fn groupIDx =>
              generatePull tileSize
                       (fn tid =>
-                         let localIDx = modi tid splitSize in -- column in inner array
-                         let localIDy = divi tid splitSize in -- row in inner array
-                         let xIndex = addi (muli groupIDy splitSize) localIDx in
-                         let yIndex = addi (muli groupIDx splitSize) localIDy in
-                         let ix = addi (muli yIndex width) xIndex
+                         let localIDx = tid % splitSize in -- column in inner array
+                         let localIDy = tid / splitSize in -- row in inner array
+                         let xIndex = groupIDy * splitSize + localIDx in
+                         let yIndex = groupIDx * splitSize + localIDy in
+                         let ix = yIndex * width + xIndex
                          in index elems ix))
-  in generatePull (muli groupsWidth groupsHeight)
+  in generatePull (groupsWidth * groupsHeight)
        (fn gid =>
-          let groupIDy = divi gid groupsWidth in -- row in outer
-          let groupIDx = modi gid groupsWidth -- column in outer
+          let groupIDy = gid / groupsWidth in -- row in outer
+          let groupIDx = gid % groupsWidth -- column in outer
           in mkTile groupIDy groupIDx)
 
 -- Concatenate a 2D array of 2D arrays
@@ -44,13 +44,13 @@ fun concatGrid splitSize  -- width&height of inner array (2)
           (fn sh =>
              let gid = fst sh in -- index into outer (0..3)
              let tid = snd sh in -- index into inner (0..3)
-             let groupIDx = modi gid groupsWidth in -- column in outer
-             let groupIDy = divi gid groupsWidth in -- row in outer
-             let localIDx = modi tid splitSize in -- column in inner array
-             let localIDy = divi tid splitSize in -- row in inner array
-             let xIndex = addi (muli groupIDy splitSize) localIDx in
-             let yIndex = addi (muli groupIDx splitSize) localIDy in
-             let ix = addi (muli yIndex height) xIndex
+             let groupIDx = gid % groupsWidth in -- column in outer
+             let groupIDy = gid / groupsWidth in -- row in outer
+             let localIDx = tid % splitSize in -- column in inner array
+             let localIDy = tid / splitSize in -- row in inner array
+             let xIndex = groupIDy * splitSize + localIDx in
+             let yIndex = groupIDx * splitSize + localIDy in
+             let ix = yIndex * height + xIndex
              in ix)
     in interleave tileSize mkGrid arr
 
@@ -62,9 +62,9 @@ fun concatGrid splitSize  -- width&height of inner array (2)
 --  - write back to global memory with concatGrid
 sig transposeChunked : int -> int -> int -> [a] -> [a]<grid>
 fun transposeChunked splitSize width height elems =
-  let tileSize = muli splitSize splitSize in
-  let groupsWidth = divi width splitSize in -- width of outer array
-  let groupsHeight = divi height splitSize in -- height of outer array
+  let tileSize = splitSize * splitSize in
+  let groupsWidth = width / splitSize in -- width of outer array
+  let groupsHeight = height / splitSize in -- height of outer array
     splitGrid splitSize tileSize width groupsWidth groupsHeight elems
      |> mapPull (fn arr => #push<block> arr)
      |> mapPull force
@@ -75,10 +75,10 @@ fun transposeChunked splitSize width height elems =
 
 sig transposeChunked16 : int -> int -> [int] -> [int]<grid>
 kernel transposeChunked16 = transposeChunked 16
-  config #LocalSize = 256
+  config #BlockSize = 256
 
 --- Testing
 sig make_NxN_Matrix : int -> [int]
-fun make_NxN_Matrix n = generatePull (muli n n) (fn i => i)
+fun make_NxN_Matrix n = generatePull (n / n) (fn i => i)
 
 fun main = transposeChunked 4 12 12 (make_NxN_Matrix 12)

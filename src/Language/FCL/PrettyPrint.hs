@@ -225,7 +225,7 @@ pp (Interleave e1 e2 e3 _)          =
      e2' <- pp e2
      e3' <- pp e3
      return (parens (text "interleave" :<>: e1' :<>: e2' :<>: e3'))
-pp (LocalSize _)             = return (text "#LocalSize")
+pp (BlockSize _)             = return (text "#BlockSize")
 pp (Scanl e1 e2 e3 _)        =
   do e1' <- pp e1
      e2' <- pp e2

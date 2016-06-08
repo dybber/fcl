@@ -1,7 +1,7 @@
 sig reverse : [a] -> [a]
 fun reverse arr =
   let n = lengthPull arr
-  in generatePull n (fn i => index arr (subi (subi n i) 1))
+  in generatePull n (fn i => index arr (n - i - 1))
 
 sig reverseBlock : [int] -> [int]<block>
 kernel reverseBlock arr =#push<block> (reverse arr)
@@ -14,7 +14,7 @@ fun distributeReverse splitSize arr =
    |> concat splitSize
 
 sig reverseKernel : [int] -> [int]<grid>
-kernel reverseKernel arr = distributeReverse #LocalSize arr
+kernel reverseKernel arr = distributeReverse #BlockSize arr
 
 -- kernel reverseGrid512 arr = reverseGrid #BlockSize arr
 --   config #BlockSize = 512
@@ -29,4 +29,4 @@ fun simpleReverse splitSize arr =
    |> concat splitSize
 
 sig simpleReverseKernel : [int] -> [int]<grid>
-kernel simpleReverseKernel arr = simpleReverse #LocalSize arr
+kernel simpleReverseKernel arr = simpleReverse #BlockSize arr

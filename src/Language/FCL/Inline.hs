@@ -27,7 +27,7 @@ inlineAll :: Env -> Exp Type -> Exp Type
 inlineAll _ e@(IntScalar _ _) = e
 inlineAll _ e@(DoubleScalar _ _) = e
 inlineAll _ e@(BoolScalar _ _) = e
-inlineAll _ e@(LocalSize _) = e
+inlineAll _ e@(BlockSize _) = e
 inlineAll env (Var v ty _) =
   case Map.lookup v env of
     Just (_, e) -> inlineAll env e  -- TODO fix up types

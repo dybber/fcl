@@ -31,7 +31,15 @@ reservedNames =
 
 reservedOps :: [String]
 reservedOps = ["|>",
-               "+"]
+               "+",
+               "-",
+               "*",
+               "/",
+               "%",
+               "!=",
+               "==",
+               "<<",
+               ">>"]
 
 fclDef :: Token.GenLanguageDef String u Identity
 fclDef = Token.LanguageDef {

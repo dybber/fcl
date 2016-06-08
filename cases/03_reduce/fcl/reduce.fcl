@@ -4,17 +4,19 @@
 
 sig red2 : (a -> a -> a) -> [a] -> [a]<lvl>
 fun red2 f arr =
-  let cond = fn arr => neqi 1 (lengthPull arr) in
+  let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in #push<block> (zipWith f (fst x) (snd x))
   in #push<block> (while cond step (step arr))
 
 sig red2Part : (a -> a -> a) -> [a] -> [a]<grid>
-fun red2Part f arr = concatMap 1 (red2 f) (splitUp (muli 2 #LocalSize) arr)
+fun red2Part f arr =
+ let workPerBlock = 2 * #BlockSize
+ in concatMap 1 (red2 f) (splitUp workPerBlock arr)
 
 sig red2Add : [int] -> [int]<lvl>
 kernel red2Add arr = red2Part addi arr
-  config #LocalSize = 128
+  config #BlockSize = 128
 
 -- red3: halve + cutoff w. seq reduce on remainder
 -- red4: initial sequential reduce (chunks of 8) + red3 on rest
@@ -27,14 +29,14 @@ kernel red2Add arr = red2Part addi arr
 
 sig reduceWarp : (a -> a -> a) -> [a] -> [a]<warp>
 fun reduceWarp f arr =
-  let cond = fn arr => neqi 1 (lengthPull arr) in
+  let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in #push<warp> (zipWith f (fst x) (snd x))
   in #push<warp> (while cond step (step arr))
 
 sig reduceLocal : (a -> a -> a) -> [a] -> [a]<lvl>
 fun reduceLocal f arr =
-  let cond = fn arr => neqi 1 (lengthPull arr) in
+  let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in #push<block> (zipWith f (fst x) (snd x))
   in #push<block> (while cond step (step arr))
@@ -56,6 +58,6 @@ fun reduceGrid f arr =
 
 sig reduceGridAdd : [int] -> [int]<lvl>
 kernel reduceGridAdd arr = reduceGrid addi arr
-  config #LocalSize = 256
+  config #BlockSize = 256
 
 fun main = red2Add (generatePull 2048 (fn i => i))

@@ -235,7 +235,7 @@ evalExp env (Scanl ef e es reg) = do
     (LamV env' x ebody, ArrayV arr) -> scanl_ env' x ebody v arr reg
     (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
     _               -> evalError (Just reg) "first argument to map: not a function"
-evalExp _ (LocalSize reg) = evalError (Just reg) "localSize not implemented"
+evalExp _ (BlockSize reg) = evalError (Just reg) "blockSize not implemented"
 
 ---------------------
 -- Various helpers --

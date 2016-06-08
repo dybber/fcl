@@ -164,7 +164,6 @@ compileFiles ast =
      mapM_ (logInfo . (" " ++) . showType) typed_ast
      --logDebug ("AST after inlining and simplify: " ++ show typed_ast)
 
-
      logDebug (prettyPrintProgram typed_ast)
      
      logInfo "Compiling."
@@ -189,12 +188,11 @@ compile :: [FilePath] -> Options -> CLI ()
 compile filenames opts =
   do when (fclShowUsageAndExit opts) showUsageAndExit
 
-     builtins <- liftIO (getDataFileName "lib/builtins.fcl")
      prelude  <- liftIO (getDataFileName "lib/prelude.fcl")
 
      let files = if fclNoPrelude opts
-                   then builtins : filenames
-                   else builtins : prelude : filenames
+                   then filenames
+                   else prelude : filenames
 
      let extensions = map extension filenames
      when (any (/= "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
