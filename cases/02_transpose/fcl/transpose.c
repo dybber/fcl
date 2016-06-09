@@ -24,11 +24,11 @@ void transpose(mclContext ctx,
                mclDeviceData output,
                int blocks) {
     mclSetKernelArg(kernel, 0, sizeof(cl_int) * 1024, NULL);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &cols);
-    mclSetKernelArg(kernel, 2, sizeof(cl_int), &rows);
-    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &input.data);
-    mclSetKernelArg(kernel, 4, sizeof(cl_int), &size);
-    mclSetKernelArg(kernel, 5, sizeof(cl_mem), &output.data);
+    /* mclSetKernelArg(kernel, 1, sizeof(cl_int), &cols); */
+    /* mclSetKernelArg(kernel, 2, sizeof(cl_int), &rows); */
+    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &size);
+    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &output.data);
     mclInvokeKernel(ctx, kernel, blocks * BLOCK_SIZE, BLOCK_SIZE);
 }
 

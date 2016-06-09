@@ -73,8 +73,8 @@ fun transposeChunked splitSize width height elems =
      |> mapPull (fn arr => #push<block> arr)
      |> concatGrid splitSize tileSize groupsWidth height
 
-sig transposeChunked16 : int -> int -> [int] -> [int]<grid>
-kernel transposeChunked16 = transposeChunked 16
+sig transposeChunked16 : [int] -> [int]<grid>
+kernel transposeChunked16 = transposeChunked 16 2048 2048
   config #BlockSize = 256
 
 --- Testing

@@ -4,6 +4,15 @@ where
 
 import Language.GPUIL.Syntax  
 
+-- naive linear-time algorithm
+ilog2 :: Int -> Int
+ilog2 0 = -1
+ilog2 n = ilog2 (n `div` 2) + 1
+
+powers = map (2^) [1..64]
+
+isPowerOfTwo i = elem i powers
+
 foldExp :: IExp -> IExp
 foldExp e =
   case e of
@@ -66,15 +75,22 @@ foldBinOp MulI _ (IntE 0) = IntE 0
 foldBinOp MulI (BinOpE DivI e0 (IntE v1)) (IntE v2)
   | v1 `mod` v2 == 0 = foldBinOp DivI e0 (IntE (v1 `div` v2))
                        -- (a / b) * c ==> (a / (c/b))
-
-
 foldBinOp DivI (IntE v0) (IntE v1) = IntE (v0 `div` v1)
 foldBinOp DivI (IntE 0) _ = IntE 0
 foldBinOp DivI e0 (IntE 1) = e0
+foldBinOp DivI e0 e1@(IntE v) =
+  if isPowerOfTwo v
+  then foldBinOp Srl e0 (IntE (ilog2 v))
+  else BinOpE DivI e0 e1
 foldBinOp DivI e0 e1 | e0 == e1 = IntE 1
 
 foldBinOp ModI (IntE v0) (IntE v1) = IntE (v0 `mod` v1)
 foldBinOp ModI _ (IntE 1) = IntE 0
+foldBinOp ModI e0 e1@(IntE v) =
+  if isPowerOfTwo v
+  then foldBinOp Land e0 (IntE (v-1))
+  else BinOpE ModI e0 e1
+
 foldBinOp ModI e0 e1 | e0 == e1 = IntE 0
 
 foldBinOp EqI (IntE v0) (IntE v1) | v0 == v1  = BoolE True
