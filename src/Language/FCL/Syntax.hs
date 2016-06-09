@@ -136,7 +136,7 @@ data Exp ty =
 data UnOp = AbsI | SignI | NegateI | Not | I2D | B2I | CLZ
   deriving (Eq, Show)
 
-data BinOpb = AddI | SubI | MulI | DivI | ModI | MinI
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
            | EqI | NeqI | AndI | OrI | XorI | ShiftLI | ShiftRI
            | PowI | DivR | PowR
   deriving (Eq, Show)
