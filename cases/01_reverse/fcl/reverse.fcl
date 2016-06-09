@@ -16,10 +16,6 @@ fun distributeReverse splitSize arr =
 sig reverseKernel : [int] -> [int]<grid>
 kernel reverseKernel arr = distributeReverse #BlockSize arr
 
--- kernel reverseGrid512 arr = reverseGrid #BlockSize arr
---   config #BlockSize = 512
---   config #WarpSize = 32 -- (or wavefront size)
-
 
 sig simpleReverse : int -> [a] -> [a]<grid>
 fun simpleReverse splitSize arr =
@@ -30,3 +26,4 @@ fun simpleReverse splitSize arr =
 
 sig simpleReverseKernel : [int] -> [int]<grid>
 kernel simpleReverseKernel arr = simpleReverse #BlockSize arr
+  config #BlockSize = 256

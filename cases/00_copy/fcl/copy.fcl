@@ -1,3 +1,6 @@
 sig copy : [int] -> [int]<grid>
 kernel copy arr =
-  concat #BlockSize (mapPull (fn arr => #push<block> arr) (splitUp #BlockSize arr))
+  (splitUp #BlockSize arr
+   |> mapPull (fn arr => #push<block> arr)
+   |> concat #BlockSize)
+  config #BlockSize = 256
