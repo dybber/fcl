@@ -99,9 +99,6 @@ data Exp ty =
   | Let Name (Exp ty) (Exp ty) ty Region
   | App (Exp ty) (Exp ty)
 
-  | LambLvl Name ty (Exp ty) ty Region
-  | AppLvl (Exp ty) (Exp ty)
-    
   | Cond (Exp ty) (Exp ty) (Exp ty) ty Region
   | Pair (Exp ty) (Exp ty) Region
   | Proj1E (Exp ty) Region
