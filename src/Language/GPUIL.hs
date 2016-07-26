@@ -31,14 +31,14 @@ staticBlockSize blockSize warpSize_ stmts = map replaceSS stmts
     replace (IndexE v e)      = IndexE v (replace e)
     replace (CastE v e)       = CastE v (replace e)
     replace e                   = e
-    
+
     replaceSS (Assign v e lbl)          = Assign v (replace e) lbl
     replaceSS (Decl v e lbl)            = Decl v (replace e) lbl
     replaceSS (AssignSub v e0 e1 lbl)   = AssignSub v (replace e0) (replace e1) lbl
     replaceSS (Allocate v e lbl)        = Allocate v (replace e) lbl
     replaceSS (For v e ss lbl)          = For v (replace e) (map replaceSS ss) lbl
     replaceSS (If e0 ss0 ss1 lbl)       = If (replace e0) (map replaceSS ss0) (map replaceSS ss1) lbl
-    replaceSS (SeqWhile e ss lbl)       = SeqWhile e (map replaceSS ss) lbl
+    replaceSS (SeqWhile unroll e ss lbl)       = SeqWhile unroll e (map replaceSS ss) lbl
     replaceSS stmt                      = stmt
 
 

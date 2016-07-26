@@ -2,16 +2,21 @@ module Language.GPUIL.Optimise.ConstantFold
 (constantFold, foldExp)
 where
 
-import Language.GPUIL.Syntax  
+import Language.GPUIL.Syntax
+
+import Data.Bits (shiftL, shiftR, (.&.), (.|.))
+
 
 -- naive linear-time algorithm
 ilog2 :: Int -> Int
 ilog2 0 = -1
 ilog2 n = ilog2 (n `div` 2) + 1
 
-powers = map (2^) [1..64]
+powers :: [Integer]
+powers = map (2^) [1..(64 :: Integer)]
 
-isPowerOfTwo i = elem i powers
+isPowerOfTwo :: Integral a => a -> Bool
+isPowerOfTwo i = elem (toInteger i) powers
 
 foldExp :: IExp -> IExp
 foldExp e =
@@ -102,10 +107,15 @@ foldBinOp LtI (IntE v0) (IntE v1) | v0 < v1  = BoolE True
 foldBinOp LtI LocalID (IntE 0) = BoolE False
 foldBinOp GtI (IntE 0) LocalID = BoolE False
 
+foldBinOp Sll (IntE v0) (IntE v1) = IntE (shiftL v0 v1)
+foldBinOp Srl (IntE v0) (IntE v1) = IntE (shiftR v0 v1)
+foldBinOp Land (IntE v0) (IntE v1) = IntE (v0 .&. v1)
+foldBinOp Lor (IntE v0) (IntE v1) = IntE (v0 .|. v1)
+
 foldBinOp op e0 e1 = BinOpE op e0 e1
 
 constantFold :: [Statement a] -> [Statement a]
-constantFold stmts = concat $ map process stmts
+constantFold stmts = concat (map process stmts)
  where
    process :: Statement a -> [Statement a]
    process (For v e body i)          =
@@ -119,7 +129,7 @@ constantFold stmts = concat $ map process stmts
           BoolE False -> constantFold sfalse
           e' -> [If e' (constantFold strue)
                        (constantFold sfalse) i]
-   process (SeqWhile e body i)    = [SeqWhile (foldExp e) (constantFold body) i]
+   process (SeqWhile unroll e body i)   = [SeqWhile unroll (foldExp e) (constantFold body) i]
    process (Decl v e i)           = [Decl v (foldExp e) i]
    process (SyncLocalMem i)       = [SyncLocalMem i]
    process (SyncGlobalMem i)      = [SyncGlobalMem i]

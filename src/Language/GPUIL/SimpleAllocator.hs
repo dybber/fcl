@@ -25,8 +25,9 @@ memMap stmts = mapM go stmts
         return $ (Decl name (CastE ty (BinOpE AddPtr sbase offset)) i)
    go (For n e body i)           = do body' <- memMap body
                                       return (For n e body' i)
-   go (SeqWhile e body i)        = do body' <- memMap body
-                                      return (SeqWhile e body' i)
+   go (SeqWhile unroll e body i) =
+     do body' <- memMap body
+        return (SeqWhile unroll e body' i)
    go (If e tt tf i)             = do tt' <- memMap tt
                                       tf' <- memMap tf
                                       return (If e tt' tf' i)

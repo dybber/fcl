@@ -62,7 +62,7 @@ ppStmt (For n e body _) =
      Newline
      :+:
      text "}"
-ppStmt (SeqWhile e body _) =
+ppStmt (SeqWhile _ e body _) =
      (text "while (" :+: ppExp e :+: text ") {")
      :+:
        indent (ppStmts body)

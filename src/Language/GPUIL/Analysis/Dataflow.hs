@@ -37,7 +37,7 @@ addLabels stmts = evalState (addMany stmts) (Label 1)
 
     addLabel :: Statement a -> State Label (Statement Label)
     addLabel (For v e ss _)          = For v e           <$> addMany ss <*> next
-    addLabel (SeqWhile v ss _)       = SeqWhile v        <$> addMany ss <*> next
+    addLabel (SeqWhile unroll v ss _)       = SeqWhile unroll v        <$> addMany ss <*> next
     addLabel (If e ss0 ss1 _)        = If e              <$> addMany ss0 <*> addMany ss1 <*> next
     addLabel (Assign v e _)          = Assign v e        <$> next
     addLabel (AssignSub v e0 e1 _)   = AssignSub v e0 e1 <$> next
@@ -76,7 +76,7 @@ mkLoop ss lbl preds =
 
 buildGraph :: Statement Label -> [Label] -> State (Graph Label) [Label]
 buildGraph (For _ _ ss0 lbl) preds        = mkLoop ss0 lbl preds
-buildGraph (SeqWhile _ ss0 lbl) preds     = mkLoop ss0 lbl preds
+buildGraph (SeqWhile _ _ ss0 lbl) preds     = mkLoop ss0 lbl preds
 buildGraph (If _ ss0 ss1 lbl) preds =
   do addEdgesM [(p, lbl) | p <- preds]
      end0 <- buildGraphLs ss0 [lbl]

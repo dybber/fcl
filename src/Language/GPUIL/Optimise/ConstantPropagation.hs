@@ -16,8 +16,8 @@ constantProp :: [Statement Label]
              -> [Statement Label]
 constantProp stmts inSet defs =
   let
-    isConstant :: VarName -> Label -> Maybe IExp
-    isConstant v lbl =
+    traceVar :: VarName -> Label -> Maybe IExp
+    traceVar v lbl =
       let definitions :: Set (Label, Maybe IExp)
           definitions = defs v
           reaches :: [Label]
@@ -29,12 +29,12 @@ constantProp stmts inSet defs =
            [x] -> case lookup x (Set.toList definitions) of
                     Nothing -> Nothing
                     Just e -> e
-           _ -> Nothing
+           es -> Nothing
 
     -- replace variables if they are constant
     rep :: Label -> IExp -> IExp
     rep lbl e@(VarE v) =
-      case isConstant v lbl of
+      case traceVar v lbl of
         Nothing -> e
         Just e' | isScalar e' -> e'
         Just NumGroups -> NumGroups
@@ -57,7 +57,7 @@ constantProp stmts inSet defs =
     prop (Allocate v e lbl)        = Allocate v (rep lbl e) lbl
     prop (For v e ss lbl)          = For v (rep lbl e) (map prop ss) lbl
     prop (If e0 ss0 ss1 lbl)       = If (rep lbl e0) (map prop ss0) (map prop ss1) lbl
-    prop (SeqWhile e ss lbl)       = SeqWhile e (map prop ss) lbl
+    prop (SeqWhile unroll e ss lbl)       = SeqWhile unroll e (map prop ss) lbl
     prop stmt                      = stmt
     
   in map prop stmts

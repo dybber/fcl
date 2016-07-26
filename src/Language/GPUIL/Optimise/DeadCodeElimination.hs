@@ -38,7 +38,7 @@ filterStmt p (stmt:rest)
   | otherwise =
       let stmt' = case stmt of
                     For v e ss lbl -> For v e (filterStmt p ss) lbl
-                    SeqWhile e ss lbl -> SeqWhile e (filterStmt p ss) lbl
+                    SeqWhile unroll e ss lbl -> SeqWhile unroll e (filterStmt p ss) lbl
                     If e ss0 ss1 lbl -> If e (filterStmt p ss0) (filterStmt p ss1) lbl
                     ss' -> ss'
       in stmt' : filterStmt p rest

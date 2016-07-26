@@ -49,6 +49,7 @@ Library
                    Language.GPUIL.Optimise.ConstantPropagation
                    Language.GPUIL.Optimise.CopyPropagation
                    Language.GPUIL.Optimise.DeadCodeElimination
+                   Language.GPUIL.Optimise.LoopUnroll
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

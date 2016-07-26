@@ -27,7 +27,7 @@ module Language.GPUIL.Cons (
  mini, maxi,
  
  -- Statements
- for, whileLoop, iff,
+ for, whileLoop, whileUnroll, iff,
  allocate, allocateVolatile,
  assign, (<==), assignArray,
  syncGlobal, syncLocal, comment,
@@ -149,10 +149,14 @@ for ub f = do
     addStmt $ For i upperbound body ())
 
 whileLoop :: CExp -> IL () -> IL ()
-whileLoop f body = do
+whileLoop f body = whileUnroll 0 f body
+
+whileUnroll :: Int -> CExp -> IL () -> IL ()
+whileUnroll n f body = do
   body' <- run body
-  addStmt (SeqWhile f body' ())
+  addStmt (SeqWhile n f body' ())
                                     -- TODO: Var count should be passed on!
+
 
 iff :: CExp -> (IL (), IL ()) -> IL ()
 iff cond (f1, f2) = do

@@ -366,7 +366,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
 
      cond' <- cond vararr
      (var_cond,_) <- letsVar "cond" cond' -- stop condition
-     whileLoop (var var_cond) $
+     whileUnroll 20 (var var_cond) $
        do arr' <- step vararr
           assign var_len (size (unArray arr'))
           -- TODO update arr' length to point to the var_len variable
@@ -382,7 +382,7 @@ whileSeq (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v
      cond' <- cond var0tagged
      case cond' of
-       TagBool b -> whileLoop b
+       TagBool b -> whileUnroll 20 b
                      (do v' <- step var0tagged
                          case v' of
                            TagInt x -> assign var0 x
