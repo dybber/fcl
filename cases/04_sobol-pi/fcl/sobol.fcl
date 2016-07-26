@@ -42,17 +42,17 @@ fun sobolIndND n dirVs = mapPull (sobolInd1D n) dirVs
 sig sobolRec : [int] -> int -> int -> int
 fun sobolRec dirVec previous ix = xori previous (index dirVec (ffz ix))
 
-sig sobolRec1D : int -> int -> [int] -> <int>thread
+sig sobolRec1D : int -> int -> [int] -> [int]<thread>
 fun sobolRec1D startIx n dirVs = 
   let initial = sobolInd startIx dirVs
   in scanl (sobolRec dirVs) initial (range startIx (subi (addi startIx n) 2))
 
-sig sobolRec1DChunked : int -> int -> [int] -> <int>warp
+sig sobolRec1DChunked : int -> int -> [int] -> [int]<warp>
 fun sobolRec1DChunked chunkSize n dirVec = 
   concat chunkSize (mapPull (fn i => sobolRec1D i chunkSize dirVec)
                    (mapPull (muli chunkSize) (range 0 (divi n chunkSize))))
 
-sig sobolRecND : int -> [[int]] -> [<int>thread]
+sig sobolRecND : int -> [[int]] -> [[int]<thread>]
 fun sobolRecND n dirVs = mapPull (sobolRec1D 0 n) dirVs
 
 sig sobolSkip : [int] -> int -> int -> int -> int
@@ -62,12 +62,14 @@ fun sobolSkip dirVec p prev n =
           (xori (index dirVec (subi p 1))
                 (index dirVec q_n))
 
+sig sobolSkipPart : int -> int -> [int] -> int -> [int]<thread>
 fun sobolSkipPart logskip steps dirVec initial =
   let stepSize = powi 2 logskip
   in scanl (sobolSkip dirVec logskip)
            initial
            (mapPull (muli stepSize) (iota (subi steps 1)))
 
+sig sobolSkip1D : int -> int -> [int] -> [[int]<thread>]
 fun sobolSkip1D logskip steps dirVec =
   let stepSize = powi 2 logskip in
   let initials = sobolInd1D stepSize dirVec
@@ -93,18 +95,21 @@ sig testSobolIndND : [[double]]
 fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
 
 -- status: works
-sig testSobolRecND : [<double>thread]
+sig testSobolRecND : [[double]<thread>]
 fun testSobolRecND = mapPull (mapPush normalise) (sobolRecND iterations sobol_dirVs)
 
 -- status:
 --   * generates right numbers
 --   * still needs to be reordered (but written coalesced),
 --   * needs to support higher dimensions (now only generates first dimension)
+sig testSobolSkip1D : [[int]<thread>]
 fun testSobolSkip1D =
   let vec = index sobol_dirVs 0
   in sobolSkip1D 3 6 vec
 
 
 -- fun main = testSobolIndND
+-- fun main = sobolIndND iterations sobol_dirVs
 -- fun main = testSobolRecND
 fun main = testSobolSkip1D
+
