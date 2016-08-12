@@ -272,6 +272,22 @@ occurs (stv, rsv, sbv) tv (TyVarT tv2) =
          Just t  -> occurs (stv, rsv, sbv) tv t
          Nothing -> tv == tv2
 
+occursRV :: Subst -> RankVar -> Rank -> Bool
+occursRV s tv (RankAdd r1 r2) = occursRV s tv r1 || occursRV s tv r2
+occursRV (stv, rsv, sbv) tv (RankVar tv2) =
+    case Map.lookup tv2 rsv of
+         Just t  -> occursRV (stv, rsv, sbv) tv t
+         Nothing -> tv == tv2
+occursRV _ _ _ = False
+
+occursBV :: Subst -> BaseVar -> BaseType -> Bool
+occursBV (stv, rsv, sbv) tv (BaseVar tv2) =
+    case Map.lookup tv2 sbv of
+         Just t  -> occursBV (stv, rsv, sbv) tv t
+         Nothing -> tv == tv2
+occursBV _ _ _ = False
+
+
 -- -- TODO
 infer :: TyEnv -> Exp ty -> TI (Type, Exp Type)
 infer _ (Scalar (IntV i)) = return (scalarTy IntT, Scalar (IntV i))
@@ -360,8 +376,8 @@ tvdependentset i s_before s_after =
 
 rvdependentset :: Int -> SubstRank -> Subst -> (RankVar -> Bool)
 rvdependentset i s_before s_after =
-  \tv -> any (\tvb -> occurs s_after tv (RankVar tvb)) (freeRankVar (s_before,i))
+  \tv -> any (\tvb -> occursRV s_after tv (RankVar tvb)) (freeRankVar (s_before,i))
 
 bvdependentset :: Int -> SubstBase -> Subst -> (BaseVar -> Bool)
 bvdependentset i s_before s_after =
-  \tv -> any (\tvb -> occurs s_after tv (BaseVar tvb)) (freeBaseVar (s_before,i))
+  \tv -> any (\tvb -> occursBV s_after tv (BaseVar tvb)) (freeBaseVar (s_before,i))
