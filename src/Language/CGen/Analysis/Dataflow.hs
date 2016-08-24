@@ -1,4 +1,4 @@
-module Language.GPUIL.Analysis.Dataflow
+module Language.CGen.Analysis.Dataflow
  (Label(..), makeFlowGraph, addLabels, forwardAnalysis, backwardAnalysis)
 where
 
@@ -10,8 +10,8 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List
 
-import Language.GPUIL.Syntax
-import Language.GPUIL.Analysis.Graph
+import Language.CGen.Syntax
+import Language.CGen.Analysis.Graph
 
 --------------------------
 -- Labelling statements --

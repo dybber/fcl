@@ -1,8 +1,8 @@
-module Language.GPUIL.Optimise.ConstantFold
+module Language.CGen.Optimise.ConstantFold
 (constantFold, foldExp)
 where
 
-import Language.GPUIL.Syntax
+import Language.CGen.Syntax
 
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 

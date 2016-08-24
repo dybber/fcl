@@ -1,9 +1,9 @@
-module Language.GPUIL.Optimise.LoopUnroll
+module Language.CGen.Optimise.LoopUnroll
 (unroll)
 where
 
-import Language.GPUIL.Syntax
-import Language.GPUIL.Analysis (Label)
+import Language.CGen.Syntax
+import Language.CGen.Analysis (Label)
 
 unroll :: [Statement Label] -> [Statement Label]
 unroll stmts = concat (map process stmts)

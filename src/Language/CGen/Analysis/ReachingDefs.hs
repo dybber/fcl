@@ -1,4 +1,4 @@
-module Language.GPUIL.Analysis.ReachingDefs
+module Language.CGen.Analysis.ReachingDefs
  (reach)
 where
 
@@ -7,10 +7,10 @@ import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
-import Language.GPUIL.Analysis.Dataflow
-import Language.GPUIL.Analysis.Graph
+import Language.CGen.Analysis.Dataflow
+import Language.CGen.Analysis.Graph
 
-import Language.GPUIL.Syntax
+import Language.CGen.Syntax
 
 --------------------------
 -- Reaching definitions --

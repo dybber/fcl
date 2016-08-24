@@ -30,26 +30,26 @@ Library
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
 
-                   Language.GPUIL
-                   Language.GPUIL.Syntax
-                   Language.GPUIL.Cons
-                   Language.GPUIL.SimpleAllocator
-                   Language.GPUIL.PrettyLib
-                   Language.GPUIL.PrettyC
-                   Language.GPUIL.PrettyOpenCL
-                   Language.GPUIL.PrettyCUDA
-                   Language.GPUIL.Analysis
-                   Language.GPUIL.Analysis.Graph
-                   Language.GPUIL.Analysis.Dataflow
-                   Language.GPUIL.Analysis.Liveness
-                   Language.GPUIL.Analysis.ReachingDefs
-                   Language.GPUIL.Analysis.TypeChecker
-                   Language.GPUIL.Optimise
-                   Language.GPUIL.Optimise.ConstantFold
-                   Language.GPUIL.Optimise.ConstantPropagation
-                   Language.GPUIL.Optimise.CopyPropagation
-                   Language.GPUIL.Optimise.DeadCodeElimination
-                   Language.GPUIL.Optimise.LoopUnroll
+                   Language.CGen
+                   Language.CGen.Syntax
+                   Language.CGen.Cons
+                   Language.CGen.SimpleAllocator
+                   Language.CGen.PrettyLib
+                   Language.CGen.PrettyC
+                   Language.CGen.PrettyOpenCL
+                   Language.CGen.PrettyCUDA
+                   Language.CGen.Analysis
+                   Language.CGen.Analysis.Graph
+                   Language.CGen.Analysis.Dataflow
+                   Language.CGen.Analysis.Liveness
+                   Language.CGen.Analysis.ReachingDefs
+                   Language.CGen.Analysis.TypeChecker
+                   Language.CGen.Optimise
+                   Language.CGen.Optimise.ConstantFold
+                   Language.CGen.Optimise.ConstantPropagation
+                   Language.CGen.Optimise.CopyPropagation
+                   Language.CGen.Optimise.DeadCodeElimination
+                   Language.CGen.Optimise.LoopUnroll
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

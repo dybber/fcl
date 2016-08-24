@@ -1,11 +1,11 @@
 -- | Pretty print OpenCL kernels
-module Language.GPUIL.PrettyOpenCL where
+module Language.CGen.PrettyOpenCL where
 
 -- A lot of code duplication here due to the lack of ML-style functors
 
-import Language.GPUIL.PrettyLib
-import Language.GPUIL.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
-import Language.GPUIL.Syntax
+import Language.CGen.PrettyLib
+import Language.CGen.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
+import Language.CGen.Syntax
 
 import Data.List (sort)
 

@@ -5,8 +5,8 @@ import Control.Monad (liftM, (<=<))
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
-import Language.GPUIL
---import Language.GPUIL.Syntax (IExp(IntE))
+import Language.CGen
+--import Language.CGen.Syntax (IExp(IntE))
 
 data Array a = ArrPull { arrayLen :: CExp
                        , arrayElemType :: CType

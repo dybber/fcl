@@ -1,9 +1,9 @@
-module Language.GPUIL.Optimise.DeadCodeElimination
+module Language.CGen.Optimise.DeadCodeElimination
  (deadCodeElimination)
 where
 
-import Language.GPUIL.Analysis (Label)
-import Language.GPUIL.Syntax
+import Language.CGen.Analysis (Label)
+import Language.CGen.Syntax
 
 import qualified Data.Map as Map
 import Data.Map (Map)

@@ -1,4 +1,4 @@
-module Language.GPUIL.Analysis.Liveness (liveness) where
+module Language.CGen.Analysis.Liveness (liveness) where
 
 
 import qualified Data.Map as Map
@@ -6,10 +6,10 @@ import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
-import Language.GPUIL.Analysis.Dataflow
-import Language.GPUIL.Analysis.Graph
+import Language.CGen.Analysis.Dataflow
+import Language.CGen.Analysis.Graph
 
-import Language.GPUIL.Syntax
+import Language.CGen.Syntax
 
 -- Collection of live variables
 type LiveInfo = Set VarName

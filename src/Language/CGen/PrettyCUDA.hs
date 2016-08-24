@@ -1,9 +1,9 @@
 -- | Pretty print CUDA kernels
-module Language.GPUIL.PrettyCUDA where
+module Language.CGen.PrettyCUDA where
 
-import Language.GPUIL.PrettyLib
-import Language.GPUIL.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
-import Language.GPUIL.Syntax
+import Language.CGen.PrettyLib
+import Language.CGen.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
+import Language.CGen.Syntax
 import Data.List (sort)
 
 ppAttr :: Attribute -> Doc

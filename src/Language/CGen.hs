@@ -1,24 +1,24 @@
-module Language.GPUIL
+module Language.CGen
 (
-  module Language.GPUIL.Cons,
-  module Language.GPUIL.ConsGPU,
+  module Language.CGen.Cons,
+  module Language.CGen.ConsGPU,
   CType(..), generateKernel, generateFunction,
   RenderMode(..), renderProgram
 )
 where
 
-import Language.GPUIL.Cons hiding (addStmt)
-import Language.GPUIL.ConsGPU
-import Language.GPUIL.Syntax
+import Language.CGen.Cons hiding (addStmt)
+import Language.CGen.ConsGPU
+import Language.CGen.Syntax
 
-import Language.GPUIL.PrettyLib (render)
-import Language.GPUIL.PrettyC as PPC (ppProgram)
-import qualified Language.GPUIL.PrettyCUDA as PPCUDA (ppProgram)
-import qualified Language.GPUIL.PrettyOpenCL as PPOpenCL (ppProgram)
-import Language.GPUIL.Optimise (optimise)
-import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
+import Language.CGen.PrettyLib (render)
+import Language.CGen.PrettyC as PPC (ppProgram)
+import qualified Language.CGen.PrettyCUDA as PPCUDA (ppProgram)
+import qualified Language.CGen.PrettyOpenCL as PPOpenCL (ppProgram)
+import Language.CGen.Optimise (optimise)
+import Language.CGen.SimpleAllocator (memoryMap, Bytes)
 
---import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
+--import Language.CGen.Analysis.TypeChecker (typeCheck, Status(..))
 
 -- replace static dyn block-size with static blockSize
 staticBlockSize :: Maybe Int -> Int -> [Statement a] -> [Statement a]

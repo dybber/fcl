@@ -1,11 +1,11 @@
-module Language.GPUIL.ConsGPU
+module Language.CGen.ConsGPU
  ( attrLocal, attrGlobal,
    syncGlobal, syncLocal,
    globalID, localID, localSize, workgroupID, numWorkgroups, warpSize)
 where
 
-import Language.GPUIL.Syntax as AST
-import Language.GPUIL.Monad
+import Language.CGen.Syntax as AST
+import Language.CGen.Monad
 
 syncGlobal :: IL ()
 syncGlobal =  addStmt (SyncGlobalMem ())

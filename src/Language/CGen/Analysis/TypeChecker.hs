@@ -1,11 +1,11 @@
-module Language.GPUIL.Analysis.TypeChecker where
+module Language.CGen.Analysis.TypeChecker where
 
 -------- TODO --------
 -- * Figure out what to do with get_local_size etc
 --   are they int32, int64, uint32, uint64?
 --     - this is device dependent!
 ----------------------
-import Language.GPUIL.Syntax
+import Language.CGen.Syntax
 import qualified Data.Map as Map
 
 import Control.Monad (when, foldM_)

@@ -1,5 +1,5 @@
--- | Untyped constructors for building GPUIL-kernels
-module Language.GPUIL.Cons (
+-- | Untyped constructors for building CGen-kernels
+module Language.CGen.Cons (
   
  -- Types
  int, double, bool, word8, word32, word64, pointer,
@@ -46,8 +46,8 @@ where
 import Prelude hiding (not, floor, exp)
 import Data.Word (Word32, Word8)
 
-import Language.GPUIL.Syntax as AST
-import Language.GPUIL.Monad
+import Language.CGen.Syntax as AST
+import Language.CGen.Monad
 
 ----------------------
 -- Variable binding --

@@ -1,4 +1,4 @@
-module Language.GPUIL.Optimise.ConstantPropagation
+module Language.CGen.Optimise.ConstantPropagation
   (constantProp)
 where
 
@@ -7,8 +7,8 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Language.GPUIL.Analysis (Label)
-import Language.GPUIL.Syntax
+import Language.CGen.Analysis (Label)
+import Language.CGen.Syntax
 
 constantProp :: [Statement Label]
              -> Map Label (Set Label)

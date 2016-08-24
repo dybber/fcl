@@ -2,7 +2,7 @@ module Language.TAIL.Pretty where
 
 import Language.TAIL.Syntax
 
-import Language.GPUIL.PrettyLib
+import Language.CGen.PrettyLib
 
 pprScalar :: ScalarValue -> Doc
 pprScalar (IntV v) = int v

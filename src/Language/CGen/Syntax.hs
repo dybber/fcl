@@ -1,4 +1,4 @@
-module Language.GPUIL.Syntax where
+module Language.CGen.Syntax where
 
 import Data.Word (Word8, Word32, Word64)
 

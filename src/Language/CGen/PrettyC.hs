@@ -1,5 +1,5 @@
 -- would've been really nice with ML-style functors here...
-module Language.GPUIL.PrettyC (
+module Language.CGen.PrettyC (
   ppUnaryOp,
   ppBinOp,
   ppAttr,
@@ -12,8 +12,8 @@ module Language.GPUIL.PrettyC (
   ppProgram)
   where
 
-import Language.GPUIL.PrettyLib
-import Language.GPUIL.Syntax
+import Language.CGen.PrettyLib
+import Language.CGen.Syntax
 
 import Data.List (sort)
 

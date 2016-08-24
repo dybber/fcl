@@ -1,4 +1,4 @@
-module Language.GPUIL.Analysis.Graph
+module Language.CGen.Analysis.Graph
  (Graph, Node, nodes, emptyGraph,
   getNode, addNode, addEdge, addEdges,
   startNode, exitNode, setStartNode, setExitNode,

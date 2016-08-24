@@ -1,7 +1,7 @@
 -- | Program construction monad
-module Language.GPUIL.Monad where
+module Language.CGen.Monad where
 
-import Language.GPUIL.Syntax as AST
+import Language.CGen.Syntax as AST
 
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer

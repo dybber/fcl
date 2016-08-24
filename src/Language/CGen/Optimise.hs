@@ -1,13 +1,13 @@
-module Language.GPUIL.Optimise (optimise, optimiseExp) where
+module Language.CGen.Optimise (optimise, optimiseExp) where
 
-import Language.GPUIL.Optimise.ConstantFold (constantFold, foldExp)
-import Language.GPUIL.Optimise.ConstantPropagation (constantProp)
-import Language.GPUIL.Optimise.CopyPropagation (copyProp)
-import Language.GPUIL.Optimise.DeadCodeElimination (deadCodeElimination)
-import Language.GPUIL.Optimise.LoopUnroll (unroll)
+import Language.CGen.Optimise.ConstantFold (constantFold, foldExp)
+import Language.CGen.Optimise.ConstantPropagation (constantProp)
+import Language.CGen.Optimise.CopyPropagation (copyProp)
+import Language.CGen.Optimise.DeadCodeElimination (deadCodeElimination)
+import Language.CGen.Optimise.LoopUnroll (unroll)
 
-import Language.GPUIL.Analysis
-import Language.GPUIL.Syntax (Statement, IExp)
+import Language.CGen.Analysis
+import Language.CGen.Syntax (Statement, IExp)
 
 iterateN :: Int -> (a -> a) -> a -> a
 iterateN 0 _ x = x

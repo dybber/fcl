@@ -1,4 +1,4 @@
-module Language.GPUIL.SimpleAllocator
+module Language.CGen.SimpleAllocator
        (Bytes,
         memoryMap
         ) 
@@ -6,7 +6,7 @@ where
 
 import Data.Maybe
 import Control.Monad.Trans.State
-import Language.GPUIL.Syntax
+import Language.CGen.Syntax
 
 type Bytes   = IExp
 
