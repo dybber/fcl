@@ -3,7 +3,6 @@ module Language.FCL.Parser
   (parseTopLevel, parseType, ParseError)
 where
 
-import Control.Applicative hiding ((<|>), many)
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Text.Parsec.Expr

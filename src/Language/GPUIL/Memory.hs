@@ -195,8 +195,8 @@ memMap nonfreeable (x:xs) =
     process (Allocate name (Word32E size') ty,_) = allocate name size' >> return () -- TODO
           -- TODO: other cases
     process (For _ _ im, alive)       = memMap (nonfreeable `Set.union` alive) im
-    process (SeqWhile _ im,_)         = memMap nonfreeable im
-    process (ForAll _ _ _ im,_)         = memMap nonfreeable im
-    process (DistrPar Warp _ _ im,_)    = memMap nonfreeable im 
-    process (DistrPar Block _ _ im,_)   = memMap nonfreeable im 
+    process (While _ im,_)            = memMap nonfreeable im
+    process (ForAll _ _ _ im,_)       = memMap nonfreeable im
+    process (DistrPar Warp _ _ im,_)  = memMap nonfreeable im 
+    process (DistrPar Block _ _ im,_) = memMap nonfreeable im 
     process (_,_) = return ()

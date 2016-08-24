@@ -1,10 +1,14 @@
 -- | Pretty print OpenCL kernels
 module Language.GPUIL.PrettyOpenCL where
 
+-- A lot of code duplication here due to the lack of ML-style functors
+
 import Language.GPUIL.PrettyLib
-import Language.GPUIL.PrettyC
+import Language.GPUIL.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
 import Language.GPUIL.Syntax
+
 import Data.List (sort)
+
 
 ppAttr :: Attribute -> Doc
 ppAttr Local = text "__local"
@@ -14,16 +18,13 @@ ppAttr Volatile = text "volatile"
 ppType :: CType -> Doc
 ppType CInt32        = text "int"
 ppType CDouble       = text "double"
-ppType CBool         = text "bool" -- maybe this should just be uint32?
+ppType CBool         = text "bool"
 ppType CWord8        = text "uchar"
 ppType CWord32       = text "uint"
 ppType CWord64       = text "ulong"
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
-
-ppVar :: VarName -> Doc
-ppVar (v,_) = text v
 
 ppExp :: IExp -> Doc
 ppExp (IntE c) = int c
@@ -62,7 +63,7 @@ ppStmt (For n e body _) =
      Newline
      :+:
      text "}"
-ppStmt (SeqWhile _ e body _) =
+ppStmt (While _ e body _) =
      (text "while (" :+: ppExp e :+: text ") {")
      :+:
        indent (ppStmts body)
@@ -105,11 +106,21 @@ ppDecl (n@(_,t)) = ppType t :+: text " " :+: ppVar n
 ppParamList :: [VarName] -> Doc
 ppParamList = sep (char ',') . map ppDecl
 
-ppKernel :: Kernel -> Doc
-ppKernel k =
+ppFunction :: Function -> Doc
+ppFunction f =
+  let returnSig = if isKernel f
+                  then text "__kernel void"
+                  else case funReturnType f of
+                         Nothing -> text "void"
+                         Just ty -> text (show ty)
+  in 
+    returnSig :+: text (funName f) :+: parens (ppParamList (funParams f))
+    :+: text " {" :+:
+      indent (ppStmts (funBody f))
+      :+: Newline
+    :+: text "}"
+
+ppProgram :: [Function] -> Doc
+ppProgram fs =
   text "#define _WARPSIZE 32" :+: Newline :+:
-  text "__kernel void " :+: text (kernelName k) :+: parens (ppParamList (kernelParams k))
-  :+: text " {" :+:
-    indent (ppStmts (kernelBody k))
-  :+: Newline
-  :+: text "}"
+  sep (Newline :+: Newline) (map ppFunction fs)

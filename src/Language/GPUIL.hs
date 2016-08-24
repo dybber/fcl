@@ -1,20 +1,24 @@
 module Language.GPUIL
 (
   module Language.GPUIL.Cons,
-  CType(..), generateKernel, renderKernel
+  module Language.GPUIL.ConsGPU,
+  CType(..), generateKernel, generateFunction,
+  RenderMode(..), renderProgram
 )
 where
 
-import Language.GPUIL.Cons
+import Language.GPUIL.Cons hiding (addStmt)
+import Language.GPUIL.ConsGPU
 import Language.GPUIL.Syntax
 
 import Language.GPUIL.PrettyLib (render)
-import Language.GPUIL.PrettyOpenCL (ppKernel)
-import Language.GPUIL.Optimise (optimise, optimiseExp)
+import Language.GPUIL.PrettyC as PPC (ppProgram)
+import qualified Language.GPUIL.PrettyCUDA as PPCUDA (ppProgram)
+import qualified Language.GPUIL.PrettyOpenCL as PPOpenCL (ppProgram)
+import Language.GPUIL.Optimise (optimise)
 import Language.GPUIL.SimpleAllocator (memoryMap, Bytes)
 
 --import Language.GPUIL.Analysis.TypeChecker (typeCheck, Status(..))
-
 
 -- replace static dyn block-size with static blockSize
 staticBlockSize :: Maybe Int -> Int -> [Statement a] -> [Statement a]
@@ -38,12 +42,10 @@ staticBlockSize blockSize warpSize_ stmts = map replaceSS stmts
     replaceSS (Allocate v e lbl)        = Allocate v (replace e) lbl
     replaceSS (For v e ss lbl)          = For v (replace e) (map replaceSS ss) lbl
     replaceSS (If e0 ss0 ss1 lbl)       = If (replace e0) (map replaceSS ss0) (map replaceSS ss1) lbl
-    replaceSS (SeqWhile unroll e ss lbl)       = SeqWhile unroll e (map replaceSS ss) lbl
+    replaceSS (While unroll e ss lbl)   = While unroll e (map replaceSS ss) lbl
     replaceSS stmt                      = stmt
 
-
-
-generateKernel :: Int -> String -> IL () -> Maybe Int -> Int -> Kernel
+generateKernel :: Int -> String -> IL () -> Maybe Int -> Int -> Function
 generateKernel optIterations name m blockSize warpSize_ =
   let (stmts, params, _) = runIL m
 --  tc params stmts
@@ -52,12 +54,24 @@ generateKernel optIterations name m blockSize warpSize_ =
 --  tc params' stmts'
       stmts'' = optimise optIterations stmts'
 --  tc params' stmts'''
-  in Kernel { kernelName = name
-            , kernelParams = params'
-            , kernelBody = removeLabels stmts''
-            , kernelSharedMem = fmap optimiseExp used
-            , kernelBlockSize = blockSize
-            , kernelWarpSize = warpSize_
+  in Function { funName = name
+              , funParams = params'
+              , funAttr = [IsKernel]
+              , funBody = removeLabels stmts''
+              , funReturnType = Nothing
+            }
+
+generateFunction :: Int -> String -> IL () -> Function
+generateFunction optIterations name m =
+  let (stmts, params, _) = runIL m
+--  tc params stmts
+      stmts' = optimise optIterations stmts
+--  tc params' stmts'
+  in Function { funName = name
+              , funParams = params
+              , funAttr = []
+              , funBody = removeLabels stmts'
+              , funReturnType = Nothing
             }
 
 -- tc :: [VarName] -> [Statement a] -> ()
@@ -70,6 +84,13 @@ addSharedMem :: Maybe Bytes -> [VarName]
 addSharedMem Nothing = []
 addSharedMem _ = [("sbase", CPtr [attrLocal] CWord8)]
 
+data RenderMode = C | OpenCL | CUDA
+
 -- Defaulting to 4 spaces of indentation
-renderKernel :: Kernel -> String
-renderKernel kernel = (render 0 4 (ppKernel kernel))
+renderProgram :: RenderMode -> [Function] -> String
+renderProgram renderMode f =
+  render 0 4 $
+    case renderMode of
+      C -> PPC.ppProgram f
+      OpenCL -> PPOpenCL.ppProgram f
+      CUDA -> PPCUDA.ppProgram f

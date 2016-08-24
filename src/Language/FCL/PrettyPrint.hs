@@ -3,8 +3,6 @@ module Language.FCL.PrettyPrint (prettyPrintType, prettyPrintExp, prettyPrintDef
 import Language.GPUIL.PrettyLib
 import Language.FCL.Syntax
 
-import Control.Applicative
-
 import Control.Monad.Trans.State
 import qualified Data.Map as Map
 

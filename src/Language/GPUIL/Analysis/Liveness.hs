@@ -60,7 +60,7 @@ gensLiveness stmts = liveMany stmts
     
     go (For _ e ss lbl)        = unionMaps (expLiveMap lbl [e]) (liveMany ss)
     go (If e ss0 ss1 lbl)      = unionMaps (expLiveMap lbl [e]) (liveMany (ss0 ++ ss1))
-    go (SeqWhile _ e ss lbl)   = unionMaps (expLiveMap lbl [e]) (liveMany ss)
+    go (While _ e ss lbl)      = unionMaps (expLiveMap lbl [e]) (liveMany ss)
     go (Assign _ e lbl)        = expLiveMap lbl [e]
     go (AssignSub _ e0 e1 lbl) = expLiveMap lbl [e0,e1]
     go (Decl _ e lbl)          = expLiveMap lbl [e]
@@ -71,7 +71,7 @@ killsLiveness stmts = foldl unionMaps Map.empty (map go stmts)
   where
     go (For v _ ss lbl)        = foldl unionMaps (singleton lbl v) (map go ss)
     go (If _ ss0 ss1 _)        = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
-    go (SeqWhile _ _ ss _)     = foldl unionMaps Map.empty (map go ss)
+    go (While _ _ ss _)        = foldl unionMaps Map.empty (map go ss)
     go (Assign v _ lbl)        = singleton lbl v
     go (AssignSub v _ _ lbl)   = singleton lbl v
     go (Decl v _ lbl)          = singleton lbl v

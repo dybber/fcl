@@ -68,7 +68,7 @@ data IExp =
 
 data Statement a =
     For VarName IExp [Statement a] a
-  | SeqWhile Int IExp [Statement a] a
+  | While Int IExp [Statement a] a
   | If IExp [Statement a] [Statement a] a
   | Assign VarName IExp a
   | AssignSub VarName IExp IExp a
@@ -81,7 +81,7 @@ data Statement a =
 
 labelOf :: Statement t -> t
 labelOf (For _ _ _ lbl) = lbl
-labelOf (SeqWhile _ _ _ lbl) = lbl
+labelOf (While _ _ _ lbl) = lbl
 labelOf (If _ _ _ lbl) = lbl
 labelOf (Assign _ _ lbl) = lbl
 labelOf (AssignSub _ _ _ lbl) = lbl
@@ -92,15 +92,22 @@ labelOf (Comment _ lbl) = lbl
 labelOf (Allocate _ _ lbl) = lbl
 
 
-data Kernel =
-  Kernel { kernelName :: String
-         , kernelParams :: [VarName]
-         , kernelBody :: [Statement ()]
-         , kernelSharedMem :: Maybe IExp
-         , kernelBlockSize :: Maybe Int
-         , kernelWarpSize :: Int
-         }
+data FunAttribute =
+    IsKernel
+ deriving (Eq, Show, Ord)
+
+
+data Function =
+  Function { funName :: String
+           , funParams :: [VarName]
+           , funAttr :: [FunAttribute]
+           , funReturnType :: Maybe CType
+           , funBody :: [Statement ()]
+           }
   deriving (Eq, Show)
+
+isKernel :: Function -> Bool
+isKernel f = IsKernel `elem` (funAttr f)
 
 isScalar :: IExp -> Bool
 isScalar (IntE _)    = True
@@ -119,7 +126,7 @@ removeLabels stmts = map rm stmts
   where
     rm :: Statement a -> Statement ()
     rm (For v e ss _)          = For v e           (map rm ss) ()
-    rm (SeqWhile unroll v ss _)  = SeqWhile unroll v (map rm ss) ()
+    rm (While unroll v ss _)   = While unroll v (map rm ss) ()
     rm (If e ss0 ss1 _)        = If e              (map rm ss0) (map rm ss1) ()
     rm (Assign v e _)          = Assign v e        ()
     rm (AssignSub v e0 e1 _)   = AssignSub v e0 e1 ()
@@ -134,6 +141,6 @@ labels stmts = concatMap lbl stmts
   where
     lbl :: Statement a -> [a]
     lbl (For _ _ ss i)    = i : labels ss
-    lbl (SeqWhile _ _ ss i) = i : labels ss
+    lbl (While _ _ ss i) = i : labels ss
     lbl (If _ ss0 ss1 i)  = i : labels ss0 ++ labels ss1
     lbl stmt              = [labelOf stmt]

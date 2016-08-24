@@ -2,7 +2,6 @@ module Language.GPUIL.Analysis.Dataflow
  (Label(..), makeFlowGraph, addLabels, forwardAnalysis, backwardAnalysis)
 where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Trans.State (evalState, get, modify, execState, State)
 
 import qualified Data.Map as Map
@@ -37,7 +36,7 @@ addLabels stmts = evalState (addMany stmts) (Label 1)
 
     addLabel :: Statement a -> State Label (Statement Label)
     addLabel (For v e ss _)          = For v e           <$> addMany ss <*> next
-    addLabel (SeqWhile unroll v ss _)       = SeqWhile unroll v        <$> addMany ss <*> next
+    addLabel (While unroll v ss _)   = While unroll v    <$> addMany ss <*> next
     addLabel (If e ss0 ss1 _)        = If e              <$> addMany ss0 <*> addMany ss1 <*> next
     addLabel (Assign v e _)          = Assign v e        <$> next
     addLabel (AssignSub v e0 e1 _)   = AssignSub v e0 e1 <$> next
@@ -75,9 +74,9 @@ mkLoop ss lbl preds =
      return [lbl]
 
 buildGraph :: Statement Label -> [Label] -> State (Graph Label) [Label]
-buildGraph (For _ _ ss0 lbl) preds        = mkLoop ss0 lbl preds
-buildGraph (SeqWhile _ _ ss0 lbl) preds     = mkLoop ss0 lbl preds
-buildGraph (If _ ss0 ss1 lbl) preds =
+buildGraph (For _ _ ss0 lbl) preds   = mkLoop ss0 lbl preds
+buildGraph (While _ _ ss0 lbl) preds = mkLoop ss0 lbl preds
+buildGraph (If _ ss0 ss1 lbl) preds  =
   do addEdgesM [(p, lbl) | p <- preds]
      end0 <- buildGraphLs ss0 [lbl]
      end1 <- buildGraphLs ss1 [lbl]

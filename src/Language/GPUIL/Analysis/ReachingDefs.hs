@@ -35,7 +35,7 @@ buildDefsMap stmt x =
     go :: Statement Label -> Map.Map VarName (Set (Label, Maybe IExp))
     go (For v _ ss lbl)        = foldl unionMaps (singleton v (lbl, Nothing)) (map go ss)
     go (If _ ss0 ss1 _)        = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
-    go (SeqWhile _ _ ss _)     = foldl unionMaps Map.empty (map go ss)
+    go (While _ _ ss _)     = foldl unionMaps Map.empty (map go ss)
     go (Assign v e lbl)        = singleton v (lbl, Just e)
     go (Decl v e lbl)          = singleton v (lbl, Just e)
     go _                       = Map.empty
@@ -52,7 +52,7 @@ gensReachDef stmts = foldl unionMaps Map.empty (map go stmts)
   where
     go (For _ _ ss lbl)        = foldl unionMaps (singleton lbl lbl) (map go ss)
     go (If _ ss0 ss1 _)        = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
-    go (SeqWhile _ _ ss _)     = foldl unionMaps Map.empty (map go ss)
+    go (While _ _ ss _)        = foldl unionMaps Map.empty (map go ss)
     go (Assign _ _ lbl)        = singleton lbl lbl
     go (Decl _ _ lbl)          = singleton lbl lbl
     go _                       = Map.empty
@@ -61,12 +61,12 @@ killsReachDef :: DefMap -> [Statement Label] -> FlowMap
 killsReachDef defs stmts = foldl unionMaps Map.empty (map go stmts)
   where
     killSet v lbl = (Map.singleton lbl (Set.delete lbl (Set.map fst $ defs v)))
-    go (For v _ ss lbl)        = foldl unionMaps (killSet v lbl) (map go ss)
-    go (If _ ss0 ss1 _)        = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
-    go (SeqWhile _ _ ss _)     = foldl unionMaps Map.empty (map go ss)
-    go (Assign v _ lbl)        = killSet v lbl
-    go (Decl v _ lbl)          = killSet v lbl
-    go _                       = Map.empty
+    go (For v _ ss lbl) = foldl unionMaps (killSet v lbl) (map go ss)
+    go (If _ ss0 ss1 _) = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
+    go (While _ _ ss _) = foldl unionMaps Map.empty (map go ss)
+    go (Assign v _ lbl) = killSet v lbl
+    go (Decl v _ lbl)   = killSet v lbl
+    go _                = Map.empty
 
 reach :: [Statement Label]
       -> Graph Label

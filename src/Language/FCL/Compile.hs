@@ -46,10 +46,10 @@ type VarEnv = Map.Map Name Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: Int -> Program Type -> [Kernel]
+compileKernels :: Int -> Program Type -> [Function]
 compileKernels optIterations = map (compileKernel optIterations)
 
-compileKernel :: Int -> Definition Type -> Kernel
+compileKernel :: Int -> Definition Type -> Function
 compileKernel optIterations def =
   let e = defBody def
       kernel_name = defVar def
@@ -306,7 +306,7 @@ force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type er
                                "Needs iteration scheme before it can be forced.")
 force arr = do
   let len = size arr                     -- calculate size of complete nested array structure
-  name <- allocate (baseType arr) len    -- allocate shared memory
+  name <- allocate (baseType arr) [attrLocal] len    -- allocate shared memory
   let writer tv i =                      -- creater writer function (right now: only integer arrays supported!)
         case tv of
           TagInt v -> assignArray name v i
@@ -352,7 +352,7 @@ whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
   do -- Declare array
      len <- lets "len" (TagInt (size arr))
-     var_array <- allocate (baseType arr) (unInt len)
+     var_array <- allocate (baseType arr) [attrLocal] (unInt len)
      (var_len,_) <- letsVar "arraySize" len
 
      let writer tv i =

@@ -3,12 +3,11 @@ module Language.GPUIL.Cons (
   
  -- Types
  int, double, bool, word8, word32, word64, pointer,
- attrLocal, attrGlobal, attrVolatile,
+ attrVolatile,
 
  -- Expressions
  constant, if_, (?), let_, letVar, index, (!), cast,
  -- Getter's (launch parameters and current thread info)
- globalID, localID, localSize, workgroupID, numWorkgroups, warpSize,
  var,
 
  -- Unary operators
@@ -28,19 +27,20 @@ module Language.GPUIL.Cons (
  
  -- Statements
  for, whileLoop, whileUnroll, iff,
- allocate, allocateVolatile,
+ allocate,
  assign, (<==), assignArray,
- syncGlobal, syncLocal, comment,
+ comment,
 
  -- Monad
  VarName,
  CExp,
  IL,
- Kernel(..),
+ Function(..),
  initialState,
  runIL,
  evalIL,
- addParam
+ addParam,
+ addStmt
 )
 where
 
@@ -154,25 +154,17 @@ whileLoop f body = whileUnroll 0 f body
 whileUnroll :: Int -> CExp -> IL () -> IL ()
 whileUnroll n f body = do
   body' <- run body
-  addStmt (SeqWhile n f body' ())
+  addStmt (While n f body' ())
                                     -- TODO: Var count should be passed on!
-
-
 iff :: CExp -> (IL (), IL ()) -> IL ()
 iff cond (f1, f2) = do
   f1' <- run f1
   f2' <- run f2
   addStmt (If cond f1' f2' ())
 
-allocate :: CType -> CExp -> IL VarName
-allocate ty n = do
-  arr <- newVar (pointer [Local] ty) "arr"
-  addStmt $ Allocate arr n ()
-  return arr
-
-allocateVolatile :: CType -> CExp -> IL VarName
-allocateVolatile ty n = do
-  arr <- newVar (pointer [Volatile,Local] ty) "i"
+allocate :: CType -> [Attribute] -> CExp -> IL VarName
+allocate ty attr n = do
+  arr <- newVar (pointer attr ty) "arr"
   addStmt $ Allocate arr n ()
   return arr
 
@@ -182,12 +174,6 @@ assign n e = addStmt (Assign n e ())
 
 (<==) :: VarName -> CExp -> IL ()
 n <== e = assign n e
-
-syncGlobal :: IL ()
-syncGlobal =  addStmt (SyncGlobalMem ())
-
-syncLocal :: IL ()
-syncLocal =  addStmt (SyncLocalMem ())
 
 -- assign to an array
 assignArray :: VarName -> CExp -> CExp -> IL ()
@@ -216,12 +202,6 @@ word64 = CWord64
 
 pointer :: [Attribute] -> CType -> CType
 pointer attr t = CPtr attr t
-
-attrLocal :: Attribute
-attrLocal = Local
-
-attrGlobal :: Attribute
-attrGlobal = Global
 
 attrVolatile :: Attribute
 attrVolatile = Volatile
@@ -263,24 +243,6 @@ index n e =  IndexE n e
 -- TODO: This could be better
 cast :: CType -> CExp -> CExp
 cast _ e = e
-
-globalID :: CExp
-globalID = GlobalID
-
-localID :: CExp
-localID = LocalID
-
-workgroupID :: CExp
-workgroupID = GroupID
-
-localSize :: CExp
-localSize = LocalSize
-
-numWorkgroups :: CExp
-numWorkgroups =  NumGroups
-
-warpSize :: CExp
-warpSize = WarpSize
 
 -----------------
 --  Operators  --

@@ -1,8 +1,8 @@
--- | Pretty print OpenCL kernels
+-- | Pretty print CUDA kernels
 module Language.GPUIL.PrettyCUDA where
 
 import Language.GPUIL.PrettyLib
-import Language.GPUIL.PrettyC
+import Language.GPUIL.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
 import Language.GPUIL.Syntax
 import Data.List (sort)
 
@@ -21,9 +21,6 @@ ppType CWord64       = text "uint64_t"
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
-
-ppVar :: VarName -> Doc
-ppVar (v,_) = text v
 
 ppExp :: IExp -> Doc
 ppExp (IntE c) = int c
@@ -62,7 +59,7 @@ ppStmt (For n e body _) =
      Newline
      :+:
      text "}"
-ppStmt (SeqWhile _ e body _) =
+ppStmt (While _ e body _) =
      (text "while (" :+: ppExp e :+: text ") {")
      :+:
        indent (ppStmts body)
@@ -105,11 +102,22 @@ ppDecl (n@(_,t)) = ppType t :+: text " " :+: ppVar n
 ppParamList :: [VarName] -> Doc
 ppParamList = sep (char ',') . map ppDecl
 
-ppKernel :: Kernel -> Doc
-ppKernel k =
+ppFunction :: Function -> Doc
+ppFunction f =
+  let returnSig = if isKernel f
+                  then text "extern \"C\" __global__ void "
+                  else case funReturnType f of
+                         Nothing -> text "void"
+                         Just ty -> text (show ty)
+  in 
+    returnSig :+: text (funName f) :+: parens (ppParamList (funParams f))
+    :+: text " {" :+:
+      indent (ppStmts (funBody f))
+      :+: Newline
+    :+: text "}"
+
+
+ppProgram :: [Function] -> Doc
+ppProgram fs =
   text "#define _WARPSIZE 32" :+: Newline :+:
-  text "extern \"C\" __global__ void " :+: text (kernelName k) :+: parens (ppParamList (kernelParams k))
-  :+: text " {" :+:
-    indent (ppStmts (kernelBody k))
-  :+: Newline
-  :+: text "}"
+  sep (Newline :+: Newline) (map ppFunction fs)

@@ -129,7 +129,7 @@ constantFold stmts = concat (map process stmts)
           BoolE False -> constantFold sfalse
           e' -> [If e' (constantFold strue)
                        (constantFold sfalse) i]
-   process (SeqWhile unroll e body i)   = [SeqWhile unroll (foldExp e) (constantFold body) i]
+   process (While unroll e body i) = [While unroll (foldExp e) (constantFold body) i]
    process (Decl v e i)           = [Decl v (foldExp e) i]
    process (SyncLocalMem i)       = [SyncLocalMem i]
    process (SyncGlobalMem i)      = [SyncGlobalMem i]

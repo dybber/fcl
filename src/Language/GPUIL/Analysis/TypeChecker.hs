@@ -92,7 +92,7 @@ checkStmt env (For var@(_,ty) e0 ss _) =
      newEnv <- addVar env var
      checkStmts newEnv ss
      return env
-checkStmt env (SeqWhile _ e0 ss _) =
+checkStmt env (While _ e0 ss _) =
   do ty0 <- checkExp env e0
      when (ty0 /= CBool) $ throw "Loop variable should be bool in while-loop"
      checkStmts env ss

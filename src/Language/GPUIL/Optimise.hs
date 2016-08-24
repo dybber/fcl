@@ -7,7 +7,6 @@ import Language.GPUIL.Optimise.DeadCodeElimination (deadCodeElimination)
 import Language.GPUIL.Optimise.LoopUnroll (unroll)
 
 import Language.GPUIL.Analysis
-import Language.GPUIL.Analysis.Graph (Graph)
 import Language.GPUIL.Syntax (Statement, IExp)
 
 iterateN :: Int -> (a -> a) -> a -> a

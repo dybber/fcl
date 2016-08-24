@@ -29,7 +29,7 @@ constantProp stmts inSet defs =
            [x] -> case lookup x (Set.toList definitions) of
                     Nothing -> Nothing
                     Just e -> e
-           es -> Nothing
+           _ -> Nothing
 
     -- replace variables if they are constant
     rep :: Label -> IExp -> IExp
@@ -57,7 +57,7 @@ constantProp stmts inSet defs =
     prop (Allocate v e lbl)        = Allocate v (rep lbl e) lbl
     prop (For v e ss lbl)          = For v (rep lbl e) (map prop ss) lbl
     prop (If e0 ss0 ss1 lbl)       = If (rep lbl e0) (map prop ss0) (map prop ss1) lbl
-    prop (SeqWhile unroll e ss lbl)       = SeqWhile unroll e (map prop ss) lbl
+    prop (While unroll e ss lbl)   = While unroll e (map prop ss) lbl
     prop stmt                      = stmt
     
   in map prop stmts

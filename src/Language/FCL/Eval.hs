@@ -9,7 +9,6 @@ import Language.FCL.Eval.ArrayLib
 
 import Control.Monad.Trans.Except
 import Control.Monad (liftM, liftM2)
-import Control.Applicative ((<$>))
 
 import Data.List (sortBy)
 import Data.Ord (comparing)
