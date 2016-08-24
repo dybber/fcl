@@ -21,8 +21,11 @@ memMap stmts = mapM go stmts
   where
    go :: Statement a -> State (Maybe Bytes) (Statement a)
    go (Allocate name@(_,ty@(CPtr _ bty)) size' i) =
-     do offset <- allocate (BinOpE MulI size' (IntE (sizeOf bty)))
-        return $ (Decl name (CastE ty (BinOpE AddPtr sbase offset)) i)
+     case (sizeOf bty) of
+       Just bsize ->
+         do offset <- allocate (BinOpE MulI size' (IntE bsize))
+            return $ (Decl name (CastE ty (BinOpE AddPtr sbase offset)) i)
+       Nothing -> error "Allocation error unknown type, cannot take sizeof"
    go (For n e body i)           = do body' <- memMap body
                                       return (For n e body' i)
    go (While unroll e body i) =

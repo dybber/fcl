@@ -6,7 +6,6 @@ import Language.CGen.Syntax
 
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 
-
 -- naive linear-time algorithm
 ilog2 :: Int -> Int
 ilog2 0 = -1
@@ -40,6 +39,11 @@ foldExp e =
     IfE e0 e1 e2 -> foldIf (foldExp e0) (foldExp e1) (foldExp e2)
     BinOpE op e0 e1 -> foldBinOp op (foldExp e0) (foldExp e1)
     UnaryOpE op e0 -> foldUnOp op (foldExp e0)
+    FunCall fname es -> FunCall fname (map foldExp es)
+    SizeOf ty ->
+      case sizeOf ty of
+        Just i -> IntE i
+        Nothing -> SizeOf ty
 
 foldIf :: IExp -> IExp -> IExp -> IExp
 foldIf (BoolE True) e1 _              = e1

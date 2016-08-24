@@ -32,6 +32,7 @@ ppUnaryOp op d0 = name :+: parens d0
          Ln -> text "ln"
          AbsI -> text "abs"
          AbsD -> text "abs"
+         AddressOf -> char '&'
 
 ppBinOp :: BinOp -> Doc -> Doc -> Doc
 ppBinOp AddI d0 d1 = d0 :<>: char '+' :<>: d1
@@ -76,6 +77,7 @@ ppType CBool         = text "bool"
 ppType CWord8        = text "uchar"
 ppType CWord32       = text "uint"
 ppType CWord64       = text "ulong"
+ppType (CCustom name _) = text name
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
@@ -105,8 +107,8 @@ ppExp GroupID = error "get_group_id(0) not allowed in C-code"
 ppExp LocalSize = error "get_local_size(0) not allowed in C-code"
 ppExp WarpSize = error "_WARPSIZE not allowed in C-code"
 ppExp NumGroups = error "get_num_groups(0) not allowed in C-code"
-
---ppExp (CallFunE n e) = text n :<>: parens (sep (char ',') $ map ppExp e)
+ppExp (SizeOf ty) = text "sizeof" :+: parens (ppType ty)
+ppExp (FunCall fname e) = text fname :+: parens (sep (char ',') (map ppExp e))
 
 ppStmt :: Statement a -> Doc
 ppStmt (For n e body _) =

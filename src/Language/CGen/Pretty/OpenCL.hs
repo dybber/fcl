@@ -22,6 +22,7 @@ ppType CBool         = text "bool"
 ppType CWord8        = text "uchar"
 ppType CWord32       = text "uint"
 ppType CWord64       = text "ulong"
+ppType (CCustom name _) = text name
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
@@ -48,8 +49,8 @@ ppExp GroupID = text "get_group_id(0)"
 ppExp LocalSize = text "get_local_size(0)"
 ppExp WarpSize = text "_WARPSIZE" -- TODO fetch this from device info-query
 ppExp NumGroups = text "get_num_groups(0)"
-
---ppExp (CallFunE n e) = text n :<>: parens (sep (char ',') $ map ppExp e)
+ppExp (SizeOf ty) = text "sizeof" :+: parens (ppType ty)
+ppExp (FunCall fname e) = text fname :+: parens (sep (char ',') (map ppExp e))
 
 ppStmt :: Statement a -> Doc
 ppStmt (For n e body _) =

@@ -18,6 +18,7 @@ ppType CBool         = text "bool" -- maybe this should just be uint32?
 ppType CWord8        = text "uint8_t"
 ppType CWord32       = text "uint32_t"
 ppType CWord64       = text "uint64_t"
+ppType (CCustom name _) = text name
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
@@ -44,8 +45,8 @@ ppExp GroupID = text "blockIdx.x"
 ppExp LocalSize = text "blockDim.x"
 ppExp WarpSize = text "_WARPSIZE" -- TODO fetch this from device info-query
 ppExp NumGroups = text "gridDim.x"
-
---ppExp (CallFunE n e) = text n :<>: parens (sep (char ',') $ map ppExp e)
+ppExp (SizeOf ty) = text "sizeof" :+: parens (ppType ty)
+ppExp (FunCall fname e) = text fname :+: parens (sep (char ',') (map ppExp e))
 
 ppStmt :: Statement a -> Doc
 ppStmt (For n e body _) =

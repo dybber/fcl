@@ -25,7 +25,9 @@ liveInExp e =
     UnaryOpE _ e0       -> liveInExp e0
     BinOpE _ e0 e1      -> liveInExp e0 `Set.union` liveInExp e1
     IfE e0 e1 e2        -> liveInExp e0 `Set.union` liveInExp e1 `Set.union` liveInExp e2
+    FunCall _ es        -> Set.unions (map liveInExp es)
     CastE _ e0          -> liveInExp e0
+    SizeOf _            -> Set.empty
     -- Scalars and constants
     IntE _              -> Set.empty
     DoubleE _           -> Set.empty

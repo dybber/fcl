@@ -1,11 +1,11 @@
 -- | Program construction monad
 module Language.CGen.Monad where
 
-import Language.CGen.Syntax as AST
-
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
+
+import Language.CGen.Syntax as AST
 
 data MState = MState
               { params :: [VarName]
@@ -19,8 +19,6 @@ initialState = MState
 
 type CExp = IExp
 type IL x = WriterT ([Statement ()]) (State MState) x
-
-
 
 runIL :: IL () -> ([Statement ()], [VarName], Int)
 runIL m =

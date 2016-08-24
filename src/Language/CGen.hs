@@ -7,7 +7,7 @@ module Language.CGen
 )
 where
 
-import Language.CGen.Cons hiding (addStmt)
+import Language.CGen.Cons
 import Language.CGen.ConsGPU
 import Language.CGen.Syntax
 
