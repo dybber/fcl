@@ -30,14 +30,15 @@ Library
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
 
+                   Util.PrettyLib
+                   
                    Language.CGen
                    Language.CGen.Syntax
                    Language.CGen.Cons
                    Language.CGen.SimpleAllocator
-                   Language.CGen.PrettyLib
-                   Language.CGen.PrettyC
-                   Language.CGen.PrettyOpenCL
-                   Language.CGen.PrettyCUDA
+                   Language.CGen.Pretty.C
+                   Language.CGen.Pretty.OpenCL
+                   Language.CGen.Pretty.CUDA
                    Language.CGen.Analysis
                    Language.CGen.Analysis.Graph
                    Language.CGen.Analysis.Dataflow
