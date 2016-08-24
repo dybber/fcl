@@ -1,27 +1,23 @@
--- | Pretty print OpenCL kernels
-module Language.CGen.PrettyOpenCL where
+-- | Pretty print CUDA kernels
+module Language.CGen.Pretty.CUDA where
 
--- A lot of code duplication here due to the lack of ML-style functors
-
-import Language.CGen.PrettyLib
-import Language.CGen.PrettyC hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
+import Util.PrettyLib
+import Language.CGen.Pretty.C hiding (ppExp, ppAttr, ppType, ppStmt, ppStmts, ppFunction, ppProgram)
 import Language.CGen.Syntax
-
 import Data.List (sort)
 
-
 ppAttr :: Attribute -> Doc
-ppAttr Local = text "__local"
-ppAttr Global = text "__global"
+ppAttr Local = text "__shared__"
+ppAttr Global = text "__device__"
 ppAttr Volatile = text "volatile"
 
 ppType :: CType -> Doc
-ppType CInt32        = text "int"
+ppType CInt32        = text "int32_t"
 ppType CDouble       = text "double"
-ppType CBool         = text "bool"
-ppType CWord8        = text "uchar"
-ppType CWord32       = text "uint"
-ppType CWord64       = text "ulong"
+ppType CBool         = text "bool" -- maybe this should just be uint32?
+ppType CWord8        = text "uint8_t"
+ppType CWord32       = text "uint32_t"
+ppType CWord64       = text "uint64_t"
 ppType (CPtr [] t)   = ppType t :+: char '*'
 ppType (CPtr attr t) =
   hsep (map ppAttr (sort attr)) :<>: ppType t :+: char '*'
@@ -42,12 +38,12 @@ ppExp (IfE e0 e1 e2) = parens (ppExp e0 :<>: char '?' :<>:
                                ppExp e2)
 ppExp (IndexE n e) = ppVar n :<>: brackets (ppExp e)
 ppExp (CastE t e) = parens (parens (ppType t) :<>: ppExp e)
-ppExp GlobalID = text "get_global_id(0)"
-ppExp LocalID = text "get_local_id(0)"
-ppExp GroupID = text "get_group_id(0)"
-ppExp LocalSize = text "get_local_size(0)"
+ppExp GlobalID = parens (text "threadIdx.x + (blockDim.x * blockIdx.x)")
+ppExp LocalID = text "threadIdx.x"
+ppExp GroupID = text "blockIdx.x"
+ppExp LocalSize = text "blockDim.x"
 ppExp WarpSize = text "_WARPSIZE" -- TODO fetch this from device info-query
-ppExp NumGroups = text "get_num_groups(0)"
+ppExp NumGroups = text "gridDim.x"
 
 --ppExp (CallFunE n e) = text n :<>: parens (sep (char ',') $ map ppExp e)
 
@@ -91,8 +87,8 @@ ppStmt (AssignSub n e_idx e _) =
   ppVar n :+: brackets (ppExp e_idx) :+: text " = " :+: unpar(ppExp e) :+: char ';'
 ppStmt (Decl n e _) =
   ppDecl n :+: text " = " :+: unpar(ppExp e) :+: char ';'
-ppStmt (SyncLocalMem _) = text "barrier(CLK_LOCAL_MEM_FENCE);"
-ppStmt (SyncGlobalMem _) = text "barrier(CLK_GLOBAL_MEM_FENCE);"
+ppStmt (SyncLocalMem _) = text "__syncthreads();"
+ppStmt (SyncGlobalMem _) = error "SyncGlobalMem in kernels not supported in CUDA"
 ppStmt (Allocate (name,_) _ _) = text ("// allocate " ++ name)
 ppStmt (Comment msg _) = text ("// " ++ msg)
 
@@ -109,7 +105,7 @@ ppParamList = sep (char ',') . map ppDecl
 ppFunction :: Function -> Doc
 ppFunction f =
   let returnSig = if isKernel f
-                  then text "__kernel void"
+                  then text "extern \"C\" __global__ void "
                   else case funReturnType f of
                          Nothing -> text "void"
                          Just ty -> text (show ty)
@@ -119,6 +115,7 @@ ppFunction f =
       indent (ppStmts (funBody f))
       :+: Newline
     :+: text "}"
+
 
 ppProgram :: [Function] -> Doc
 ppProgram fs =

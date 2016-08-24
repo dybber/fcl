@@ -11,10 +11,10 @@ import Language.CGen.Cons hiding (addStmt)
 import Language.CGen.ConsGPU
 import Language.CGen.Syntax
 
-import Language.CGen.PrettyLib (render)
-import Language.CGen.PrettyC as PPC (ppProgram)
-import qualified Language.CGen.PrettyCUDA as PPCUDA (ppProgram)
-import qualified Language.CGen.PrettyOpenCL as PPOpenCL (ppProgram)
+import Util.PrettyLib (render)
+import Language.CGen.Pretty.C as PPC (ppProgram)
+import qualified Language.CGen.Pretty.CUDA as PPCUDA (ppProgram)
+import qualified Language.CGen.Pretty.OpenCL as PPOpenCL (ppProgram)
 import Language.CGen.Optimise (optimise)
 import Language.CGen.SimpleAllocator (memoryMap, Bytes)
 

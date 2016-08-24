@@ -1,5 +1,5 @@
 -- would've been really nice with ML-style functors here...
-module Language.CGen.PrettyC (
+module Language.CGen.Pretty.C (
   ppUnaryOp,
   ppBinOp,
   ppAttr,
@@ -12,7 +12,7 @@ module Language.CGen.PrettyC (
   ppProgram)
   where
 
-import Language.CGen.PrettyLib
+import Util.PrettyLib
 import Language.CGen.Syntax
 
 import Data.List (sort)

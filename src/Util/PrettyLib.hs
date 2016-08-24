@@ -5,7 +5,7 @@
 -- Yes, I could have used something else, like language-c-quote or
 -- on of the pretty-printing packages. This works for now.
 
-module Language.CGen.PrettyLib where
+module Util.PrettyLib where
 
 data Doc = Text String
          | Doc :+: Doc

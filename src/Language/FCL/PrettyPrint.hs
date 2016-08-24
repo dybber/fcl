@@ -1,6 +1,6 @@
 module Language.FCL.PrettyPrint (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrintProgram, showType) where
 
-import Language.CGen.PrettyLib
+import Util.PrettyLib
 import Language.FCL.Syntax
 
 import Control.Monad.Trans.State

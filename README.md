@@ -2,7 +2,7 @@ Functional Computing Language
 =============================
 A low-level functional GPU language compiling to OpenCL.
 
-Language.GPUIL
+Language.CGen
 --------------
 This module and submodules contain a library for generating OpenCL and
 CUDA code. Currently only generating device code.
@@ -10,7 +10,7 @@ CUDA code. Currently only generating device code.
 Language.FCL
 ----------------------
 This aims to be a reimplementation of Obsidian as an external language
-(not embedded), using GPUIL for code-generation.
+(not embedded), using CGen for code-generation.
 
 cases
 -----
