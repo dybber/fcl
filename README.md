@@ -25,4 +25,12 @@ host-code :-)
 
 OpenCL installation
 -------------------
-http://wiki.tiker.net/OpenCLHowTo
+Recommendation: Use AMD drivers for development, even on Intel CPUs,
+as their compiler is more polished and gives better error messages.
+
+    sudo ./AMD-APP-SDK-v3.0.130.136-GA-linux64.sh # install in /opt
+    sudo ln -s /opt/AMDAPPSDK-3.0/lib/x86_64/sdk/* /usr/lib/
+    sudo ldconfig
+
+
+More info: http://wiki.tiker.net/OpenCLHowTo

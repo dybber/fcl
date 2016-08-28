@@ -172,8 +172,8 @@ ppFunction f =
                        Nothing -> text "void"
                        Just ty -> text (show ty)
   in 
-    returnSig :+: text (funName f) :+: parens (ppParamList (funParams f))
-    :+: text " {" :+:
+    returnSig :<>: text (funName f) :+: parens (ppParamList (funParams f))
+    :<>: char '{' :+:
       indent (ppStmts (funBody f))
       :+: Newline
     :+: text "}"

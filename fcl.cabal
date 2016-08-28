@@ -33,8 +33,10 @@ Library
                    Util.PrettyLib
                    
                    Language.CGen
+                   Language.CGen.Monad
                    Language.CGen.Syntax
                    Language.CGen.Cons
+                   Language.CGen.ConsGPU
                    Language.CGen.SimpleAllocator
                    Language.CGen.Pretty.C
                    Language.CGen.Pretty.OpenCL
