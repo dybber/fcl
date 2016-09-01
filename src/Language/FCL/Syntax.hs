@@ -56,6 +56,7 @@ data Type =
   | BoolT
   | DoubleT
   | VarT TyVar
+  | LvlVar :-> Type
   | Type :> Type
   | Type :*: Type
   | PullArrayT Type
@@ -73,6 +74,7 @@ freeTyVars :: Type -> [TyVar]
 freeTyVars IntT       = []
 freeTyVars BoolT       = []
 freeTyVars DoubleT       = []
+freeTyVars (_ :-> t) = freeTyVars t
 freeTyVars (t1 :> t2) = freeTyVars t1 ++ freeTyVars t2
 freeTyVars (t1 :*: t2) = freeTyVars t1 ++ freeTyVars t2
 freeTyVars (PullArrayT t) = freeTyVars t
@@ -99,6 +101,9 @@ data Exp ty =
   | Let Name (Exp ty) (Exp ty) ty Region
   | App (Exp ty) (Exp ty)
 
+  | LambLvl LvlVar (Exp ty) ty Region
+  | AppLvl (Exp ty) Level
+    
   | Cond (Exp ty) (Exp ty) (Exp ty) ty Region
   | Pair (Exp ty) (Exp ty) Region
   | Proj1E (Exp ty) Region
@@ -116,7 +121,7 @@ data Exp ty =
   | MapPull (Exp ty) (Exp ty) Region
   | MapPush (Exp ty) (Exp ty) Region
   | Force (Exp ty) Region
-  | Push Level (Exp ty) ty Region
+  | Push Level (Exp ty) Region
   | Concat (Exp ty) (Exp ty) Region
   | Interleave (Exp ty) (Exp ty) (Exp ty) Region
   | BlockSize Region
@@ -124,11 +129,6 @@ data Exp ty =
   -- Sequential scan, I don't really want this!
   | Scanl (Exp ty) (Exp ty) (Exp ty) Region
   deriving (Eq, Show)
-
-  -- To be added later!
-  -- | Replicate Exp Exp
-  -- | Permute Exp Exp
-  -- | Append Exp Exp
 
 data UnOp = AbsI | SignI | NegateI | Not | I2D | B2I | CLZ
   deriving (Eq, Show)
@@ -161,11 +161,16 @@ typeOf (BinOp op _ _ _) =
         else error "typeOf: BinOp"
 typeOf (Var _ ty _) = ty
 typeOf (Lamb _ ty0 _ ty1 _) = ty0 :> ty1
-typeOf (Let _ _ _ ty _) = ty
 typeOf (App e _) =
   case typeOf e of
     _ :> ty1 -> ty1
     _ -> error "typeOf: First argument to App not of function type"
+typeOf (LambLvl lvlvar _ ty _) = lvlvar :-> ty
+typeOf (AppLvl e _) =
+  case typeOf e of
+    _ :-> ty -> ty
+    _ -> error "typeOf: First argument to AppLvl not of function type"
+typeOf (Let _ _ _ ty _) = ty
 typeOf (Cond _ _ _ ty _) = ty
 typeOf (Pair e0 e1 _) = (typeOf e0) :*: (typeOf e1)
 typeOf (Proj1E e _) =
@@ -196,7 +201,10 @@ typeOf (MapPush e0 e1 _) =
   case (typeOf e0, typeOf e1) of
     (_ :> ty1, PushArrayT lvl _) -> PushArrayT lvl ty1
     _ -> error "typeOf: Map"
-typeOf (Push _ _ ty _) = ty
+typeOf (Push lvl e0 _) =
+  case typeOf e0 of
+    PullArrayT ty -> PushArrayT lvl ty
+    _ -> error "typeOf: push"
 typeOf (Force e0 _) =
   case (typeOf e0) of
     (PushArrayT _ ty0) -> PullArrayT ty0
@@ -268,12 +276,14 @@ freeIn x (BinOp _ e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Var y _ _)              = x /= y
 freeIn x (Vec es _ _)             = all (freeIn x) es
 freeIn x (Lamb y _ e _ _)         = x == y || freeIn x e
-freeIn x (Let y e ebody _ _)      = freeIn x e && (x == y || freeIn x ebody)
 freeIn x (App e1 e2)              = freeIn x e1 && freeIn x e2
+freeIn x (LambLvl _ e _ _)        = freeIn x e
+freeIn x (AppLvl e _)             = freeIn x e
+freeIn x (Let y e ebody _ _)      = freeIn x e && (x == y || freeIn x ebody)
 freeIn x (Cond e1 e2 e3 _ _)      = all (freeIn x) [e1, e2, e3]
 freeIn x (LengthPull e _)         = freeIn x e
 freeIn x (LengthPush e _)         = freeIn x e
-freeIn x (Push _ e _ _)           = freeIn x e
+freeIn x (Push _ e _)             = freeIn x e
 freeIn x (Force e _)              = freeIn x e
 freeIn x (Proj1E e _)             = freeIn x e
 freeIn x (Proj2E e _)             = freeIn x e
@@ -298,12 +308,14 @@ freeVars (BinOp _ e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Var x _ _)              = Set.singleton x
 freeVars (Vec es _ _)             = Set.unions (map freeVars es)
 freeVars (Lamb x _ e _ _)         = Set.difference (freeVars e) (Set.singleton x)
+freeVars (App e1 e2)              = Set.union (freeVars e1) (freeVars e2)
+freeVars (LambLvl _ e _ _)        = freeVars e
+freeVars (AppLvl e _)             = freeVars e
 freeVars (Let x e1 e2 _ _)        = Set.union (freeVars e1)
                                               (Set.difference (freeVars e2) (Set.singleton x))
-freeVars (App e1 e2)              = Set.union (freeVars e1) (freeVars e2)
 freeVars (Cond e1 e2 e3 _ _)      = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Force e _)              = freeVars e
-freeVars (Push _ e _ _)           = freeVars e
+freeVars (Push _ e _)             = freeVars e
 freeVars (LengthPull e _)         = freeVars e
 freeVars (LengthPush e _)         = freeVars e
 freeVars (Proj1E e _)             = freeVars e
@@ -346,6 +358,12 @@ subst s x e =
       | otherwise ->
           do ebody' <- subst s x ebody
              return (Lamb y ty1 ebody' ty2 r)
+    (AppLvl e0 lvl)   ->
+          do e0' <- subst s x e0
+             return (AppLvl e0' lvl)
+    (LambLvl lvlvar ebody ty r) ->
+           do ebody' <- subst s x ebody
+              return (LambLvl lvlvar ebody' ty r)
     (Let y e1 e2 t r)
       | x == y                    -> return e
       | Set.member y (freeVars s) ->
@@ -423,9 +441,9 @@ subst s x e =
     Force e1 r ->
        do e1' <- subst s x e1
           return (Force e1' r)
-    Push lvl e1 ty r ->
+    Push lvl e1 r ->
        do e1' <- subst s x e1
-          return (Push lvl e1' ty r)
+          return (Push lvl e1' r)
     Concat e1 e2 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

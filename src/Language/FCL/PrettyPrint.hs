@@ -103,6 +103,10 @@ ppType (ty0 :> ty1)  =
   do ty0' <- ppType ty0
      ty1' <- ppType ty1
      return (parens (ty0' :<>: text "->" :<>: ty1'))
+ppType (lvlvar :-> ty)  =
+  do lvlvar' <- ppLvlVar lvlvar
+     ty' <- ppType ty
+     return (parens (angles lvlvar' :<>: text "->" :<>: ty'))
 ppType (ty0 :*: ty1)  =
   do ty0' <- ppType ty0
      ty1' <- ppType ty1
@@ -113,6 +117,13 @@ ppType (PushArrayT lvl ty) =
      prettylvl <- ppLevel lvl
      return (brackets ty' :+: angles prettylvl)
 
+ppLvlVar :: LvlVar -> PP Doc
+ppLvlVar (LvlVar i Nothing) =
+  do name <- getLvlName i
+     return (text name)
+ppLvlVar (LvlVar i (Just name)) =
+  return (text name :+: int i)
+
 -- Pretty print levels
 ppLevel :: Level -> PP Doc
 ppLevel Zero = return (text "thread")
@@ -122,10 +133,7 @@ ppLevel (Step (Step (Step Zero))) = return (text "grid")
 ppLevel (Step lvl) = do
   prettylvl <- ppLevel lvl
   return (parens (text "1+" :+: prettylvl))
-ppLevel (VarL (LvlVar i Nothing)) =
-  do name <- getLvlName i
-     return (text name)
-ppLevel (VarL (LvlVar _ (Just v))) = return (text v)
+ppLevel (VarL lvlvar) = ppLvlVar lvlvar
 
 pp :: Exp Type -> PP Doc
 pp (IntScalar i _)       = return (int i)
@@ -134,9 +142,8 @@ pp (BoolScalar True _)   = return (text "true")
 pp (BoolScalar False _)  = return (text "false")
 pp (UnOp op e1 _)        = parens <$> (ppUnOp op e1)
 pp (BinOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
-pp (Var x ty _)          =
-  do ty' <- ppType ty
-     return (text x) -- (parens (text x :<>: char ':' :<>: ty'))
+pp (Var x _ _)          =
+  return (text x)
 pp (Vec es _ _)          =
   do es' <- mapM pp es
      return (brackets (sep (char ',') es'))
@@ -144,24 +151,27 @@ pp (App e1 e2)           =
   do e1' <- pp e1
      e2' <- pp e2
      return (parens (e1' :<>: e2'))
-pp (Lamb x tyx e1 ty1 _) =
-  do tyx' <- ppType tyx
-     ty1' <- ppType ty1
-     e1' <- pp e1
+pp (Lamb x _ e1 _ _) =
+  do e1' <- pp e1
      return (
-       -- parens(
-           parens (text "fn" :<>: text x -- :<>: char ':' :<>: tyx'
+           parens (text "fn" :<>: text x
                    :<>: text "=>" :<>: e1'))
-           -- :<>: char ':' :<>: ty1'))
-pp (Let x e1 e2 ty _)    =
+pp (AppLvl e lvl)           =
+  do e' <- pp e
+     lvl' <- ppLevel lvl
+     return (parens (e' :<>: angles lvl'))
+pp (LambLvl lvlvar ebody _ _) =
+  do ebody' <- pp ebody
+     name <- ppLvlVar lvlvar
+     return (parens (text "fn" :<>: angles name
+                     :<>: text "=>" :<>: ebody'))
+pp (Let x e1 e2 _ _)    =
   do e1' <- pp e1
      e2' <- pp e2
-     ty' <- ppType ty
-     return (-- parens(
+     return (
                 parens (text "let" :<>: text x
                         :<>: text "=" :<>: e1'
                         :<>: text "in" :<>: e2')
-                -- :<>: char ':' :<>: ty')
             )
 pp (Cond e1 e2 e3 _ _) =
   do e1' <- pp e1
@@ -209,9 +219,8 @@ pp (MapPush e1 e2 _)    =
 pp (Force e1 _)              =
   do e1' <- pp e1
      return (parens (text "force" :<>: e1'))
-pp (Push lvl e1 _ _)            =
+pp (Push lvl e1 _)            =
   do e1' <- pp e1
---     ty' <- ppType ty
      lvl' <- ppLevel lvl
      return (parens (parens (text "push" :+: angles lvl' :<>: e1')))
 pp (Concat e1 e2 _)          =

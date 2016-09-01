@@ -66,11 +66,11 @@ fun transposeChunked splitSize width height elems =
   let groupsWidth = width / splitSize in -- width of outer array
   let groupsHeight = height / splitSize in -- height of outer array
     splitGrid splitSize tileSize width groupsWidth groupsHeight elems
-     |> mapPull (fn arr => #push<block> arr)
+     |> mapPull (fn arr => push <block> arr)
      |> mapPull force
      |> mapPull (transpose splitSize splitSize)
      |> transpose groupsWidth groupsHeight
-     |> mapPull (fn arr => #push<block> arr)
+     |> mapPull (fn arr => push <block> arr)
      |> concatGrid splitSize tileSize groupsWidth height
 
 sig transposeChunked16 : int -> int -> [int] -> [int]<grid>

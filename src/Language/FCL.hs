@@ -1,5 +1,5 @@
 module Language.FCL
- (parseTopLevel, typeinfer, inline, simplify,
+ (parseTopLevel, initTyVars, typeinfer, inline, simplify,
   eval,
   compileKernels, RenderMode(..), renderProgram,
 
@@ -12,6 +12,7 @@ module Language.FCL
 where
 
 import Language.FCL.Parser      (parseTopLevel, ParseError)
+import Language.FCL.InitTyVars  (initTyVars)
 import Language.FCL.TypeInference (typeinfer, TypeError)
 import Language.FCL.Inline      (inline)
 import Language.FCL.Simplify    (simplify)
@@ -20,3 +21,5 @@ import Language.FCL.Syntax      (Program, Type, Untyped)
 import Language.FCL.PrettyPrint (showType, prettyPrintType, prettyPrintExp, prettyPrintProgram)
 import Language.FCL.Eval        (eval)
 import Language.CGen           (renderProgram, RenderMode(..))
+
+

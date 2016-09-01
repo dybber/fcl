@@ -1,4 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+-- | Parse FCL programs. After parsing, all type variables and level
+-- variables needs to be numbered. This is not done here to seperate
+-- concerns.
 module Language.FCL.Parser
   (parseTopLevel, parseType, ParseError)
 where
@@ -62,19 +65,14 @@ kernelConfig cfg =
 
 fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
 fundef tyanno =
-  let
-    addArgs :: [Name] -> Exp Untyped -> Exp Untyped
-    addArgs [] rhs = rhs
-    addArgs (x:xs) rhs = addArgs xs (Lamb x Untyped rhs Untyped Missing)
-  in
     do make_kernel <-     (reserved "fun" >> return False)
                       <|> (reserved "kernel" >> return True)
        name <- identifier
-       args <- many identifier
+       args <- arguments
        reservedOp "="
        rhs <- expr
        conf <- kernelConfig defaultKernelConfig
-       let function = addArgs (reverse args) rhs
+       let function = args rhs Missing
        return (Definition
                  { defVar = name
                  , defSignature = fmap snd tyanno
@@ -83,24 +81,34 @@ fundef tyanno =
                  , defKernelConfig = conf
                  , defBody = function
                  })
-       
+
+-- Function argument
+argument :: Parser (Exp Untyped -> Region -> Exp Untyped)
+argument =
+  (do ident <- angles (lvlVar)
+      return (\e r -> LambLvl ident e Untyped r))
+    <|>
+  (do ident <- identifier
+      return (\e r -> Lamb ident Untyped e Untyped r))
+
+-- Zero or more function arguments
+arguments :: Parser (Exp Untyped -> Region -> Exp Untyped)
+arguments = 
+    try (do a <- argument
+            more <- arguments
+            return (\e r -> a (more e r) r))
+    <|> (return (\e _ -> e))
+
+-- One or more function arguments
+arguments1 :: Parser (Exp Untyped -> Region -> Exp Untyped)
+arguments1 =
+  do a <- argument
+     as <- arguments
+     return (\e r -> a (as e r) r)
+
 ---------------------
 --   Expressions   --
 ---------------------
--- term :: Parser (Exp Untyped)
--- term =
---   do t <- term_no_anno
---      anno <- (type_annotation <|> return Nothing)
---      case anno of
---        Just ty -> withRegion (return (Annotation t ty))
---        Nothing -> return t
-
--- type_annotation :: Parser (Maybe Type)
--- type_annotation =
---   do colon
---      ty <- type'
---      return (Just ty)
-
 term :: Parser (Exp Untyped)
 term =
    try fn
@@ -177,14 +185,38 @@ let' =
     e2 <- expr
     return (Let ident e1 e2 Untyped)
 
+-- Wrap unary function, to allow partial application
 unop :: (Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
-unop opr = return (\r -> Lamb "x" Untyped (opr (Var "x" Untyped Missing) r) Untyped r)
+unop opr =
+  return (\r ->
+      Lamb "x" Untyped
+           (opr (Var "x" Untyped Missing) r)
+           Untyped r)
 
+-- Wrap binary function, to allow partial application
 binop :: (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
-binop opr = return (\r -> Lamb "x" Untyped (Lamb "y" Untyped (opr (Var "x" Untyped Missing) (Var "y" Untyped Missing) r) Untyped r) Untyped r)
+binop opr =
+  return (\r ->
+      Lamb "x" Untyped
+          (Lamb "y" Untyped
+              (opr (Var "x" Untyped Missing)
+                   (Var "y" Untyped Missing) r)
+              Untyped r)
+          Untyped r)
 
+-- Wrap ternary function, to allow partial application
 triop :: (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
-triop opr = return (\r -> Lamb "x" Untyped (Lamb "y" Untyped (Lamb "z" Untyped (opr (Var "x" Untyped Missing) (Var "y" Untyped Missing) (Var "z" Untyped Missing) r) Untyped r) Untyped r) Untyped r)
+triop opr =
+  return (\r ->
+      Lamb "x" Untyped
+          (Lamb "y" Untyped
+              (Lamb "z" Untyped
+                  (opr (Var "x" Untyped Missing)
+                       (Var "y" Untyped Missing)
+                       (Var "z" Untyped Missing) r)
+                  Untyped r)
+              Untyped r)
+          Untyped r)
 
 op :: Parser (Exp Untyped)
 op = withRegion (identifier >>= switch)
@@ -215,7 +247,9 @@ op = withRegion (identifier >>= switch)
     switch "lengthPull" = unop LengthPull
     switch "lengthPush" = unop LengthPush
     switch "force"      = unop Force
-    switch "#push"      = Push          <$> angles level <*> term <*> (return Untyped) <?> "push"
+    switch "push"       =
+      let var = LvlVar 0 (Just "thisisahack") -- TODO fix this hack
+      in return (\r -> LambLvl var (Lamb "x" Untyped (Push (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
     switch "index"      = binop Index
     switch "generatePull" = binop GeneratePull
     switch "mapPull"    = binop MapPull
@@ -228,39 +262,59 @@ op = withRegion (identifier >>= switch)
 
 fn :: Parser (Exp Untyped)
 fn =
-  withRegion $ do
-    reserved "fn"
-    ident <- identifier
-    symbol "=>"
-    e <- expr
-    return (Lamb ident Untyped e Untyped)
+  withRegion $
+    do reserved "fn"
+       f <- arguments1
+       symbol "=>"
+       e <- expr
+       return (f e)
 
 expr :: Parser (Exp Untyped)
 expr =
-  let table = [ [Infix (return App) AssocLeft],
-                [Infix (binOp "*" MulI) AssocLeft, Infix (binOp "/" DivI) AssocLeft, Infix (binOp "%" ModI) AssocLeft],
-                [Infix (binOp "+" AddI) AssocLeft, Infix (binOp "-" SubI) AssocLeft],
-                [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft],
-                [Infix (binOp "==" EqI) AssocLeft, Infix (binOp "!=" NeqI) AssocLeft],
-                [Infix pipeForward AssocLeft]
-              ]
+  let
+    lvlapp :: Parser (Exp Untyped -> Exp Untyped)
+    lvlapp =
+      do e2 <- angles level
+         return (\e1 -> AppLvl e1 e2)
+
+    pipeForward :: Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+    pipeForward =
+      do reservedOp "|>"
+         return (\e1 e2 -> App e2 e1)
+
+    binOp :: String -> BinOp -> Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+    binOp opName operator =
+      do reservedOp opName
+         return (\e1 e2 -> BinOp operator e1 e2 Missing)
+
+    table = [ [Infix (return App) AssocLeft, Postfix lvlapp],
+              [Infix (binOp "*" MulI) AssocLeft, Infix (binOp "/" DivI) AssocLeft, Infix (binOp "%" ModI) AssocLeft],
+              [Infix (binOp "+" AddI) AssocLeft, Infix (binOp "-" SubI) AssocLeft],
+              [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft],
+              [Infix (binOp "==" EqI) AssocLeft, Infix (binOp "!=" NeqI) AssocLeft],
+              [Infix pipeForward AssocLeft]
+            ]
   in buildExpressionParser table term
-
-pipeForward :: Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
-pipeForward = do
-  reservedOp "|>"
-  return (\e1 e2 -> App e2 e1)
-
-binOp :: String -> BinOp -> Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
-binOp opName operator = do
-  reservedOp opName
-  return (\e1 e2 -> BinOp operator e1 e2 Missing)
 
 ------------------
 --    Types
 ------------------
 type' :: Parser Type
-type' = chainr1 simpleType funType
+type' =
+ let scan =
+       do x <- (Left <$> simpleType) <|> (Right <$> (angles lvlVar))
+          rest x
+
+     rest (Left x) =
+       (do symbol "->"
+           y <- scan
+           return (x :> y))
+       <|> return x
+     rest (Right lvl) =
+       do symbol "->"
+          y <- scan
+          return (lvl :-> y)
+ in scan
 
 simpleType :: Parser Type
 simpleType =
@@ -268,7 +322,6 @@ simpleType =
   <|> tyVar
   <|> tupleType
   <|> arrayType
-
 
 baseType :: Parser Type
 baseType = (reserved "int" >> return IntT)
@@ -280,18 +333,18 @@ level = (reserved "thread" >> return threadLevel)
     <|> (reserved "warp" >> return warpLevel)
     <|> (reserved "block" >> return blockLevel)
     <|> (reserved "grid" >> return gridLevel)
-    <|> lvlVar
+    <|> (VarL <$> lvlVar)
     <|> do char '1'
            reservedOp "+"
            lvl <- level
            return (Step lvl)
 
 arrayType :: Parser Type
-arrayType = do
-  ty <- brackets type'
-  try (do lvl <- angles level
-          return (PushArrayT lvl ty))
-    <|> return (PullArrayT ty)
+arrayType =
+  do ty <- brackets type'
+     (try (do lvl <- angles level
+              return (PushArrayT lvl ty)))
+       <|> return (PullArrayT ty)
 
 tupleType :: Parser Type
 tupleType =
@@ -304,17 +357,14 @@ tupleType =
       <|> do symbol ")"
              return t1
 
-funType :: Parser (Type -> Type -> Type)
-funType =
-  do symbol "->"
-     return (:>)
-
+-- All type variables are numbered identical (0), but needs to be
+-- renumbered properly before type checking (see Language.FCL.InitTyVars)
 tyVar :: Parser Type
-tyVar = do
-  name <- identifier
-  return (VarT (TyVar 0 (Just name)))
+tyVar =
+  do name <- identifier
+     return (VarT (TyVar 0 (Just name)))
 
-lvlVar :: Parser Level
-lvlVar = do
-  name <- identifier
-  return (VarL (LvlVar 0 (Just name)))
+lvlVar :: Parser LvlVar
+lvlVar =
+  do name <- identifier
+     return (LvlVar 0 (Just name))

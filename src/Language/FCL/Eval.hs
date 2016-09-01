@@ -178,7 +178,7 @@ evalExp env (LengthPush e0 reg) = do
     (ArrayV arr) -> return (IntV (sizeOf arr))
     _ -> evalError (Just reg) "expecting array as argument to Length"
 evalExp env (Force e0 _) = evalExp env e0
-evalExp env (Push _ e0 _ _) = evalExp env e0
+evalExp env (Push _ e0 _) = evalExp env e0
 evalExp env (Vec ls _ _) = do
   vs <- mapM (evalExp env) ls
   return (ArrayV (fromList vs))

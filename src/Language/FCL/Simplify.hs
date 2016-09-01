@@ -37,8 +37,8 @@ simplifyExp cfg (Let x1 e1 e2 ty r) =
   in if isScalar e1_simpl
      then simplifyExp cfg (apply (x1,e2) e1_simpl)
      else Let x1 e1_simpl (simplifyExp cfg e2) ty r
-simplifyExp cfg (UnOp op e r) = simplifyUnOp cfg op (simplifyExp cfg e) r
-simplifyExp cfg (BinOp op e1 e2 r) = simplifyBinOp cfg op (simplifyExp cfg e1) (simplifyExp cfg e2) r
+simplifyExp cfg (UnOp op e r) = simplifyUnOp op (simplifyExp cfg e) r
+simplifyExp cfg (BinOp op e1 e2 r) = simplifyBinOp op (simplifyExp cfg e1) (simplifyExp cfg e2) r
 simplifyExp cfg (Cond econd etrue efalse ty r) =
   case simplifyExp cfg econd of
     BoolScalar True  _ -> simplifyExp cfg etrue
@@ -56,15 +56,17 @@ simplifyExp cfg (WhileSeq e0 e1 e2 reg)    = WhileSeq     (simplifyExp cfg e0) (
 simplifyExp cfg (GeneratePull e0 e1 reg)   = GeneratePull (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (MapPull e0 e1 reg)        = MapPull      (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (MapPush e0 e1 reg)        = MapPush      (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (Push lvl e0 t reg)        = Push         lvl (simplifyExp cfg e0) t reg
+simplifyExp cfg (Push lvl e0 reg)          = Push         lvl (simplifyExp cfg e0) reg
 simplifyExp cfg (Force e0 reg)             = Force        (simplifyExp cfg e0) reg
 simplifyExp cfg (Concat e0 e1 reg)         = Concat       (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (Interleave e0 e1 e2 reg)  = Interleave   (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
 simplifyExp cfg (Scanl e0 e1 e2 reg)       = Scanl        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
+simplifyExp cfg (LambLvl lvlvar ebody ty reg) = LambLvl lvlvar  (simplifyExp cfg ebody) ty reg
+simplifyExp cfg (AppLvl e lvl) = AppLvl (simplifyExp cfg e) lvl
 
-simplifyUnOp :: KernelConfig -> UnOp -> Exp ty -> Region -> Exp ty
-simplifyUnOp cfg op e r = UnOp op e r
+simplifyUnOp :: UnOp -> Exp ty -> Region -> Exp ty
+simplifyUnOp op e r = UnOp op e r
 
-simplifyBinOp :: KernelConfig -> BinOp -> Exp ty -> Exp ty -> Region -> Exp ty
-simplifyBinOp cfg MulI (IntScalar v1 _) (IntScalar v2 _) r = IntScalar (v1*v2) r
-simplifyBinOp cfg op e1 e2 r = BinOp op e1 e2 r
+simplifyBinOp :: BinOp -> Exp ty -> Exp ty -> Region -> Exp ty
+simplifyBinOp MulI (IntScalar v1 _) (IntScalar v2 _) r = IntScalar (v1*v2) r
+simplifyBinOp op e1 e2 r = BinOp op e1 e2 r

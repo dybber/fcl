@@ -32,6 +32,7 @@ instance Show (Array a) where
   show (ArrPull _ _ _) = "<<pull-array>>"
   show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
   show (ArrInterleave lvl e _ arr) = "interleave<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
+  show (ArrScanl _ e _ arr) = "scanl <fn> (" ++ show e ++ ") (" ++ show arr ++ ")"
 
 instance Show Tagged where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
@@ -114,6 +115,7 @@ convertType BoolT             = bool
 convertType (PullArrayT ty)   = pointer [] (convertType ty)
 convertType (PushArrayT _ ty) = pointer [] (convertType ty)
 convertType (_ :> _)          = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
+convertType (_ :-> _)         = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
 
@@ -148,6 +150,8 @@ compBody env (Lamb x _ e _ _) =
   return . TagFn $ \v ->
     do --v' <- lets "v" v
        compBody (Map.insert x v env) e
+compBody env (LambLvl _ e _ _) = compBody env e
+compBody env (AppLvl e _) = compBody env e
 compBody env (Let x e0 e1 _ _) = do
   v0 <- compBody env e0
   x0 <- lets x v0
@@ -197,7 +201,7 @@ compBody env (Force e0 reg) = do
   case v0 of
     TagArray arr -> liftM TagArray (force arr)
     _ -> error (show reg ++ ": force expects array as argument")
-compBody env (Push lvl e0 _ _) = do
+compBody env (Push lvl e0 _) = do
   v0 <- compBody env e0
   case v0 of
     TagArray arr -> return (TagArray (ArrPush lvl arr))
@@ -221,9 +225,9 @@ compBody env (Interleave i ixf e0 reg) = do
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
 compBody _ (BlockSize _)   = return (TagInt localSize)
-compBody env (Scanl e0 e1 e2 reg) = do
+compBody env (Scanl e0 e1 e2 _) = do
   v0 <- compBody env e0
-  init <- compBody env e1
+  initial <- compBody env e1
   arr <- compBody env e2
   let (_ :> (_ :> returnType)) = typeOf e0
   let op x y =
@@ -231,11 +235,11 @@ compBody env (Scanl e0 e1 e2 reg) = do
           TagFn op' ->
             do op'' <- op' x
                case op'' of
-                 TagFn op'' -> op'' y
+                 TagFn op''' -> op''' y
                  _ -> error ""
           _ -> error ""
   let cty = convertType returnType
-  return (TagArray (ArrScanl op init cty (unArray arr)))
+  return (TagArray (ArrScanl op initial cty (unArray arr)))
 
 
 lets :: String -> Tagged -> IL Tagged
@@ -329,9 +333,9 @@ forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) = do
     case arrp of
       TagArray arrp' -> forceTo writer' arrp'
       _ -> error "Interleave should be applied to an array of arrays!"
-forceTo writer (ArrScanl op init _ (ArrPull n _ idx)) = do
-  (tmp_var,tmp) <- letsVar "tmp" init
-  writer init (constant (0 :: Int))
+forceTo writer (ArrScanl op initial _ (ArrPull n _ idx)) = do
+  (tmp_var,tmp) <- letsVar "tmp" initial
+  writer initial (constant (0 :: Int))
   for n (\i ->
     do ix <- let_ "i" int (i `addi` (constant (1 :: Int)))
        value <- idx ix
