@@ -5,18 +5,18 @@ import Control.Monad (liftM, (<=<))
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
-import Language.CGen
+import CGen
 --import Language.CGen.Syntax (IExp(IntE))
 
 data Array a = ArrPull { arrayLen :: CExp
                        , arrayElemType :: CType
-                       , arrayFun :: CExp -> IL a
+                       , arrayFun :: CExp -> CGen () a
                        }
              | ArrPush Level (Array a)
-             | ArrScanl (Tagged -> Tagged -> IL Tagged) Tagged CType (Array a)
-             | ArrInterleave Level CExp (Tagged -> IL Tagged) (Array a)
+             | ArrScanl (Tagged -> Tagged -> CGen () Tagged) Tagged CType (Array a)
+             | ArrInterleave Level CExp (Tagged -> CGen () Tagged) (Array a)
 
-mapArray :: (a -> IL b) -> CType -> Array a -> Array b
+mapArray :: (a -> CGen () b) -> CType -> Array a -> Array b
 mapArray f outType (ArrPull len _ g) = ArrPull len outType (f <=< g)
 mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
 mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
@@ -25,7 +25,7 @@ data Tagged = TagInt CExp
             | TagBool CExp
             | TagDouble CExp
             | TagArray (Array Tagged)
-            | TagFn (Tagged -> IL Tagged)
+            | TagFn (Tagged -> CGen () Tagged)
             | TagPair Tagged Tagged
 
 instance Show (Array a) where
@@ -47,18 +47,18 @@ type VarEnv = Map.Map Name Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: Int -> Program Type -> [Function]
+compileKernels :: Int -> Program Type -> [TopLevel]
 compileKernels optIterations = map (compileKernel optIterations)
 
-compileKernel :: Int -> Definition Type -> Function
+compileKernel :: Int -> Definition Type -> TopLevel
 compileKernel optIterations def =
   let e = defBody def
       kernel_name = defVar def
       kernel_body = compile 0 emptyEnv (typeOf e) e
       config = defKernelConfig def
-  in generateKernel optIterations kernel_name kernel_body (configBlockSize config) (configWarpSize config)
+  in fst (generateKernel () optIterations kernel_name kernel_body (configBlockSize config) (configWarpSize config))
 
-addArgument :: Type -> IL Tagged
+addArgument :: Type -> CGen () Tagged
 addArgument (PullArrayT bty) =
   do arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType bty))
      lenVar <- addParam "lenInput" int
@@ -68,7 +68,7 @@ addArgument ty =
   do v <- addParam "input" (convertType ty)
      return (tagExp ty (var v))
 
-compile :: Int -> VarEnv -> Type -> Exp Type -> IL ()
+compile :: Int -> VarEnv -> Type -> Exp Type -> CGen () ()
 compile i env (ty :> ty') e =
   do taggedExp <- addArgument ty
      let varName = "argument" ++ show i
@@ -119,7 +119,7 @@ convertType (_ :-> _)         = error "convertType: functions can not be used as
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
 
-compBody :: Map.Map Name Tagged -> Exp Type -> IL Tagged
+compBody :: Map.Map Name Tagged -> Exp Type -> CGen () Tagged
 compBody _ (IntScalar i _)    = return (TagInt (constant i))
 compBody _ (DoubleScalar d _) = return (TagDouble (constant d))
 compBody _ (BoolScalar b _)   = return (TagBool (constant b))
@@ -242,7 +242,7 @@ compBody env (Scanl e0 e1 e2 _) = do
   return (TagArray (ArrScanl op initial cty (unArray arr)))
 
 
-lets :: String -> Tagged -> IL Tagged
+lets :: String -> Tagged -> CGen () Tagged
 lets name s =
   case s of
     TagInt x -> liftM TagInt (let_ name int x)
@@ -255,7 +255,7 @@ lets name s =
     TagArray x -> do (n',_) <- letsVar "len" (TagInt (arrayLen x))
                      return (TagArray x {arrayLen = var n'}) -- TODO: materialize??
 
-letsVar :: String -> Tagged -> IL (VarName, Tagged)
+letsVar :: String -> Tagged -> CGen () (VarName, Tagged)
 letsVar name s =
   case s of
     TagInt x -> do var0 <- letVar name int x
@@ -268,14 +268,14 @@ letsVar name s =
     TagPair _ _ -> error "letsVar TagPair" -- TODO
     TagArray _ -> error "letsVar TagArray" -- TODO
 
-length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
+length_ :: Map.Map Name Tagged -> Exp Type -> Region -> CGen () Tagged
 length_ env e0 reg = do
   v <- compBody env e0
   case v of
     TagArray arr -> return (TagInt (size arr))
     e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
 
-map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> IL Tagged
+map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> CGen () Tagged
 map_ env e0 e1 reg = do
   let (_ :> outType) = typeOf e0
   f' <- compBody env e0
@@ -303,9 +303,9 @@ baseType (ArrPush _ arr)         = baseType arr
 baseType (ArrScanl _ _ outTy _)         = outTy
 baseType (ArrInterleave _ _ _ arr) = baseType arr
 
-type Writer a = a -> CExp -> IL ()
+type Writer a = a -> CExp -> CGen () ()
 
-force :: Array Tagged -> IL (Array Tagged)
+force :: Array Tagged -> CGen () (Array Tagged)
 force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type error." ++
                                "Needs iteration scheme before it can be forced.")
 force arr = do
@@ -318,7 +318,7 @@ force arr = do
   forceTo writer arr                     -- recursively generate loops for each layer
   return (pullFrom name len)
 
-forceTo :: Writer Tagged -> Array Tagged -> IL ()
+forceTo :: Writer Tagged -> Array Tagged -> CGen () ()
 forceTo writer (ArrPush lvl (ArrPull len _ idx)) = do
   forAll lvl len
     (\i -> do value <- idx i
@@ -352,7 +352,7 @@ forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should rai
                                          "Needs iteration scheme before it can be forced.")
 forceTo _ (ArrInterleave _ _ _ _) = error "force: interleave only accepts pull-arrays. This should have raised a type error."
 
-whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
+whileArray :: Tagged -> Tagged -> Tagged -> CGen () Tagged
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
   do -- Declare array
      len <- lets "len" (TagInt (size arr))
@@ -381,7 +381,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
 whileArray _ _ _ = error "first two arguments to while should be conditional and step function, respectively"
 
-whileSeq :: Tagged -> Tagged -> Tagged -> IL Tagged
+whileSeq :: Tagged -> Tagged -> Tagged -> CGen () Tagged
 whileSeq (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v
      cond' <- cond var0tagged
@@ -410,7 +410,7 @@ pullFrom name@(_, CPtr _ ty) n =
         }
 pullFrom _ _ = error "pullFrom: must be applied to pointer-typed variable"
 
-distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+distrPar :: Level -> CExp -> (CExp -> CGen () ()) -> CGen () ()
 distrPar (Step (Step Zero)) ub' f =
   do ub <- let_ "ub" int ub'
      q <- let_ "blocksQ" int (ub `divi` numWorkgroups)
@@ -436,7 +436,7 @@ distrPar (Step Zero) ub' f = -- warp level
          , return ())
 distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
-forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
+forAll :: Level -> CExp -> (CExp -> CGen () ()) -> CGen () ()
 forAll (Step (Step Zero)) ub' f =
   do ub <- let_ "ub" int ub'
      q <- let_ "q" int (ub `divi` localSize)

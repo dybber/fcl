@@ -169,7 +169,7 @@ compileFiles ast =
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
      let cp = compileKernels optIter typed_ast
-     return (renderProgram OpenCL cp)
+     return (pretty OpenCL cp)
 
 ----------------------
 -- Main entry point --

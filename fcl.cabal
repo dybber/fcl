@@ -14,6 +14,7 @@ Library
                , containers >= 0.5
                , transformers >= 0.4.2 && < 0.5
                , parsec >= 3.0 && < 3.2
+               , cgen >= 0.1
 
   HS-source-dirs: src
 
@@ -32,28 +33,6 @@ Library
                    Language.FCL.Compile
 
                    Util.PrettyLib
-                   
-                   Language.CGen
-                   Language.CGen.Monad
-                   Language.CGen.Syntax
-                   Language.CGen.Cons
-                   Language.CGen.ConsGPU
-                   Language.CGen.SimpleAllocator
-                   Language.CGen.Pretty.C
-                   Language.CGen.Pretty.OpenCL
-                   Language.CGen.Pretty.CUDA
-                   Language.CGen.Analysis
-                   Language.CGen.Analysis.Graph
-                   Language.CGen.Analysis.Dataflow
-                   Language.CGen.Analysis.Liveness
-                   Language.CGen.Analysis.ReachingDefs
-                   Language.CGen.Analysis.TypeChecker
-                   Language.CGen.Optimise
-                   Language.CGen.Optimise.ConstantFold
-                   Language.CGen.Optimise.ConstantPropagation
-                   Language.CGen.Optimise.CopyPropagation
-                   Language.CGen.Optimise.DeadCodeElimination
-                   Language.CGen.Optimise.LoopUnroll
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

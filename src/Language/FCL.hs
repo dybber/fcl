@@ -1,7 +1,7 @@
 module Language.FCL
  (parseTopLevel, initTyVars, typeinfer, inline, simplify,
   eval,
-  compileKernels, RenderMode(..), renderProgram,
+  compileKernels, RenderMode(..), pretty,
 
   showType, prettyPrintType, prettyPrintExp, prettyPrintProgram,
   
@@ -20,6 +20,6 @@ import Language.FCL.Compile     (compileKernels)
 import Language.FCL.Syntax      (Program, Type, Untyped)
 import Language.FCL.PrettyPrint (showType, prettyPrintType, prettyPrintExp, prettyPrintProgram)
 import Language.FCL.Eval        (eval)
-import Language.CGen           (renderProgram, RenderMode(..))
+import CGen                     (pretty, RenderMode(..))
 
 
