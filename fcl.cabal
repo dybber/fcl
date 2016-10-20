@@ -9,12 +9,13 @@ Cabal-version:       >= 1.10
 Data-files: lib/prelude.fcl
 
 Library
-  Build-depends: base >= 3 && < 5
-               , array >= 0.3 && < 0.6
-               , containers >= 0.5
-               , transformers >= 0.4.2 && < 0.5
-               , parsec >= 3.0 && < 3.2
+  Build-depends: array >= 0.3 && < 0.6
+               , base >= 3 && < 5
                , cgen >= 0.1
+               , containers >= 0.5
+               , parsec >= 3.0 && < 3.2
+               , pretty >= 1.1
+               , transformers >= 0.4.2 && < 0.5
 
   HS-source-dirs: src
 
@@ -31,8 +32,6 @@ Library
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Compile
-
-                   Util.PrettyLib
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

@@ -2,7 +2,14 @@ module Language.TAIL.Pretty where
 
 import Language.TAIL.Syntax
 
-import Language.CGen.PrettyLib
+import Text.PrettyPrint
+
+angles :: Doc -> Doc
+angles p = char '<' <> p <> char '>'
+
+indent :: Doc -> Doc
+indent = nest 4
+
 
 pprScalar :: ScalarValue -> Doc
 pprScalar (IntV v) = int v
@@ -11,42 +18,42 @@ pprScalar (BoolV False) = text "ff"
 pprScalar (DoubleV v) = double v
 pprScalar (CharV v) = char v
 
-pprBaseType :: Basetype -> Doc
+pprBaseType :: BaseType -> Doc
 pprBaseType IntT = text "int"
 pprBaseType DoubleT = text "double"
 pprBaseType BoolT = text "bool"
 pprBaseType CharT = text "char"
-pprBaseType (BaseVar v) = char 'b' :+: int v
+pprBaseType (BaseVar v) = char 'b' <> int v
 
 pprRank :: Rank -> Doc
 pprRank (Rank i) = int i
-pprRank (RankVar v) = char 'r' :+: int v
+pprRank (RankVar v) = char 'r' <> int v
 
 pprType :: Type -> Doc
-pprType (ArrayT bt r) = brackets (pprBaseType bt) :+: pprRank r
-pprType (VectorT bt r) = angles (pprBaseType bt) :+: pprRank r
-pprType (SingleT bt r) = text "S" :+: parens (pprBaseType bt :+: char ',' :+: pprRank r)
-pprType (SingleVecT bt r) = text "SV" :+: parens (pprBaseType bt :+: char ',' :+: pprRank r)
-pprType (t1 :> t2) = pprType t1 :<>: text "->" :<>: pprType t2
-pprType (TyVarT m) = text m
+pprType (ArrayT bt r) = brackets (pprBaseType bt) <> pprRank r
+pprType (VectorT bt r) = angles (pprBaseType bt) <> pprRank r
+pprType (SingleT bt r) = text "S" <> parens (pprBaseType bt <> char ',' <> pprRank r)
+pprType (SingleVecT bt r) = text "SV" <> parens (pprBaseType bt <> char ',' <> pprRank r)
+pprType (t1 :> t2) = pprType t1 <+> text "->" <+> pprType t2
+pprType (TyVarT m) = int m
 
 fcall :: Doc -> [Exp ty] -> Doc
 fcall n es = 
- let args = sep (char ',') (map pprExp es)
- in n :+: (parens args)
+ let args = hsep (punctuate (char ',') (map pprExp es))
+ in n <> (parens args)
 
 pprExp :: Exp ty -> Doc
 pprExp (Scalar v) = pprScalar v
 pprExp (Var x _)  = text x
-pprExp (Lam x ty e _) = text "fn" :<>: text x :<>: char ':' :<>: pprType ty :<>: text "=>" :<>: pprExp e
-pprExp (Vector es _)  = brackets (sep (char ',') (map pprExp es))
-pprExp (UnaryOp op e _)      = fcall (text (show op)) [e]
-pprExp (BinOp op e1 e2 _)    = fcall (pprBinOp op) [e1,e2]
+pprExp (Lam x ty e _) = text "fn" <+> text x <+> char ':' <+> pprType ty <+> text "=>" <+> pprExp e
+pprExp (Vector es _)  = brackets (hsep (punctuate (char ',') (map pprExp es)))
+pprExp (UnaryOp op e)      = fcall (text (show op)) [e]
+pprExp (BinOp op e1 e2)    = fcall (pprBinOp op) [e1,e2]
 pprExp (Each e1 e2 _)        = fcall (text "each") [e1,e2]
 pprExp (ZipWith e1 e2 e3 _)  = fcall (text "zipWith") [e1,e2,e3]
 pprExp (Catenate e1 e2 _) = fcall (text "catenate") [e1,e2]
-pprExp (Let v ty e1 e2 _) = text "let" :<>: text v :+: text ":" :+: pprType ty :<>: text "=" :<>: pprExp e1
-                       :<>: text "in" :+: Newline :+: indent (pprExp e2)
+pprExp (Let v e1 e2 _) = text "let" <+> text v <+> text "=" <+> pprExp e1
+                       <+> text "in" $+$ indent (pprExp e2)
 pprExp (Reduce e1 e2 e3 _)  = fcall (text "reduce") [e1,e2,e3]
 pprExp (Infinity _) = text "inf"
 
