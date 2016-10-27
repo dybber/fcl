@@ -26,30 +26,51 @@ initializeState cfg =
                , sharedMemPointer = error "Shared memory not initialized!" -- TODO, not nice.
                } 
 
-allocate :: CType -> CExp -> IL VarName
-allocate bty n =
+allocate :: Type -> CExp -> IL VarName
+allocate ty n =
   do offset <- getsState allocPtrOffset
      sbase <- getsState sharedMemPointer
-     case sizeOf bty of
+     let cty = convertType ty
+     case sizeOf cty of
        Just bsize ->
-          do let ty = pointer_t [attrLocal] bty
-             v <- letVar "arr" ty (cast ty (var sbase `addPtr` offset))
+          do let aty = pointer_t [attrLocal] cty
+             v <- letVar "arr" aty (cast aty (var sbase `addPtr` offset))
              let bytes = n `muli` (constant bsize)
              modifyState (\s -> s { allocPtrOffset = offset `addi` bytes })
              return v
        Nothing -> error "unknown size of ty (in allocate)"
 
-data Array a = ArrPull { arrayLen :: CExp
-                       , arrayElemType :: CType
-                       , arrayFun :: CExp -> IL a
-                       }
-             | ArrPush Level (Array a)
-             | ArrInterleave Level CExp (Tagged -> IL Tagged) (Array a)
+type Writer a = a -> CExp -> IL ()
 
-mapArray :: (a -> IL b) -> CType -> Array a -> Array b
-mapArray f outType (ArrPull len _ g) = ArrPull len outType (f <=< g)
-mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
-mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
+data Array a = ArrPull CExp Type (CExp -> IL a)
+             | ArrPush CExp Type (Writer a -> IL ())
+
+mapArray :: (a -> IL b) -> Type -> Array a -> Array b
+mapArray f outType (ArrPull len _ g) =
+  ArrPull len outType (f <=< g)
+mapArray f outType (ArrPush len _ g) =
+  ArrPush len outType (\w -> g (\e ix -> do v <- f e
+                                            w v ix))
+size :: Array a -> CExp
+size (ArrPull len _ _)       = len
+size (ArrPush len _ _)       = len
+
+baseType :: Array a -> Type
+baseType (ArrPull _ (PullArrayT bty) _)       = bty
+baseType (ArrPull _ bty _)       = bty
+baseType (ArrPush _ bty _)       = bty
+
+forceTo :: Writer Tagged -> Array Tagged -> IL ()
+forceTo writer (ArrPush _ _ m) = m writer
+forceTo _ (ArrPull _ _ _) = error "blah"
+
+createPull :: VarName -> Type -> CExp -> Array Tagged
+createPull name ty n = ArrPull n ty (\i -> return (TagInt (name ! i)))
+                                         -- TODO ^ This should pack
+                                         -- according elem type (ty),
+                                         -- currently only supports
+                                         -- integers
+createPull _ _ _ = error "createPull: must be applied to pointer-typed variable"
 
 data Tagged = TagInt CExp
             | TagBool CExp
@@ -57,11 +78,11 @@ data Tagged = TagInt CExp
             | TagArray (Array Tagged)
             | TagFn (Tagged -> IL Tagged)
             | TagPair Tagged Tagged
+            | TagProgram (IL Tagged)
 
 instance Show (Array a) where
   show (ArrPull _ _ _) = "<<pull-array>>"
-  show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
-  show (ArrInterleave lvl e _ arr) = "interleave<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
+  show (ArrPush _ _ _) = "<<push-array>>"
 
 instance Show Tagged where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
@@ -70,6 +91,7 @@ instance Show Tagged where
   show (TagArray e) = "TagArray: " ++ show e
   show (TagFn _) = "TagFn"
   show (TagPair e0 e1) = "TagPair(" ++ show e0 ++ ", " ++ show e1 ++ ")"
+  show (TagProgram _) = "TagProgram"
 
 type VarEnv = Map.Map Name Tagged
 
@@ -94,7 +116,7 @@ addArgument :: Type -> IL Tagged
 addArgument (PullArrayT bty) =
   do arrVar <- addParam "arrInput" (pointer_t [attrGlobal] (convertType bty))
      lenVar <- addParam "lenInput" int32_t
-     return (tagArray bty (var lenVar) arrVar)
+     return (TagArray (createPull arrVar bty (var lenVar)))
 addArgument (PushArrayT _ _) = error "Push arrays can not be kernel arguments"
 addArgument ty =
   do v <- addParam "input" (convertType ty)
@@ -120,19 +142,13 @@ compile _ env _ e = do
     TagFn _ -> error "compileFun: Cannot return functions"
     TagPair _ _ -> error "compileFun: TODO return pairs" -- TODO
     TagArray arr -> do
-      varOut <- addParam "arrOutput" (pointer_t [attrGlobal] (baseType arr))
+      varOut <- addParam "arrOutput" (pointer_t [attrGlobal] (convertType (baseType arr)))
       let writer tv i =
             case tv of
               TagInt v -> assignArray varOut v i
               t -> error (show t)
       forceTo writer arr
-
-tagArray :: Type -> CExp -> VarName -> Tagged
-tagArray (PullArrayT _) _ _   = error "Kernels can not accept arrays of arrays"
-tagArray (PushArrayT _ _) _ _ = error "Kernels can not accept arrays of arrays"
-tagArray (_ :> _) _ _         = error "Kernels can not accept arrays of functions"
-tagArray (_ :*: _) _ _        = error "Kernels can not accept arrays of tuples"
-tagArray _ len v = TagArray (pullFrom v len)
+    TagProgram _ -> error "TODO"
 
 tagExp :: Type -> CExp -> Tagged
 tagExp IntT e    = TagInt e
@@ -150,6 +166,39 @@ convertType (_ :> _)          = error "convertType: functions can not be used as
 convertType (_ :-> _)         = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
+
+lets :: String -> Tagged -> IL Tagged
+lets name s =
+  case s of
+    TagInt x -> liftM TagInt (let_ name int32_t x)
+    TagBool x -> liftM TagBool (let_ name bool_t x)
+    TagDouble x -> liftM TagDouble (let_ name double_t x)
+    TagFn _ -> return s
+    TagProgram _ -> return s
+    TagPair x y -> do x' <- lets name x
+                      y' <- lets name y
+                      return (TagPair x' y')
+    TagArray (ArrPull len bty idx) ->
+      do (n',_) <- letsVar "len" (TagInt len)
+         return (TagArray (ArrPull (var n') bty idx))
+    TagArray (ArrPush len bty wf) ->
+      do (n',_) <- letsVar "len" (TagInt len)
+         return (TagArray (ArrPush (var n') bty wf))
+
+
+letsVar :: String -> Tagged -> IL (VarName, Tagged)
+letsVar name s =
+  case s of
+    TagInt x -> do var0 <- letVar name int32_t x
+                   return (var0, TagInt (var var0))
+    TagBool x -> do var0 <- letVar name bool_t x
+                    return (var0, TagBool (var var0))
+    TagDouble x -> do var0 <- letVar name double_t x
+                      return (var0, TagDouble (var var0))
+    TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
+    TagPair _ _ -> error "letsVar TagPair" -- TODO
+    TagArray _ -> error "letsVar TagArray" -- TODO
+    TagProgram _ -> error "letsVar TagProgram"
 
 compBody :: Map.Map Name Tagged -> Exp Type -> IL Tagged
 compBody _ (IntScalar i _)    = return (TagInt (constant i))
@@ -213,10 +262,7 @@ compBody env (GeneratePull e0 e1 reg) = do
   v1 <- compBody env e1
   case (v0, v1) of
     (TagInt e0', TagFn f) ->
-      return . TagArray $ ArrPull { arrayElemType = convertType ty1
-                                  , arrayLen = e0'
-                                  , arrayFun = \i -> f (TagInt i)
-                                  }
+      return (TagArray (ArrPull e0' ty1 (\i -> f (TagInt i))))
     _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
 compBody env (MapPull e0 e1 reg) = map_ env e0 e1 reg
 compBody env (MapPush e0 e1 reg) = map_ env e0 e1 reg
@@ -231,12 +277,12 @@ compBody env (Index e0 e1 reg) = do
 compBody env (Force e0 reg) = do
   v0 <- compBody env e0
   case v0 of
-    TagArray arr -> liftM TagArray (force arr)
+    TagArray arr -> return (TagProgram (TagArray <$> force arr))
     _ -> error (show reg ++ ": force expects array as argument")
 compBody env (Push lvl e0 _) = do
   v0 <- compBody env e0
   case v0 of
-    TagArray arr -> return (TagArray (ArrPush lvl arr))
+    TagArray arr -> return (TagArray (push lvl arr))
     _ -> error "pull expects array"
 compBody env (While e0 e1 e2 _) = do
   v0 <- compBody env e0
@@ -254,37 +300,22 @@ compBody env (Interleave i ixf e0 reg) = do
   v0 <- compBody env e0
   let PullArrayT (PushArrayT lvl _) = typeOf e0
   case (vi, vixf, v0) of
-    (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
+    (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (interleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
 compBody _ (BlockSize _)   = do
   s <- getState
   return (TagInt (constant (configBlockSize (kernelConfig s))))
-
-lets :: String -> Tagged -> IL Tagged
-lets name s =
-  case s of
-    TagInt x -> liftM TagInt (let_ name int32_t x)
-    TagBool x -> liftM TagBool (let_ name bool_t x)
-    TagDouble x -> liftM TagDouble (let_ name double_t x)
-    TagFn _ -> return s
-    TagPair x y -> do x' <- lets name x
-                      y' <- lets name y
-                      return (TagPair x' y')
-    TagArray x -> do (n',_) <- letsVar "len" (TagInt (arrayLen x))
-                     return (TagArray x {arrayLen = var n'}) -- TODO: materialize??
-
-letsVar :: String -> Tagged -> IL (VarName, Tagged)
-letsVar name s =
-  case s of
-    TagInt x -> do var0 <- letVar name int32_t x
-                   return (var0, TagInt (var var0))
-    TagBool x -> do var0 <- letVar name bool_t x
-                    return (var0, TagBool (var var0))
-    TagDouble x -> do var0 <- letVar name double_t x
-                      return (var0, TagDouble (var var0))
-    TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
-    TagPair _ _ -> error "letsVar TagPair" -- TODO
-    TagArray _ -> error "letsVar TagArray" -- TODO
+compBody env (Return e _)   = do
+  v <- compBody env e
+  return (TagProgram (return v))
+compBody env (Bind e0 e1 _)   = do
+  v0 <- compBody env e0
+  v1 <- compBody env e1
+  case v0 of
+    TagProgram v0' ->
+      case v1 of
+        TagFn f -> f =<< v0'
+        _ -> error "TODO"
 
 length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
 length_ env e0 reg = do
@@ -299,7 +330,7 @@ map_ env e0 e1 reg = do
   f' <- compBody env e0
   e' <- compBody env e1
   case (f', e') of
-    (TagFn f, TagArray arr) -> return (TagArray (mapArray f (convertType outType) arr))
+    (TagFn f, TagArray arr) -> return (TagArray (mapArray f outType arr))
     _ -> error $ concat [show reg,
                          ": ",
                          "Map expects function as first argument and",
@@ -307,19 +338,6 @@ map_ env e0 e1 reg = do
                          show f',
                          "\nand\n    ",
                          show e']
-
-size :: Array Tagged -> CExp
-size (ArrPull len _ _)       = len
-size (ArrPush _ arr)         = size arr
-size (ArrInterleave _ rn _ arr) = rn `muli` size arr
-
-baseType :: Array Tagged -> CType
-baseType (ArrPull _ (CPtr _ bty) _)       = bty
-baseType (ArrPull _ bty _)       = bty
-baseType (ArrPush _ arr)         = baseType arr
-baseType (ArrInterleave _ _ _ arr) = baseType arr
-
-type Writer a = a -> CExp -> IL ()
 
 force :: Array Tagged -> IL (Array Tagged)
 force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type error." ++
@@ -332,30 +350,36 @@ force arr = do
           TagInt v -> assignArray name v i
           e -> error (show e)
   forceTo writer arr                     -- recursively generate loops for each layer
-  return (pullFrom name len)
+  return (createPull name (baseType arr) len)
 
-forceTo :: Writer Tagged -> Array Tagged -> IL ()
-forceTo writer (ArrPush lvl (ArrPull len _ idx)) = do
-  forAll lvl len
-    (\i -> do value <- idx i
-              writer value i)
-forceTo _ (ArrPush _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
-forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) = do
-  distrPar lvl n $ \bix -> do
-    arrp <- idx bix
-    let writer' a ix =
-          do ix' <- f (TagPair (TagInt bix) (TagInt ix))
-             writer a (unInt ix')
-    case arrp of
-      TagArray arrp' -> forceTo writer' arrp'
-      _ -> error "Interleave should be applied to an array of arrays!"
+push :: Level -> Array Tagged -> Array Tagged
+push lvl (ArrPull len bty idx) =
+  ArrPush len bty
+          (\wf -> forAll lvl len
+                    (\i -> do value <- idx i
+                              wf value i))
+push _ (ArrPush _ _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
 
-forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should raise type error." ++
-                                         "Needs iteration scheme before it can be forced.")
-forceTo _ (ArrInterleave _ _ _ _) = error "force: interleave only accepts pull-arrays. This should have raised a type error."
+interleave :: Level -> CExp -> (Tagged -> IL Tagged) -> Array Tagged -> Array Tagged
+interleave lvl n f (ArrPull len (PullArrayT bty) idx) =
+  ArrPush (len `muli` n) bty (\wf -> 
+    distrPar lvl len $ \bix -> do
+      arrp <- idx bix
+      let writer' a ix =
+            do ix' <- f (TagPair (TagInt bix) (TagInt ix))
+               wf a (unInt ix')
+      case arrp of
+        TagProgram m ->
+          do arrp' <- m
+             case arrp' of
+               TagArray arrp'' -> forceTo writer' arrp''
+        _ -> error "Interleave should be applied to an array of arrays!")
+interleave _ _ _ (ArrPull _ _ _) = error "interleave only accepts pull-arrays of push-arrays"
+interleave _ _ _ (ArrPush _ _ _) = error "interleave only accepts pull-arrays. This should have raised a type error."
+
 
 whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
-whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
+whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _ _)) =
   do -- Declare array
      len <- lets "len" (TagInt (size arr))
      var_array <- allocate (baseType arr) (unInt len)
@@ -368,7 +392,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
 
      forceTo writer arr
 
-     let vararr = TagArray (pullFrom var_array (var var_len))
+     let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
 
      cond' <- cond vararr
      (var_cond,_) <- letsVar "cond" cond' -- stop condition
@@ -400,17 +424,8 @@ whileSeq (TagFn cond) (TagFn step) v =
 whileSeq _ _ _ = error "incompatible arguments for whileSeq"
 
 
-pullFrom :: VarName -> CExp -> Array Tagged
-pullFrom name@(_, CPtr _ ty) n =
-  ArrPull { arrayElemType = ty
-        , arrayLen = n
-        , arrayFun = \i -> return (TagInt (name ! i))
-                                         -- TODO ^ This should pack
-                                         -- according elem type (ty),
-                                         -- currently only supports
-                                         -- integers
-        }
-pullFrom _ _ = error "pullFrom: must be applied to pointer-typed variable"
+
+
 
 distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 distrPar (Step (Step Zero)) ub' f =
@@ -465,7 +480,6 @@ forAll (Step Zero) ub' f =
        , return ())
      syncLocal
 forAll lvl _ _ = error ("Unsupported level in forAll: " ++ show lvl)
-
 
 compileBinOp :: BinOp -> Tagged -> Tagged -> Region -> Tagged
 compileBinOp AddI (TagInt i0) (TagInt i1) _ = TagInt (addi i0 i1)

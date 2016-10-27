@@ -124,6 +124,8 @@ data Exp ty =
   | Push Level (Exp ty) Region
   | Concat (Exp ty) (Exp ty) Region
   | Interleave (Exp ty) (Exp ty) (Exp ty) Region
+  | Bind (Exp ty) (Exp ty) Region
+  | Return (Exp ty) Region
   | BlockSize Region
 
   -- Sequential scan, I don't really want this!
