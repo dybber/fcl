@@ -1,4 +1,7 @@
--- Inspired by http://okmij.org/ftp/Computation/FLOLAC/lecture.pdf
+-- | Inlines all top-level definitions that should not be
+-- generated. Only keeps those where OpenCL-kernels should be emitted.
+-- The result is a list of definitions without references to any other
+-- top-level definition.
 module Language.FCL.Inline (inline) where
 
 import qualified Data.Map as Map

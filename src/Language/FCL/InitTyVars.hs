@@ -1,3 +1,7 @@
+-- | After parsing all type variables will be numbered 0
+-- 
+-- This just iterates over the complete AST assigning numbers to type
+-- and level variables in State-monad
 module Language.FCL.InitTyVars (initTyVars) where
 
 import qualified Data.Map as Map

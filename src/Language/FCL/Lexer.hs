@@ -1,9 +1,9 @@
+-- | Lexical elements of FCL
 module Language.FCL.Lexer where
 
 import Text.Parsec
 import Text.Parsec.String
 import qualified Text.Parsec.Token as Token
-
 import Data.Functor.Identity (Identity)
 
 reservedNames :: [String]

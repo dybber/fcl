@@ -1,3 +1,4 @@
+-- | FCL type inference
 -- Inspired by http://okmij.org/ftp/Computation/FLOLAC/lecture.pdf
 module Language.FCL.TypeInference (typeinfer, TypeError(..)) where
 

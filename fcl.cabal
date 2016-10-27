@@ -25,7 +25,7 @@ Library
                    Language.FCL.Lexer
                    Language.FCL.Parser
                    Language.FCL.InitTyVars
-                   Language.FCL.PrettyPrint
+                   Language.FCL.Pretty
                    Language.FCL.TypeInference
                    Language.FCL.Inline
                    Language.FCL.Simplify

@@ -1,3 +1,5 @@
+-- | A few simple simplification: beta-reduction, eta-conversion
+-- and a few peep-hole optimizations.
 module Language.FCL.Simplify (simplify, simplifyExp) where
 
 import Language.FCL.Syntax

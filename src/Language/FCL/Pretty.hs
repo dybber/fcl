@@ -1,4 +1,4 @@
-module Language.FCL.PrettyPrint (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrintProgram, showType) where
+module Language.FCL.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrintProgram, showType) where
 
 import Text.PrettyPrint
 import Language.FCL.Syntax
@@ -8,8 +8,6 @@ import qualified Data.Map as Map
 
 angles :: Doc -> Doc
 angles p = char '<' <> p <> char '>'
-
-
 
 prettyPrintType :: Type -> String
 prettyPrintType t = render $ evalState (ppType t) startEnv

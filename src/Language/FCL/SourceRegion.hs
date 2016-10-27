@@ -1,3 +1,4 @@
+-- | Source code locations, used in error reporting
 module Language.FCL.SourceRegion where
 
 import Text.Parsec
