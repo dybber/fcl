@@ -115,6 +115,8 @@ evalExp env (App e1 e2) = do
   case v1 of
     LamV env' x e -> evalExp (insertVar x v2 env') e
     _ -> evalError Nothing "Using non-function value as a function"
+evalExp env (LambLvl _ e _ _) = evalExp env e -- ignore lvl argument, just evaluate body
+evalExp env (AppLvl e _) = evalExp env e      -- ignore lvl argument, just return evaluated lambda function
 evalExp env (Let x e ebody _ _) = do
   v <- evalExp env e
   evalExp (insertVar x v env) ebody

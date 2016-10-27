@@ -11,6 +11,8 @@ import CGen
 warpSize :: CExp
 warpSize = constant (32 :: Int)
 
+type IL a = CGen CompileState a
+
 data CompileState =
   CompileState { kernelConfig :: KernelConfig
                , allocPtrOffset :: CExp
@@ -23,8 +25,6 @@ initializeState cfg =
                , allocPtrOffset = constant (0 :: Int)
                , sharedMemPointer = error "Shared memory not initialized!" -- TODO, not nice.
                } 
-
-type IL a = CGen CompileState a
 
 allocate :: CType -> CExp -> IL VarName
 allocate bty n =
@@ -87,8 +87,8 @@ compileKernel optIterations def =
          sbase <- addParam "sbase" (pointer_t [attrLocal] uint8_t)
          modifyState (\s -> s { sharedMemPointer = sbase })
          compile 0 emptyEnv (typeOf e) e
-      s = initializeState (defKernelConfig def)
-  in fst (generateKernel s optIterations kernel_name kernel_body)
+      initialState = initializeState (defKernelConfig def)
+  in fst (generateKernel initialState optIterations kernel_name kernel_body)
 
 addArgument :: Type -> IL Tagged
 addArgument (PullArrayT bty) =

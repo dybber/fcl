@@ -17,7 +17,7 @@ simplifyExp :: KernelConfig -> Exp ty -> Exp ty
 simplifyExp _ e@(IntScalar _ _)    = e
 simplifyExp _ e@(DoubleScalar _ _) = e
 simplifyExp _ e@(BoolScalar _ _)   = e
-simplifyExp cfg e@(BlockSize r)      = IntScalar (configBlockSize cfg) r
+simplifyExp cfg (BlockSize r)      = IntScalar (configBlockSize cfg) r
 simplifyExp _ e@(Var _ _ _)        = e
 simplifyExp cfg (App (Lamb x _ ebody _ _) e) = simplifyExp cfg (apply (x, ebody) e)
 simplifyExp cfg (App e1 e2) =

@@ -198,7 +198,7 @@ compile filenames opts =
      when (any (/= "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
      
      ast <- parseFiles files
-     let (ast', i) = initTyVars ast
+     let (ast', _) = initTyVars ast
      logDebug ("AST: " ++ show ast')
 
      when (fclStopAfterParsing opts) (liftIO exitSuccess)
