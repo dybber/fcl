@@ -21,9 +21,10 @@ void copy(mclContext ctx,
           mclDeviceData input,
           int num_elems,
           int blocks) {
-    mclSetKernelArg(kernel, 0, sizeof(cl_mem), &input.data);
-    mclSetKernelArg(kernel, 1, sizeof(cl_int), &num_elems);
-    mclSetKernelArg(kernel, 2, sizeof(cl_mem), &output.data);
+    mclSetKernelArg(kernel, 0, sizeof(cl_int), NULL); // unused, added for compatibility with FCL output
+    mclSetKernelArg(kernel, 1, sizeof(cl_mem), &input.data);
+    mclSetKernelArg(kernel, 2, sizeof(cl_int), &num_elems);
+    mclSetKernelArg(kernel, 3, sizeof(cl_mem), &output.data);
     mclInvokeKernel(ctx, kernel, blocks*BLOCK_SIZE, BLOCK_SIZE);
 }
 

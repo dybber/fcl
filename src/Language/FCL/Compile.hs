@@ -8,15 +8,45 @@ import Language.FCL.Syntax
 import CGen
 --import Language.CGen.Syntax (IExp(IntE))
 
+warpSize :: CExp
+warpSize = constant (32 :: Int)
+
+data CompileState =
+  CompileState { kernelConfig :: KernelConfig
+               , allocPtrOffset :: CExp
+               , sharedMemPointer :: VarName
+               }
+
+initializeState :: KernelConfig -> CompileState
+initializeState cfg =
+  CompileState { kernelConfig = cfg
+               , allocPtrOffset = constant (0 :: Int)
+               , sharedMemPointer = error "Shared memory not initialized!" -- TODO, not nice.
+               } 
+
+type IL a = CGen CompileState a
+
+allocate :: CType -> CExp -> IL VarName
+allocate bty n =
+  do offset <- getsState allocPtrOffset
+     sbase <- getsState sharedMemPointer
+     case sizeOf bty of
+       Just bsize ->
+          do let ty = pointer_t [attrLocal] bty
+             v <- letVar "arr" ty (cast ty (var sbase `addPtr` offset))
+             let bytes = n `muli` (constant bsize)
+             modifyState (\s -> s { allocPtrOffset = offset `addi` bytes })
+             return v
+       Nothing -> error "unknown size of ty (in allocate)"
+
 data Array a = ArrPull { arrayLen :: CExp
                        , arrayElemType :: CType
-                       , arrayFun :: CExp -> CGen () a
+                       , arrayFun :: CExp -> IL a
                        }
              | ArrPush Level (Array a)
-             | ArrScanl (Tagged -> Tagged -> CGen () Tagged) Tagged CType (Array a)
-             | ArrInterleave Level CExp (Tagged -> CGen () Tagged) (Array a)
+             | ArrInterleave Level CExp (Tagged -> IL Tagged) (Array a)
 
-mapArray :: (a -> CGen () b) -> CType -> Array a -> Array b
+mapArray :: (a -> IL b) -> CType -> Array a -> Array b
 mapArray f outType (ArrPull len _ g) = ArrPull len outType (f <=< g)
 mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
 mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
@@ -25,14 +55,13 @@ data Tagged = TagInt CExp
             | TagBool CExp
             | TagDouble CExp
             | TagArray (Array Tagged)
-            | TagFn (Tagged -> CGen () Tagged)
+            | TagFn (Tagged -> IL Tagged)
             | TagPair Tagged Tagged
 
 instance Show (Array a) where
   show (ArrPull _ _ _) = "<<pull-array>>"
   show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
   show (ArrInterleave lvl e _ arr) = "interleave<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
-  show (ArrScanl _ e _ arr) = "scanl <fn> (" ++ show e ++ ") (" ++ show arr ++ ")"
 
 instance Show Tagged where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
@@ -54,21 +83,24 @@ compileKernel :: Int -> Definition Type -> TopLevel
 compileKernel optIterations def =
   let e = defBody def
       kernel_name = defVar def
-      kernel_body = compile 0 emptyEnv (typeOf e) e
-      config = defKernelConfig def
-  in fst (generateKernel () optIterations kernel_name kernel_body (configBlockSize config) (configWarpSize config))
+      kernel_body = do
+         sbase <- addParam "sbase" (pointer_t [attrLocal] uint8_t)
+         modifyState (\s -> s { sharedMemPointer = sbase })
+         compile 0 emptyEnv (typeOf e) e
+      s = initializeState (defKernelConfig def)
+  in fst (generateKernel s optIterations kernel_name kernel_body)
 
-addArgument :: Type -> CGen () Tagged
+addArgument :: Type -> IL Tagged
 addArgument (PullArrayT bty) =
-  do arrVar <- addParam "arrInput" (pointer [attrGlobal] (convertType bty))
-     lenVar <- addParam "lenInput" int
+  do arrVar <- addParam "arrInput" (pointer_t [attrGlobal] (convertType bty))
+     lenVar <- addParam "lenInput" int32_t
      return (tagArray bty (var lenVar) arrVar)
 addArgument (PushArrayT _ _) = error "Push arrays can not be kernel arguments"
 addArgument ty =
   do v <- addParam "input" (convertType ty)
      return (tagExp ty (var v))
 
-compile :: Int -> VarEnv -> Type -> Exp Type -> CGen () ()
+compile :: Int -> VarEnv -> Type -> Exp Type -> IL ()
 compile i env (ty :> ty') e =
   do taggedExp <- addArgument ty
      let varName = "argument" ++ show i
@@ -77,18 +109,18 @@ compile _ env _ e = do
   body <- compBody env e
   case body of
     TagInt i -> do
-      varOut <- addParam "output" int
+      varOut <- addParam "output" int32_t
       assign varOut i
     TagBool b -> do
-      varOut <- addParam "output" bool
+      varOut <- addParam "output" bool_t
       assign varOut b
     TagDouble d -> do
-      varOut <- addParam "output" double
+      varOut <- addParam "output" double_t
       assign varOut d
     TagFn _ -> error "compileFun: Cannot return functions"
     TagPair _ _ -> error "compileFun: TODO return pairs" -- TODO
     TagArray arr -> do
-      varOut <- addParam "arrOutput" (pointer [attrGlobal] (baseType arr))
+      varOut <- addParam "arrOutput" (pointer_t [attrGlobal] (baseType arr))
       let writer tv i =
             case tv of
               TagInt v -> assignArray varOut v i
@@ -109,17 +141,17 @@ tagExp BoolT e   = TagDouble e
 tagExp t _       = error ("tagExp: " ++ show t)
 
 convertType :: Type -> CType
-convertType IntT              = int
-convertType DoubleT           = double
-convertType BoolT             = bool
-convertType (PullArrayT ty)   = pointer [] (convertType ty)
-convertType (PushArrayT _ ty) = pointer [] (convertType ty)
+convertType IntT              = int32_t
+convertType DoubleT           = double_t
+convertType BoolT             = bool_t
+convertType (PullArrayT ty)   = pointer_t [] (convertType ty)
+convertType (PushArrayT _ ty) = pointer_t [] (convertType ty)
 convertType (_ :> _)          = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :-> _)         = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
 
-compBody :: Map.Map Name Tagged -> Exp Type -> CGen () Tagged
+compBody :: Map.Map Name Tagged -> Exp Type -> IL Tagged
 compBody _ (IntScalar i _)    = return (TagInt (constant i))
 compBody _ (DoubleScalar d _) = return (TagDouble (constant d))
 compBody _ (BoolScalar b _)   = return (TagBool (constant b))
@@ -224,30 +256,16 @@ compBody env (Interleave i ixf e0 reg) = do
   case (vi, vixf, v0) of
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (ArrInterleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
-compBody _ (BlockSize _)   = return (TagInt localSize)
-compBody env (Scanl e0 e1 e2 _) = do
-  v0 <- compBody env e0
-  initial <- compBody env e1
-  arr <- compBody env e2
-  let (_ :> (_ :> returnType)) = typeOf e0
-  let op x y =
-        case v0 of
-          TagFn op' ->
-            do op'' <- op' x
-               case op'' of
-                 TagFn op''' -> op''' y
-                 _ -> error ""
-          _ -> error ""
-  let cty = convertType returnType
-  return (TagArray (ArrScanl op initial cty (unArray arr)))
+compBody _ (BlockSize _)   = do
+  s <- getState
+  return (TagInt (constant (configBlockSize (kernelConfig s))))
 
-
-lets :: String -> Tagged -> CGen () Tagged
+lets :: String -> Tagged -> IL Tagged
 lets name s =
   case s of
-    TagInt x -> liftM TagInt (let_ name int x)
-    TagBool x -> liftM TagBool (let_ name bool x)
-    TagDouble x -> liftM TagDouble (let_ name double x)
+    TagInt x -> liftM TagInt (let_ name int32_t x)
+    TagBool x -> liftM TagBool (let_ name bool_t x)
+    TagDouble x -> liftM TagDouble (let_ name double_t x)
     TagFn _ -> return s
     TagPair x y -> do x' <- lets name x
                       y' <- lets name y
@@ -255,27 +273,27 @@ lets name s =
     TagArray x -> do (n',_) <- letsVar "len" (TagInt (arrayLen x))
                      return (TagArray x {arrayLen = var n'}) -- TODO: materialize??
 
-letsVar :: String -> Tagged -> CGen () (VarName, Tagged)
+letsVar :: String -> Tagged -> IL (VarName, Tagged)
 letsVar name s =
   case s of
-    TagInt x -> do var0 <- letVar name int x
+    TagInt x -> do var0 <- letVar name int32_t x
                    return (var0, TagInt (var var0))
-    TagBool x -> do var0 <- letVar name bool x
+    TagBool x -> do var0 <- letVar name bool_t x
                     return (var0, TagBool (var var0))
-    TagDouble x -> do var0 <- letVar name double x
+    TagDouble x -> do var0 <- letVar name double_t x
                       return (var0, TagDouble (var var0))
     TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
     TagPair _ _ -> error "letsVar TagPair" -- TODO
     TagArray _ -> error "letsVar TagArray" -- TODO
 
-length_ :: Map.Map Name Tagged -> Exp Type -> Region -> CGen () Tagged
+length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
 length_ env e0 reg = do
   v <- compBody env e0
   case v of
     TagArray arr -> return (TagInt (size arr))
     e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
 
-map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> CGen () Tagged
+map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> IL Tagged
 map_ env e0 e1 reg = do
   let (_ :> outType) = typeOf e0
   f' <- compBody env e0
@@ -293,24 +311,22 @@ map_ env e0 e1 reg = do
 size :: Array Tagged -> CExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)         = size arr
-size (ArrScanl _ _ _ arr)       = size arr `addi` (constant (1 :: Int))
 size (ArrInterleave _ rn _ arr) = rn `muli` size arr
 
 baseType :: Array Tagged -> CType
 baseType (ArrPull _ (CPtr _ bty) _)       = bty
 baseType (ArrPull _ bty _)       = bty
 baseType (ArrPush _ arr)         = baseType arr
-baseType (ArrScanl _ _ outTy _)         = outTy
 baseType (ArrInterleave _ _ _ arr) = baseType arr
 
-type Writer a = a -> CExp -> CGen () ()
+type Writer a = a -> CExp -> IL ()
 
-force :: Array Tagged -> CGen () (Array Tagged)
+force :: Array Tagged -> IL (Array Tagged)
 force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type error." ++
                                "Needs iteration scheme before it can be forced.")
 force arr = do
   let len = size arr                     -- calculate size of complete nested array structure
-  name <- allocate (baseType arr) [attrLocal] len    -- allocate shared memory
+  name <- allocate (baseType arr) len    -- allocate shared memory
   let writer tv i =                      -- creater writer function (right now: only integer arrays supported!)
         case tv of
           TagInt v -> assignArray name v i
@@ -318,7 +334,7 @@ force arr = do
   forceTo writer arr                     -- recursively generate loops for each layer
   return (pullFrom name len)
 
-forceTo :: Writer Tagged -> Array Tagged -> CGen () ()
+forceTo :: Writer Tagged -> Array Tagged -> IL ()
 forceTo writer (ArrPush lvl (ArrPull len _ idx)) = do
   forAll lvl len
     (\i -> do value <- idx i
@@ -333,30 +349,16 @@ forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) = do
     case arrp of
       TagArray arrp' -> forceTo writer' arrp'
       _ -> error "Interleave should be applied to an array of arrays!"
-forceTo writer (ArrScanl op initial _ (ArrPull n _ idx)) = do
-  (tmp_var,tmp) <- letsVar "tmp" initial
-  writer initial (constant (0 :: Int))
-  for n (\i ->
-    do ix <- let_ "i" int (i `addi` (constant (1 :: Int)))
-       value <- idx ix
-       v <- tmp `op` value
-       case v of
-         TagInt x -> assign tmp_var x
-         TagBool x -> assign tmp_var x
-         TagDouble x -> assign tmp_var x
-         _ -> error "unsupported type in scanl"
-       writer tmp ix)
-  return ()
 
 forceTo _ (ArrPull _ _ _)       = error ("force: forcing a pull-array should raise type error." ++
                                          "Needs iteration scheme before it can be forced.")
 forceTo _ (ArrInterleave _ _ _ _) = error "force: interleave only accepts pull-arrays. This should have raised a type error."
 
-whileArray :: Tagged -> Tagged -> Tagged -> CGen () Tagged
+whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
   do -- Declare array
      len <- lets "len" (TagInt (size arr))
-     var_array <- allocate (baseType arr) [attrLocal] (unInt len)
+     var_array <- allocate (baseType arr) (unInt len)
      (var_len,_) <- letsVar "arraySize" len
 
      let writer tv i =
@@ -381,7 +383,7 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
 whileArray _ _ _ = error "first two arguments to while should be conditional and step function, respectively"
 
-whileSeq :: Tagged -> Tagged -> Tagged -> CGen () Tagged
+whileSeq :: Tagged -> Tagged -> Tagged -> IL Tagged
 whileSeq (TagFn cond) (TagFn step) v =
   do (var0, var0tagged) <- letsVar "loopVar" v
      cond' <- cond var0tagged
@@ -410,52 +412,55 @@ pullFrom name@(_, CPtr _ ty) n =
         }
 pullFrom _ _ = error "pullFrom: must be applied to pointer-typed variable"
 
-distrPar :: Level -> CExp -> (CExp -> CGen () ()) -> CGen () ()
+distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 distrPar (Step (Step Zero)) ub' f =
-  do ub <- let_ "ub" int ub'
-     q <- let_ "blocksQ" int (ub `divi` numWorkgroups)
+  do ub <- let_ "ub" int32_t ub'
+     q <- let_ "blocksQ" int32_t (ub `divi` numWorkgroups)
      for q (\i -> do
-               j <- let_ "j" int ((workgroupID `muli` q) `addi` i)
+               j <- let_ "j" int32_t ((workgroupID `muli` q) `addi` i)
                f j)
      iff (workgroupID `lti` (ub `modi` numWorkgroups))
-         (do j <- let_ "j" int ((numWorkgroups `muli` q) `addi` workgroupID)
+         (do j <- let_ "j" int32_t ((numWorkgroups `muli` q) `addi` workgroupID)
              f j
          , return ())
 distrPar (Step Zero) ub' f = -- warp level
-  do ub <- let_ "ub" int ub'
-     numWarps <- let_ "numWarps" int (localSize `divi` warpSize)
-     warpsQ <- let_ "warpsQ" int (ub `divi` numWarps)
-     warpsR <- let_ "warpsR" int (ub `modi` numWarps)
-     lwid <- let_ "lwid" int (localID `divi` warpSize)
+  do ub <- let_ "ub" int32_t ub'
+     cfg <- kernelConfig <$> getState
+     numWarps <- let_ "numWarps" int32_t (constant (configBlockSize cfg `div` configWarpSize cfg))
+     warpsQ <- let_ "warpsQ" int32_t (ub `divi` numWarps)
+     warpsR <- let_ "warpsR" int32_t (ub `modi` numWarps)
+     lwid <- let_ "lwid" int32_t (localID `divi` warpSize)
      for warpsQ
-       (\i -> do warpID <- let_ "warpID" int ((lwid `muli` warpsQ) `addi` i)
+       (\i -> do warpID <- let_ "warpID" int32_t ((lwid `muli` warpsQ) `addi` i)
                  f warpID)
      iff (lwid `lti` warpsR)
-         (do warpID <- let_ "warpID" int ((numWarps `muli` warpsQ) `addi` lwid)
+         (do warpID <- let_ "warpID" int32_t ((numWarps `muli` warpsQ) `addi` lwid)
              f warpID
          , return ())
 distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
-forAll :: Level -> CExp -> (CExp -> CGen () ()) -> CGen () ()
+forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 forAll (Step (Step Zero)) ub' f =
-  do ub <- let_ "ub" int ub'
-     q <- let_ "q" int (ub `divi` localSize)
-     for q (\i -> do v <- let_ "j" int ((i `muli` localSize) `addi` localID)
+  do ub <- let_ "ub" int32_t ub'
+     s <- getState
+     let blockSize = constant (configBlockSize (kernelConfig s))
+     q <- let_ "q" int32_t (ub `divi` blockSize)
+     for q (\i -> do v <- let_ "j" int32_t ((i `muli` blockSize) `addi` localID)
                      f v)
-     iff (localID `lti` (ub `modi` localSize))
-       (do v <- let_ "j" int ((q `muli` localSize) `addi` localID)
+     iff (localID `lti` (ub `modi` blockSize))
+       (do v <- let_ "j" int32_t ((q `muli` blockSize) `addi` localID)
            f v
        , return ())
      syncLocal
 forAll (Step Zero) ub' f =
-  do ub <- let_ "ub" int ub'
-     q <- let_ "q" int (ub `divi` warpSize)
-     r <- let_ "r" int (ub `modi` warpSize)
-     wid <- let_ "wid" int (localID `modi` warpSize)
-     for q (\i -> do warpID <- let_ "warpID" int ((i `muli` warpSize) `addi` wid)
+  do ub <- let_ "ub" int32_t ub'
+     q <- let_ "q" int32_t (ub `divi` warpSize)
+     r <- let_ "r" int32_t (ub `modi` warpSize)
+     wid <- let_ "wid" int32_t (localID `modi` warpSize)
+     for q (\i -> do warpID <- let_ "warpID" int32_t ((i `muli` warpSize) `addi` wid)
                      f warpID)
      iff (wid `lti` r)
-       (do warpID <- let_ "warpID" int ((q `muli` warpSize) `addi` wid)
+       (do warpID <- let_ "warpID" int32_t ((q `muli` warpSize) `addi` wid)
            f warpID
        , return ())
      syncLocal

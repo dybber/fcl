@@ -48,7 +48,7 @@ typesig =
 parseConfig :: KernelConfig -> String -> Parser KernelConfig
 parseConfig cfg "#BlockSize" =
   do i <- natural
-     return (cfg { configBlockSize = Just (fromInteger i) })
+     return (cfg { configBlockSize = fromInteger i })
 parseConfig cfg "#WarpSize" =
   do i <- natural
      return (cfg { configWarpSize = fromInteger i})

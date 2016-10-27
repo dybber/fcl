@@ -237,7 +237,7 @@ type Program ty = [Definition ty]
 
 data KernelConfig =
   KernelConfig
-    { configBlockSize :: Maybe Int
+    { configBlockSize :: Int
     , configWarpSize  :: Int
     }
   deriving Show
@@ -245,7 +245,7 @@ data KernelConfig =
 defaultKernelConfig :: KernelConfig
 defaultKernelConfig =
   KernelConfig
-    { configBlockSize = Nothing
+    { configBlockSize = 128
     , configWarpSize = 32
     }
 
