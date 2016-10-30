@@ -18,7 +18,7 @@ prettyPrintExp e = render $ evalState (pp e) startEnv
 prettyPrintDef :: Definition Type -> String
 prettyPrintDef d = render $ evalState (ppDef d) startEnv
 
-prettyPrintProgram :: Program Type -> String
+prettyPrintProgram :: Program a -> String
 prettyPrintProgram prog = render $ evalState (ppProgram prog) startEnv
 
 showType :: Definition Type -> String
@@ -51,32 +51,35 @@ startEnv :: PPEnv
 startEnv = PPEnv tyVarNames lvlVarNames Map.empty
 
 getName :: Int -> PP String
-getName i =
- do used <- gets usedNames
-    case Map.lookup i used of
-       Just name -> return name
-       Nothing ->
-         do (name:xs) <- gets unusedTy
-            modify (\env -> env { unusedTy = xs,
-                                  usedNames = Map.insert i name used })
-            return name
+getName i = return ("t" ++ show i)
+-- getName i =
+--  do used <- gets usedNames
+--     case Map.lookup i used of
+--        Just name -> return name
+--        Nothing ->
+--          do (name:xs) <- gets unusedTy
+--             modify (\env -> env { unusedTy = xs,
+--                                   usedNames = Map.insert i name used })
+--             return name
 
 getLvlName :: Int -> PP String
-getLvlName i =
- do used <- gets usedNames
-    case Map.lookup i used of
-       Just name -> return name
-       Nothing ->
-         do (name:xs) <- gets unusedLvl
-            modify (\env -> env { unusedLvl = xs,
-                                  usedNames = Map.insert i name used })
-            return name
+getLvlName i = return ("lvl" ++ show i)
+-- getLvlName i =
+ -- do used <- gets usedNames
+ --    case Map.lookup i used of
+ --       Just name -> return name
+ --       Nothing ->
+ --         do (name:xs) <- gets unusedLvl
+ --            modify (\env -> env { unusedLvl = xs,
+ --                                  usedNames = Map.insert i name used })
+ --            return name
 
 
-ppProgram :: Program Type -> PP Doc
-ppProgram ds = vcat <$> mapM ppDef ds
+ppProgram :: Program a -> PP Doc
+ppProgram ds = vcat <$> mapM (\d -> do def <- ppDef d
+                                       return (def <> char '\n')) ds
 
-ppDef :: Definition Type -> PP Doc
+ppDef :: Definition a -> PP Doc
 ppDef d =
   do let fnName = text (defVar d)
      sig <- case defSignature d of
@@ -101,7 +104,7 @@ ppType DoubleT = return (text "double")
 ppType (VarT (TyVar i Nothing)) =
   do name <- getName i
      return (text name)
-ppType (VarT (TyVar _ (Just v))) = return (text v)
+ppType (VarT (TyVar i (Just v))) = return (text v <> int i)
 ppType (ty0 :> ty1)  =
   do ty0' <- ppType ty0
      ty1' <- ppType ty1
@@ -138,7 +141,7 @@ ppLevel (Step lvl) = do
   return (parens (text "1+" <> prettylvl))
 ppLevel (VarL lvlvar) = ppLvlVar lvlvar
 
-pp :: Exp Type -> PP Doc
+pp :: Exp a -> PP Doc
 pp (IntScalar i _)       = return (int i)
 pp (DoubleScalar d _)    = return (double d)
 pp (BoolScalar True _)   = return (text "true")
@@ -242,7 +245,7 @@ pp (Scanl e1 e2 e3 _)        =
      e3' <- pp e3
      return (parens (text "scanl" <+> e1' <+> e2' <+> e3'))
 
-ppUnOp :: UnOp -> Exp Type -> PP Doc
+ppUnOp :: UnOp -> Exp a -> PP Doc
 ppUnOp op e1 =
   let opName =
         case op of
@@ -256,7 +259,7 @@ ppUnOp op e1 =
   in do e1' <- pp e1
         return (text opName <+> e1')
 
-ppBinOp :: BinOp -> Exp Type -> Exp Type -> PP Doc
+ppBinOp :: BinOp -> Exp a -> Exp a -> PP Doc
 ppBinOp op e1 e2 =
   let opName =
         case op of

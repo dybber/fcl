@@ -1,5 +1,5 @@
 module Language.FCL
- (parseTopLevel, initTyVars, typeinfer, inline, simplify,
+ (parseTopLevel, typeinfer, inline, simplify,
   eval,
   compileKernels, pretty,
 
@@ -12,7 +12,6 @@ module Language.FCL
 where
 
 import Language.FCL.Parser      (parseTopLevel, ParseError)
-import Language.FCL.InitTyVars  (initTyVars)
 import Language.FCL.TypeInference (typeinfer, TypeError)
 import Language.FCL.Inline      (inline)
 import Language.FCL.Simplify    (simplify)
