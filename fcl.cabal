@@ -24,7 +24,6 @@ Library
                    Language.FCL.SourceRegion
                    Language.FCL.Lexer
                    Language.FCL.Parser
-                   Language.FCL.InitTyVars
                    Language.FCL.Pretty
                    Language.FCL.TypeInference
                    Language.FCL.Inline

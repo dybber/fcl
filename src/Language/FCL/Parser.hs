@@ -3,49 +3,130 @@
 -- variables needs to be numbered. This is not done here to seperate
 -- concerns.
 module Language.FCL.Parser
-  (parseTopLevel, parseType, ParseError)
+  (parseTopLevel, ParseError)
 where
 
+import qualified Data.Map as Map
+
 import Text.Parsec hiding (Empty)
-import Text.Parsec.String
 import Text.Parsec.Expr
 
 import Language.FCL.SourceRegion
 import Language.FCL.Lexer
 import Language.FCL.Syntax
 
+
+-----------
+-- Monad --
+-----------
+data ParserState =
+  ParserState
+    { varCount :: Int
+    , tyEnv :: Map.Map Name Type
+    , lvlEnv :: Map.Map Name LvlVar
+    }
+
+type ParserFCL = Parsec String ParserState
+
+initState :: ParserState
+initState =
+  ParserState
+    { varCount = 0
+    , tyEnv = Map.empty
+    , lvlEnv = Map.empty
+    }
+
+clearEnv :: ParserFCL ParserState
+clearEnv =
+  do oldState <- getState
+     modifyState (\s -> s { tyEnv = Map.empty
+                          , lvlEnv = Map.empty })
+     return oldState
+
+resetEnv :: ParserState -> ParserFCL ()
+resetEnv oldState =
+  modifyState (\s -> s { tyEnv = tyEnv oldState
+                       , lvlEnv = lvlEnv oldState })
+
+gets :: (ParserState -> a) -> ParserFCL a
+gets f =
+  do s <- getState
+     return (f s)
+
+incVarCount :: ParserFCL Int
+incVarCount =
+  do i <- gets varCount
+     modifyState (\s -> s {varCount = i+1})
+     return i
+
+-- newtv :: ParserFCL Type
+-- newtv = do
+--  i <- incVarCount
+--  return (VarT (TyVar i Nothing))
+
+newLvlVar :: ParserFCL LvlVar
+newLvlVar = do
+ i <- incVarCount
+ return (LvlVar i Nothing)
+
+newNamedTV :: String -> ParserFCL Type
+newNamedTV name =
+  do env <- gets tyEnv
+     case Map.lookup name env of
+       Just tv -> return tv
+       Nothing ->
+         do i <- incVarCount
+            let tv = (VarT (TyVar i (Just name)))
+            let env' = Map.insert name tv env
+            modifyState (\s -> s { tyEnv = env' })
+            return tv
+
+newNamedLvlVar :: String -> ParserFCL LvlVar
+newNamedLvlVar name =
+  do env <- gets lvlEnv
+     case Map.lookup name env of
+       Just lvlvar -> return lvlvar
+       Nothing ->
+         do i <- incVarCount
+            let lvlvar = (LvlVar i (Just name))
+            let env' = Map.insert name lvlvar env
+            modifyState (\s -> s { lvlEnv = env' })
+            return lvlvar
+
 ----------------------
 -- Exported parsers --
 ----------------------
 parseTopLevel :: String -> String -> Either ParseError (Program Untyped)
-parseTopLevel filename programText = parse topLevel filename programText
+parseTopLevel filename programText = runParser topLevel initState filename programText
 
-parseType :: String -> String -> Either ParseError Type
-parseType filename input = parse type' filename input
+-- parseType :: String -> String -> Either ParseError Type
+-- parseType filename input = runParser type' initState filename input
 
 ---------------------------
 -- Top-level definitions --
 ---------------------------
-topLevel :: Parser (Program Untyped)
+topLevel :: ParserFCL (Program Untyped)
 topLevel =
   do whitespace
      prog <- many1 definition
      eof
      return prog
 
-definition :: Parser (Definition Untyped)
+definition :: ParserFCL (Definition Untyped)
 definition = try (typesig >>= fundef)  -- fun.def. w. signature
           <|> fundef Nothing           -- fun.def.
 
-typesig :: Parser (Maybe (String,Type))
+typesig :: ParserFCL (Maybe (String,Type))
 typesig =
   do reserved "sig"
      ident <- identifier
      colon
+     oldEnv <- clearEnv
      ty <- type'
+     resetEnv oldEnv
      return (Just (ident,ty))
 
-parseConfig :: KernelConfig -> String -> Parser KernelConfig
+parseConfig :: KernelConfig -> String -> ParserFCL KernelConfig
 parseConfig cfg "#BlockSize" =
   do i <- natural
      return (cfg { configBlockSize = fromInteger i })
@@ -54,7 +135,7 @@ parseConfig cfg "#WarpSize" =
      return (cfg { configWarpSize = fromInteger i})
 parseConfig _ str = error ("Unsupported kernel configuration option: " ++ str)
 
-kernelConfig :: KernelConfig -> Parser KernelConfig
+kernelConfig :: KernelConfig -> ParserFCL KernelConfig
 kernelConfig cfg =
   do reserved "config"
      ident <- identifier
@@ -63,7 +144,7 @@ kernelConfig cfg =
      kernelConfig cfg'
   <|> return cfg
 
-fundef :: Maybe (String, Type) -> Parser (Definition Untyped)
+fundef :: Maybe (String, Type) -> ParserFCL (Definition Untyped)
 fundef tyanno =
     do make_kernel <-     (reserved "fun" >> return False)
                       <|> (reserved "kernel" >> return True)
@@ -83,7 +164,7 @@ fundef tyanno =
                  })
 
 -- Function argument
-argument :: Parser (Exp Untyped -> Region -> Exp Untyped)
+argument :: ParserFCL (Exp Untyped -> Region -> Exp Untyped)
 argument =
   (do ident <- angles (lvlVar)
       return (\e r -> LambLvl ident e Untyped r))
@@ -92,7 +173,7 @@ argument =
       return (\e r -> Lamb ident Untyped e Untyped r))
 
 -- Zero or more function arguments
-arguments :: Parser (Exp Untyped -> Region -> Exp Untyped)
+arguments :: ParserFCL (Exp Untyped -> Region -> Exp Untyped)
 arguments = 
     try (do a <- argument
             more <- arguments
@@ -100,7 +181,7 @@ arguments =
     <|> (return (\e _ -> e))
 
 -- One or more function arguments
-arguments1 :: Parser (Exp Untyped -> Region -> Exp Untyped)
+arguments1 :: ParserFCL (Exp Untyped -> Region -> Exp Untyped)
 arguments1 =
   do a <- argument
      as <- arguments
@@ -109,7 +190,7 @@ arguments1 =
 ---------------------
 --   Expressions   --
 ---------------------
-term :: Parser (Exp Untyped)
+term :: ParserFCL (Exp Untyped)
 term =
    try fn
    <|> tupleOrParens
@@ -121,31 +202,31 @@ term =
    <|> array
    <|> let'
 
-sign :: Num a => Parser (a -> a)
+sign :: Num a => ParserFCL (a -> a)
 sign = (oneOf "-~" >> return negate)
        <|> (char '+' >> return id)
        <|> return id
 
-integer :: Parser (Exp Untyped)
+integer :: ParserFCL (Exp Untyped)
 integer =
   withRegion $ do
     n <- natural
     return (IntScalar (fromInteger n))
 
-floating :: Parser (Exp Untyped)
+floating :: ParserFCL (Exp Untyped)
 floating =
   withRegion $ do
     f <- sign
     n <- float
     return (DoubleScalar (f n))
 
-bool :: Parser (Exp Untyped)
+bool :: ParserFCL (Exp Untyped)
 bool =
   withRegion $
     (reserved "true" >> return (BoolScalar True))
     <|> (reserved "false" >> return (BoolScalar False))
 
-if' :: Parser (Exp Untyped)
+if' :: ParserFCL (Exp Untyped)
 if' =
   withRegion $ do
     reserved "if"
@@ -156,12 +237,12 @@ if' =
     e3 <- expr
     return (Cond e1 e2 e3 Untyped)
 
-array :: Parser (Exp Untyped)
+array :: ParserFCL (Exp Untyped)
 array = withRegion $ do
   elems <- brackets (sepBy expr comma)
   return (Vec elems Untyped)
 
-tupleOrParens :: Parser (Exp Untyped)
+tupleOrParens :: ParserFCL (Exp Untyped)
 tupleOrParens =
   do p1 <- getPosition
      symbol "("
@@ -174,7 +255,7 @@ tupleOrParens =
       <|> do symbol ")"
              return t1
 
-let' :: Parser (Exp Untyped)
+let' :: ParserFCL (Exp Untyped)
 let' =
   withRegion $ do
     reserved "let"
@@ -186,7 +267,7 @@ let' =
     return (Let ident e1 e2 Untyped)
 
 -- Wrap unary function, to allow partial application
-unop :: (Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+unop :: (Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
 unop opr =
   return (\r ->
       Lamb "x" Untyped
@@ -194,7 +275,7 @@ unop opr =
            Untyped r)
 
 -- Wrap binary function, to allow partial application
-binop :: (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+binop :: (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
 binop opr =
   return (\r ->
       Lamb "x" Untyped
@@ -205,7 +286,7 @@ binop opr =
           Untyped r)
 
 -- Wrap ternary function, to allow partial application
-triop :: (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  Parser (Region -> Exp Untyped)
+triop :: (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
 triop opr =
   return (\r ->
       Lamb "x" Untyped
@@ -218,7 +299,7 @@ triop opr =
               Untyped r)
           Untyped r)
 
-op :: Parser (Exp Untyped)
+op :: ParserFCL (Exp Untyped)
 op = withRegion (identifier >>= switch)
   where
     switch "#BlockSize"  = return BlockSize
@@ -248,8 +329,8 @@ op = withRegion (identifier >>= switch)
     switch "lengthPush" = unop LengthPush
     switch "force"      = unop Force
     switch "push"       =
-      let var = LvlVar 0 (Just "thisisahack") -- TODO fix this hack
-      in return (\r -> LambLvl var (Lamb "x" Untyped (Push (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
+      do var <-newLvlVar
+         return (\r -> LambLvl var (Lamb "x" Untyped (Push (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
     switch "index"      = binop Index
     switch "generatePull" = binop GeneratePull
     switch "mapPull"    = binop MapPull
@@ -260,29 +341,31 @@ op = withRegion (identifier >>= switch)
     switch "scanl"      = triop Scanl
     switch n            = return (Var n Untyped)
 
-fn :: Parser (Exp Untyped)
+fn :: ParserFCL (Exp Untyped)
 fn =
   withRegion $
     do reserved "fn"
+       old <- getState
        f <- arguments1
        symbol "=>"
        e <- expr
+       resetEnv old
        return (f e)
 
-expr :: Parser (Exp Untyped)
+expr :: ParserFCL (Exp Untyped)
 expr =
   let
-    lvlapp :: Parser (Exp Untyped -> Exp Untyped)
+    lvlapp :: ParserFCL (Exp Untyped -> Exp Untyped)
     lvlapp =
       do e2 <- angles level
          return (\e1 -> AppLvl e1 e2)
 
-    pipeForward :: Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+    pipeForward :: ParserFCL (Exp Untyped -> Exp Untyped -> Exp Untyped)
     pipeForward =
       do reservedOp "|>"
          return (\e1 e2 -> App e2 e1)
 
-    binOp :: String -> BinOp -> Parser (Exp Untyped -> Exp Untyped -> Exp Untyped)
+    binOp :: String -> BinOp -> ParserFCL (Exp Untyped -> Exp Untyped -> Exp Untyped)
     binOp opName operator =
       do reservedOp opName
          return (\e1 e2 -> BinOp operator e1 e2 Missing)
@@ -296,10 +379,11 @@ expr =
             ]
   in buildExpressionParser table term
 
-------------------
---    Types
-------------------
-type' :: Parser Type
+-- -------------------
+-- -- Parsing types --
+-- -------------------
+
+type' :: ParserFCL Type
 type' =
  let scan =
        do x <- (Left <$> simpleType) <|> (Right <$> (angles lvlVar))
@@ -316,19 +400,19 @@ type' =
           return (lvl :-> y)
  in scan
 
-simpleType :: Parser Type
+simpleType :: ParserFCL Type
 simpleType =
   baseType
   <|> tyVar
   <|> tupleType
   <|> arrayType
 
-baseType :: Parser Type
+baseType :: ParserFCL Type
 baseType = (reserved "int" >> return IntT)
        <|> (reserved "double" >> return DoubleT)
        <|> (reserved "bool" >> return BoolT)
 
-level :: Parser Level
+level :: ParserFCL Level
 level = (reserved "thread" >> return threadLevel)
     <|> (reserved "warp" >> return warpLevel)
     <|> (reserved "block" >> return blockLevel)
@@ -339,14 +423,14 @@ level = (reserved "thread" >> return threadLevel)
            lvl <- level
            return (Step lvl)
 
-arrayType :: Parser Type
+arrayType :: ParserFCL Type
 arrayType =
   do ty <- brackets type'
      (try (do lvl <- angles level
               return (PushArrayT lvl ty)))
        <|> return (PullArrayT ty)
 
-tupleType :: Parser Type
+tupleType :: ParserFCL Type
 tupleType =
   do symbol "("
      t1 <- type'
@@ -357,14 +441,8 @@ tupleType =
       <|> do symbol ")"
              return t1
 
--- All type variables are numbered identical (0), but needs to be
--- renumbered properly before type checking (see Language.FCL.InitTyVars)
-tyVar :: Parser Type
-tyVar =
-  do name <- identifier
-     return (VarT (TyVar 0 (Just name)))
+tyVar :: ParserFCL Type
+tyVar = identifier >>= newNamedTV
 
-lvlVar :: Parser LvlVar
-lvlVar =
-  do name <- identifier
-     return (LvlVar 0 (Just name))
+lvlVar :: ParserFCL LvlVar
+lvlVar = identifier >>= newNamedLvlVar

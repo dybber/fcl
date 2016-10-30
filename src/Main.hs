@@ -198,13 +198,13 @@ compile filenames opts =
      when (any (/= "fcl") extensions) (liftIO (exitErr "I can only handle .fcl files."))
      
      ast <- parseFiles files
-     let (ast', _) = initTyVars ast
-     logDebug ("AST: " ++ show ast')
+     logInfo ("AST: " ++ prettyPrintProgram ast)
+     logDebug ("AST: " ++ show ast)
 
      when (fclStopAfterParsing opts) (liftIO exitSuccess)
 
      logInfo "Typechecking."
-     typed_ast <- liftEither TypeError (typeinfer ast')
+     typed_ast <- liftEither TypeError (typeinfer ast)
      mapM_ (logInfo . (" " ++) . showType) typed_ast
 
      when (fclStopAfterTypeCheck opts) (liftIO exitSuccess)
