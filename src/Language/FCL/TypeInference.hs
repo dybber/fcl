@@ -9,6 +9,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
 
+import Language.FCL.SourceRegion
 import Language.FCL.Syntax
 
 type TyEnv = Map.Map Name (TypeScheme Type)
@@ -17,7 +18,7 @@ type Subst = (Map.Map TyVar Type,
               Map.Map LvlVar Level)
 data TVE = TVE Int Subst
 
-data TypeError = UnificationError Type Type
+data TypeError = UnificationError Region Type Type
                | LevelUnificationError Level Level
                | NotImplementedError String
                | UnboundVariableError Name
@@ -80,6 +81,7 @@ tvsub (stv, slvl) (VarT tv) =
     Nothing -> VarT tv
 tvsub s (PullArrayT t) = PullArrayT (tvsub s t)
 tvsub s (PushArrayT lvl t) = PushArrayT (lvlVarSub s lvl) (tvsub s t)
+tvsub s (ProgramT lvl t) = ProgramT (lvlVarSub s lvl) (tvsub s t)
 
 lvlVarSub :: Subst -> Level -> Level
 lvlVarSub _ Zero = Zero
@@ -120,6 +122,8 @@ tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Interleave e1 e2 e3 reg) = Interleave (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp _ (BlockSize reg) = BlockSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
+tvsubExp s (Return lvl e1 reg) = Return (lvlVarSub s lvl) (tvsubExp s e1) reg
+tvsubExp s (Bind e1 e2 reg) = Bind (tvsubExp s e1) (tvsubExp s e2) reg
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
@@ -131,33 +135,38 @@ tvchase (VarT x) = do
 tvchase t = return t
 
 -- | The unification. If unification failed, return the reason
-unify :: Type -> Type -> TI ()
-unify t1 t2 = do
+unify :: Region -> Type -> Type -> TI ()
+unify reg t1 t2 = do
   t1' <- tvchase t1
   t2' <- tvchase t2
-  unify' t1' t2'
+  unify' reg t1' t2'
 
 -- | If either t1 or t2 are type variables, they are definitely unbound
-unify' :: Type -> Type -> TI ()
-unify' IntT IntT = return ()
-unify' BoolT BoolT = return ()
-unify' DoubleT DoubleT = return ()
-unify' (t1a :> t1r) (t2a :> t2r) =
-  do unify t1r t2r
-     unify t1a t2a
-unify' (lvl1 :-> t1r) (lvl2 :-> t2r) =
-  do unify t1r t2r
-     unifyLvls (VarL lvl1) (VarL lvl2)
-unify' (t1l :*: t1r) (t2l :*: t2r) =
-  do unify t1l t2l
-     unify t1r t2r
-unify' (PullArrayT t1) (PullArrayT t2) = unify t1 t2
-unify' (PushArrayT lvl1 t1) (PushArrayT lvl2 t2) = do
-  unifyLvls lvl1 lvl2
-  unify t1 t2
-unify' (VarT v1) t2 = unify_fv v1 t2
-unify' t1 (VarT v2) = unify_fv v2 t1
-unify' t1 t2 = throwError (UnificationError t1 t2)
+unify' :: Region -> Type -> Type -> TI ()
+unify' reg t1 t2 =
+  case (t1, t2) of
+    (IntT, IntT) -> return ()
+    (BoolT, BoolT) -> return ()
+    (DoubleT, DoubleT) -> return ()
+    (t1a :> t1r, t2a :> t2r) ->
+        do unify reg t1r t2r
+           unify reg t1a t2a
+    (lvl1 :-> t1r, lvl2 :-> t2r) ->
+        do unify reg t1r t2r
+           unifyLvls (VarL lvl1) (VarL lvl2)
+    (t1l :*: t1r, t2l :*: t2r) ->
+        do unify reg t1l t2l
+           unify reg t1r t2r
+    (PullArrayT t1', PullArrayT t2') -> unify reg t1' t2'
+    (PushArrayT lvl1 t1', PushArrayT lvl2 t2') ->
+      do unifyLvls lvl1 lvl2
+         unify reg t1' t2'
+    (ProgramT lvl1 t1', ProgramT lvl2 t2') ->
+      do unifyLvls lvl1 lvl2
+         unify reg t1' t2'
+    (VarT v1, t2') -> unify_fv v1 t2'
+    (t1', VarT v2) -> unify_fv v2 t1'
+    (t1', t2') -> throwError (UnificationError reg t1' t2')
 
 unify_fv :: TyVar -> Type -> TI ()
 unify_fv tv t@(VarT tv') | tv == tv'   = return ()
@@ -193,6 +202,7 @@ occurs s tv (_ :-> t) = occurs s tv t
 occurs s tv (t1 :*: t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (PullArrayT t) = occurs s tv t
 occurs s tv (PushArrayT _ t) = occurs s tv t
+occurs s tv (ProgramT _ t) = occurs s tv t
 occurs (stv, slvl) tv (VarT tv2) =
     case Map.lookup tv2 stv of
          Just t  -> occurs (stv, slvl) tv t
@@ -218,7 +228,7 @@ infer env (App e1 e2) = do
   (t1,e1') <- infer env e1
   (t2,e2') <- infer env e2
   tv <- newtv
-  unify t1 (t2 :> tv)
+  unify Missing t1 (t2 :> tv)
   return (tv, App e1' e2')
 infer env (Lamb x _ e _ reg) = do
   tv <- newtv
@@ -229,7 +239,7 @@ infer env (AppLvl e lvl) = do
   unifyLvlVar lvlvar lvl
   (te,e') <- infer env e
   tv <- newtv
-  unify te (lvlvar :-> tv)
+  unify Missing te (lvlvar :-> tv)
   return (tv, AppLvl e' lvl)
 infer env (LambLvl lvlvar ebody _ reg) = do
   (te, ebody') <- infer env ebody
@@ -242,8 +252,8 @@ infer env (Cond e1 e2 e3 _ reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
-  unify t1 BoolT
-  unify t2 t3
+  unify reg t1 BoolT
+  unify reg t2 t3
   return (t2, Cond e1' e2' e3' t2 reg)
 infer env (Pair e1 e2 reg) = do
   (t1, e1') <- infer env e1
@@ -253,31 +263,31 @@ infer env (Proj1E e reg) = do
   (t,e') <- infer env e
   tv1 <- newtv
   tv2 <- newtv
-  unify t (tv1 :*: tv2)
+  unify reg t (tv1 :*: tv2)
   return (tv1, Proj1E e' reg)
 infer env (Proj2E e reg) = do
   (t, e') <- infer env e
   tv1 <- newtv
   tv2 <- newtv
-  unify t (tv1 :*: tv2)
+  unify reg t (tv1 :*: tv2)
   return (tv2, Proj2E e' reg)
 infer env (Index e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
-  unify t1 (PullArrayT tv)
-  unify t2 IntT
+  unify reg t1 (PullArrayT tv)
+  unify reg t2 IntT
   return (tv, Index e1' e2' reg)
 infer env (LengthPull e reg) = do
   (t, e') <- infer env e
   tv <- newtv
-  unify t (PullArrayT tv)
+  unify reg t (PullArrayT tv)
   return (IntT, LengthPull e' reg)
 infer env (LengthPush e reg) = do
   (t, e') <- infer env e
   tv <- newtv
   lvlVar <- newLvlVar
-  unify t (PushArrayT (VarL lvlVar) tv)
+  unify reg t (PushArrayT (VarL lvlVar) tv)
   return (IntT, LengthPush e' reg)
 infer env (While e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
@@ -285,24 +295,24 @@ infer env (While e1 e2 e3 reg) = do
   (t3, e3') <- infer env e3
   tv <- newtv
   lvlVar <- newLvlVar
-  unify t1 (PullArrayT tv :> BoolT)
-  unify t2 (PullArrayT tv :> PushArrayT (VarL lvlVar) tv)
-  unify t3 (PushArrayT (VarL lvlVar) tv)
+  unify reg t1 (PullArrayT tv :> BoolT)
+  unify reg t2 (PullArrayT tv :> PushArrayT (VarL lvlVar) tv)
+  unify reg t3 (PushArrayT (VarL lvlVar) tv)
   return (PullArrayT tv, While e1' e2' e3' reg)
 infer env (WhileSeq e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
-  unify t1 (t3 :> BoolT)
-  unify t2 (t3 :> t3)
+  unify reg t1 (t3 :> BoolT)
+  unify reg t2 (t3 :> t3)
   return (t3, WhileSeq e1' e2' e3' reg)
 infer env (MapPull e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv1 <- newtv
   tv2 <- newtv
-  unify t1 (tv1 :> tv2)
-  unify t2 (PullArrayT tv1)
+  unify reg t1 (tv1 :> tv2)
+  unify reg t2 (PullArrayT tv1)
   return (PullArrayT tv2, MapPull e1' e2' reg)
 infer env (MapPush e1 e2 reg) = do
   (t1, e1') <- infer env e1
@@ -310,113 +320,129 @@ infer env (MapPush e1 e2 reg) = do
   tv1 <- newtv
   tv2 <- newtv
   lvlVar <- newLvlVar
-  unify t1 (tv1 :> tv2)
-  unify t2 (PushArrayT (VarL lvlVar) tv1)
+  unify reg t1 (tv1 :> tv2)
+  unify reg t2 (PushArrayT (VarL lvlVar) tv1)
   return (PushArrayT (VarL lvlVar) tv2, MapPull e1' e2' reg)
 infer env (GeneratePull e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tv <- newtv
-  unify t1 IntT
-  unify t2 (IntT :> tv)
+  unify reg t1 IntT
+  unify reg t2 (IntT :> tv)
   return (PullArrayT tv, GeneratePull e1' e2' reg)
 infer env (Force e reg) = do
   (t,e') <- infer env e
   tv <- newtv
   lvlVar <- newLvlVar
-  unify t (PushArrayT (VarL lvlVar) tv)
-  return (PullArrayT tv, Force e' reg)
+  unify reg t (PushArrayT (VarL lvlVar) tv)
+  return (ProgramT (VarL lvlVar) (PullArrayT tv), Force e' reg)
 infer env (Concat e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
-  unify t1 IntT
+  unify reg t1 IntT
   tv <- newtv
   lvlVar <- newLvlVar
-  unify t2 (PullArrayT (PushArrayT (VarL lvlVar) tv))
+  unify reg t2 (PullArrayT (PushArrayT (VarL lvlVar) tv))
   return (PushArrayT (Step (VarL lvlVar)) tv, Concat e1' e2' reg)
 infer env (Interleave e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   (t3, e3') <- infer env e3
-  unify t1 IntT
-  unify t2 ((IntT :*: IntT) :> IntT)
+  unify reg t1 IntT
+  unify reg t2 ((IntT :*: IntT) :> IntT)
   tv <- newtv
   lvlVar <- newLvlVar
-  unify t3 (PullArrayT (PushArrayT (VarL lvlVar) tv))
-  return (PushArrayT (Step (VarL lvlVar)) tv, Interleave e1' e2' e3' reg)
+  unify reg t3 (PullArrayT (ProgramT (VarL lvlVar) (PushArrayT (VarL lvlVar) tv)))
+  return (ProgramT (Step (VarL lvlVar)) (PushArrayT (Step (VarL lvlVar)) tv), Interleave e1' e2' e3' reg)
 infer _ (BlockSize reg) = return (IntT, BlockSize reg)
 infer env (UnOp op e reg) = do
   (t, e') <- infer env e
-  tret <- unifyUnOp op t
+  tret <- unifyUnOp op reg t
   return (tret, UnOp op e' reg)
 infer env (BinOp op e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
-  tret <- unifyBinOp op t1 t2
+  tret <- unifyBinOp op reg t1 t2
   return (tret, BinOp op e1' e2' reg)
 infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
-  t <- unifyAll (map fst tes)
+  t <- unifyAll reg (map fst tes)
   return (PullArrayT t, Vec (map snd tes) t reg)
 infer env (Scanl e1 e2 e3 reg) = do
   (tf, e1') <- infer env e1
   (ta, e2') <- infer env e2
   (tbs, e3') <- infer env e3
   tb <- newtv
-  unify tf (ta :> (tb :> ta))
-  unify tbs (PullArrayT tb)
+  unify reg tf (ta :> (tb :> ta))
+  unify reg tbs (PullArrayT tb)
   return (PushArrayT threadLevel ta, Scanl e1' e2' e3' reg)
 infer env (Push lvl e1 reg) = do
   (te, e1') <- infer env e1
   telem <- newtv
-  unify te (PullArrayT telem)
+  unify reg te (PullArrayT telem)
   let ty = PushArrayT lvl telem
   return (ty, Push lvl e1' reg)
+infer env (Return lvl e1 reg) = do
+  (te, e1') <- infer env e1
+  return (ProgramT lvl te, Return lvl e1' reg)
+infer env (Bind e1 e2 reg) = do
+  (te1, e1') <- infer env e1
+  (te2, e2') <- infer env e2
+  ta <- newtv
+  tb <- newtv
+  lvlVar <- newLvlVar
+  unify reg te1 (ProgramT (VarL lvlVar) ta)
+  unify reg te2 (ta :> ProgramT (VarL lvlVar) tb)
+  let ty = ProgramT (VarL lvlVar) tb
+  return (ty, Bind e1' e2' reg)
 
-unifyAll :: [Type] -> TI Type
-unifyAll [] = newtv
-unifyAll [t] = return t
-unifyAll (t1 : t2 : ts) =
-  do unify t1 t2
-     unifyAll (t2 : ts)
+unifyAll :: Region -> [Type] -> TI Type
+unifyAll r [] = newtv
+unifyAll r [t] = return t
+unifyAll r (t1 : t2 : ts) =
+  do unify r t1 t2
+     unifyAll r (t2 : ts)
 
-unify1 :: Type -> Type -> Type -> TI Type
-unify1 t1' tret t1 = do
-  unify t1 t1'
+unify1 :: Region -> Type -> Type -> Type -> TI Type
+unify1 r t1' tret t1 = do
+  unify r t1 t1'
   return tret
 
-unifyUnOp :: UnOp -> Type -> TI Type
-unifyUnOp AbsI = unify1 IntT IntT
-unifyUnOp SignI = unify1 IntT IntT
-unifyUnOp NegateI = unify1 IntT IntT
-unifyUnOp Not = unify1 BoolT BoolT
-unifyUnOp I2D = unify1 IntT DoubleT
-unifyUnOp B2I = unify1 BoolT IntT
-unifyUnOp CLZ = unify1 IntT IntT
+unifyUnOp :: UnOp -> Region -> Type -> TI Type
+unifyUnOp AbsI r = unify1 r IntT IntT
+unifyUnOp SignI r = unify1 r IntT IntT
+unifyUnOp NegateI r = unify1 r IntT IntT
+unifyUnOp Not r = unify1 r BoolT BoolT
+unifyUnOp I2D r = unify1 r IntT DoubleT
+unifyUnOp B2I r = unify1 r BoolT IntT
+unifyUnOp CLZ r = unify1 r IntT IntT
 
-unify2 :: Type -> Type -> Type -> Type -> Type -> TI Type
-unify2 t1' t2' tret t1 t2 = do
-  unify t1 t1'
-  unify t2 t2'
+unify2 :: Region -> Type -> Type -> Type -> Type -> Type -> TI Type
+unify2 r t1' t2' tret t1 t2 = do
+  unify r t1 t1'
+  unify r t2 t2'
   return tret
 
-unifyBinOp :: BinOp -> Type -> Type -> TI Type
-unifyBinOp AddI = unify2 IntT IntT IntT
-unifyBinOp SubI = unify2 IntT IntT IntT
-unifyBinOp MulI = unify2 IntT IntT IntT
-unifyBinOp DivI = unify2 IntT IntT IntT
-unifyBinOp ModI = unify2 IntT IntT IntT
-unifyBinOp MinI = unify2 IntT IntT IntT
-unifyBinOp EqI = unify2 IntT IntT BoolT
-unifyBinOp NeqI = unify2 IntT IntT BoolT
-unifyBinOp PowI = unify2 IntT IntT IntT
-unifyBinOp ShiftLI = unify2 IntT IntT IntT
-unifyBinOp ShiftRI = unify2 IntT IntT IntT
-unifyBinOp AndI = unify2 IntT IntT IntT
-unifyBinOp OrI = unify2 IntT IntT IntT
-unifyBinOp XorI = unify2 IntT IntT IntT
-unifyBinOp DivR = unify2 DoubleT DoubleT DoubleT
-unifyBinOp PowR = unify2 DoubleT DoubleT DoubleT
+unifyBinOp :: BinOp -> Region -> Type -> Type -> TI Type
+unifyBinOp AddI r = unify2 r IntT IntT IntT
+unifyBinOp SubI r = unify2 r IntT IntT IntT
+unifyBinOp MulI r = unify2 r IntT IntT IntT
+unifyBinOp DivI r = unify2 r IntT IntT IntT
+unifyBinOp ModI r = unify2 r IntT IntT IntT
+unifyBinOp MinI r = unify2 r IntT IntT IntT
+unifyBinOp MaxI r = unify2 r IntT IntT IntT
+unifyBinOp AddR r = unify2 r DoubleT DoubleT DoubleT
+unifyBinOp EqI r = unify2 r IntT IntT BoolT
+unifyBinOp NeqI r = unify2 r IntT IntT BoolT
+unifyBinOp LtI r = unify2 r IntT IntT BoolT
+unifyBinOp PowI r = unify2 r IntT IntT IntT
+unifyBinOp ShiftLI r = unify2 r IntT IntT IntT
+unifyBinOp ShiftRI r = unify2 r IntT IntT IntT
+unifyBinOp AndI r = unify2 r IntT IntT IntT
+unifyBinOp OrI r = unify2 r IntT IntT IntT
+unifyBinOp XorI r = unify2 r IntT IntT IntT
+unifyBinOp DivR r = unify2 r DoubleT DoubleT DoubleT
+unifyBinOp PowR r = unify2 r DoubleT DoubleT DoubleT
 
 instantiate :: TypeScheme Type -> TI Type
 instantiate (TypeScheme tyvars t) = do
@@ -464,7 +490,7 @@ typecheckProg _ [] = return []
 typecheckProg tenv (d : ds) = do
   (tysc@(TypeScheme _ ty), ety) <- generalize (infer tenv (defBody d))
   case defSignature d of
-    Just sig -> unify sig ty
+    Just sig -> unify Missing sig ty
     Nothing -> return ()
   -- TODO TypeScheme tysc should be updated w. info from signature !
   rest <- typecheckProg (Map.insert (defVar d) tysc tenv) ds

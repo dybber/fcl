@@ -61,13 +61,14 @@ data Type =
   | Type :*: Type
   | PullArrayT Type
   | PushArrayT Level Type
+  | ProgramT Level Type
   deriving (Eq, Show)
 
 data TyVar = TyVar Int (Maybe String)
   deriving (Eq, Show, Ord)
 
 data TypeScheme ty = TypeScheme [TyVar] ty
-  deriving Show
+  deriving (Eq, Show)
 
 -- | Return the list of type variables in t (possibly with duplicates)
 freeTyVars :: Type -> [TyVar]
@@ -80,6 +81,7 @@ freeTyVars (t1 :*: t2) = freeTyVars t1 ++ freeTyVars t2
 freeTyVars (PullArrayT t) = freeTyVars t
 freeTyVars (PushArrayT _ t) = freeTyVars t
 freeTyVars (VarT v)  = [v]
+freeTyVars (ProgramT _ t) = freeTyVars t
 
 data Untyped = Untyped
   deriving (Eq, Show)
@@ -125,19 +127,60 @@ data Exp ty =
   | Concat (Exp ty) (Exp ty) Region
   | Interleave (Exp ty) (Exp ty) (Exp ty) Region
   | Bind (Exp ty) (Exp ty) Region
-  | Return (Exp ty) Region
+  | Return Level (Exp ty) Region
   | BlockSize Region
 
   -- Sequential scan, I don't really want this!
   | Scanl (Exp ty) (Exp ty) (Exp ty) Region
-  deriving (Eq, Show)
+  deriving (Show)
+
+equals :: Exp ty -> Exp ty -> Bool
+equals (IntScalar i0 _) (IntScalar i1 _) = i0 == i1
+equals (DoubleScalar d0 _) (DoubleScalar d1 _) = d0 == d1
+equals (BoolScalar b0 _) (BoolScalar b1 _) = b0 == b1
+equals (UnOp op0 x0 _) (UnOp op1 x1 _) = op0 == op1 && equals x0 x1
+equals (BinOp op0 x0 y0 _) (BinOp op1 x1 y1 _) = op0 == op1 && equals x0 x1 && equals y0 y1
+equals (Var n0 _ _) (Var n1 _ _) = n0 == n1
+equals (Vec es0 _ _) (Vec es1 _ _) = and (zipWith equals es0 es1)
+equals (Lamb n0 _ e0 _ _) (Lamb n1 _ e1 _ _) = n0 == n1 && equals e0 e1
+equals (Let n0 e0 e1 _ _) (Let n1 e0' e1' _ _) = n0 == n1 && equals e0 e0' && equals e1 e1'
+equals (App e0 e1) (App e0' e1') = equals e0 e0' && equals e1 e1'
+equals (LambLvl lvl0 e0 _ _) (LambLvl lvl0' e0' _ _) = lvl0 == lvl0' && equals e0 e0'
+equals (AppLvl e0 lvl0) (AppLvl e0' lvl0') = lvl0 == lvl0' && equals e0 e0'
+equals (Cond e0 e1 e2 _ _) (Cond e0' e1' e2' _ _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
+equals (Pair e0 e1 _) (Pair e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (Proj1E e0 _) (Proj1E e0' _) = equals e0 e0'
+equals (Proj2E e0 _) (Proj2E e0' _) = equals e0 e0'
+
+equals (Index e0 e1 _) (Index e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (LengthPull e0 _) (LengthPull e0' _) = equals e0 e0'
+equals (LengthPush e0 _) (LengthPush e0' _) = equals e0 e0'
+
+equals (While e0 e1 e2 _) (While e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
+equals (WhileSeq e0 e1 e2 _) (WhileSeq e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
+equals (GeneratePull e0 e1 _) (GeneratePull e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (MapPull e0 e1 _) (MapPull e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (MapPush e0 e1 _) (MapPush e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (Force e0 _) (Force e0' _) = equals e0 e0'
+equals (Push lvl0 e0 _) (Push lvl0' e0' _) = lvl0 == lvl0' && equals e0 e0'
+equals (Concat e0 e1 _) (Concat e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (Interleave e0 e1 e2 _) (Interleave e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
+equals (Return lvl0 e0 _) (Return lvl0' e0' _) = lvl0 == lvl0' && equals e0 e0'
+equals (Bind e0 e1 _) (Bind e0' e1' _) = equals e0 e0' && equals e1 e1'
+equals (BlockSize _) (BlockSize _) = True
+equals (Scanl e0 e1 e2 _) (Scanl e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
+equals _ _ = False
+
+instance Eq (Exp ty) where
+  (==) = equals
 
 data UnOp = AbsI | SignI | NegateI | Not | I2D | B2I | CLZ
   deriving (Eq, Show)
 
-data BinOp = AddI | SubI | MulI | DivI | ModI | MinI
-           | EqI | NeqI | AndI | OrI | XorI | ShiftLI | ShiftRI
+data BinOp = AddI | SubI | MulI | DivI | ModI | MinI | MaxI
+           | EqI | NeqI | LtI | AndI | OrI | XorI | ShiftLI | ShiftRI
            | PowI | DivR | PowR
+           | AddR
   deriving (Eq, Show)
 
 isScalar :: Exp ty -> Bool
@@ -230,6 +273,12 @@ typeOf (Scanl _ e1 e2 _) =
   case typeOf e2 of
     PullArrayT _ -> PushArrayT threadLevel (typeOf e1)
     _ -> error "typeOf: Scanl"
+typeOf (Return lvl e0 _) =
+  ProgramT lvl (typeOf e0)
+typeOf (Bind _ e1 _) =
+  case typeOf e1 of
+    (_ :> ty) -> ty
+    _ -> error "typeOf: bind"
 
 ------------------------
 -- Syntax of programs --
@@ -242,7 +291,7 @@ data KernelConfig =
     { configBlockSize :: Int
     , configWarpSize  :: Int
     }
-  deriving Show
+  deriving (Show, Eq)
 
 defaultKernelConfig :: KernelConfig
 defaultKernelConfig =
@@ -260,7 +309,7 @@ data Definition ty =
     , defKernelConfig :: KernelConfig
     , defBody       :: Exp ty
     }
-  deriving Show
+  deriving (Show, Eq)
 
 mapBody :: (Exp ty -> Exp ty)
         -> Definition ty -> Definition ty
@@ -300,6 +349,8 @@ freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn _ (BlockSize _)            = True
+freeIn x (Return _ e _)           = freeIn x e
+freeIn x (Bind e1 e2 _)           = freeIn x e1 && freeIn x e2
 
 freeVars :: Exp ty -> Set.Set Name
 freeVars (IntScalar _ _)          = Set.empty
@@ -333,6 +384,8 @@ freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (BlockSize _)            = Set.empty
+freeVars (Return _ e _)           = freeVars e
+freeVars (Bind e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
 
 freshVar :: State [Name] Name
 freshVar =
@@ -461,6 +514,13 @@ subst s x e =
           e2' <- subst s x e2
           e3' <- subst s x e3
           return (Scanl e1' e2' e3' r)
+    Return lvl e1 r ->
+      do e1' <- subst s x e1
+         return (Return lvl e1' r)
+    Bind e1 e2 r ->
+      do e1' <- subst s x e1
+         e2' <- subst s x e2
+         return (Bind e1' e2' r)
 
 apply :: (Name, Exp ty) -> Exp ty -> Exp ty
 apply (x, ebody) e =

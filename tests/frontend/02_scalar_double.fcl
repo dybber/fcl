@@ -1,0 +1,13 @@
+-- Test parsing and typechecking of simple double expressions
+
+fun test00 = 1.0
+
+fun test01 = -1.0
+
+fun test02 = test00
+
+fun test03 = i2d 7
+
+fun test04 = addr test00 test00
+
+fun main = addr (addr (addr test00 test01) test02) test03

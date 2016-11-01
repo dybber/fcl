@@ -70,8 +70,6 @@ createPull name ty n = ArrPull n ty (\i -> return (TagInt (name ! i)))
                                          -- according elem type (ty),
                                          -- currently only supports
                                          -- integers
-createPull _ _ _ = error "createPull: must be applied to pointer-typed variable"
-
 data Tagged = TagInt CExp
             | TagBool CExp
             | TagDouble CExp
@@ -166,6 +164,7 @@ convertType (_ :> _)          = error "convertType: functions can not be used as
 convertType (_ :-> _)         = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
+convertType (ProgramT _ _)    = error "convertType: cannot convert Program type"
 
 lets :: String -> Tagged -> IL Tagged
 lets name s =
@@ -298,14 +297,14 @@ compBody env (Interleave i ixf e0 reg) = do
   vi <- compBody env i
   vixf <- compBody env ixf
   v0 <- compBody env e0
-  let PullArrayT (PushArrayT lvl _) = typeOf e0
+  let PullArrayT (ProgramT _ (PushArrayT lvl _)) = typeOf e0
   case (vi, vixf, v0) of
     (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (interleave lvl rn ixf' arr))
     _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
 compBody _ (BlockSize _)   = do
   s <- getState
   return (TagInt (constant (configBlockSize (kernelConfig s))))
-compBody env (Return e _)   = do
+compBody env (Return _ e _)   = do
   v <- compBody env e
   return (TagProgram (return v))
 compBody env (Bind e0 e1 _)   = do
@@ -316,6 +315,7 @@ compBody env (Bind e0 e1 _)   = do
       case v1 of
         TagFn f -> f =<< v0'
         _ -> error "TODO"
+    _ -> error "expected program as first argument to 'bind'"
 
 length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
 length_ env e0 reg = do
@@ -361,7 +361,7 @@ push lvl (ArrPull len bty idx) =
 push _ (ArrPush _ _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
 
 interleave :: Level -> CExp -> (Tagged -> IL Tagged) -> Array Tagged -> Array Tagged
-interleave lvl n f (ArrPull len (PullArrayT bty) idx) =
+interleave lvl n f (ArrPull len (ProgramT _ (PushArrayT _ bty)) idx) =
   ArrPush (len `muli` n) bty (\wf -> 
     distrPar lvl len $ \bix -> do
       arrp <- idx bix
@@ -373,9 +373,9 @@ interleave lvl n f (ArrPull len (PullArrayT bty) idx) =
           do arrp' <- m
              case arrp' of
                TagArray arrp'' -> forceTo writer' arrp''
+               _ -> error "expected pull-array of programs of push-arrays as argument to Concat"
         _ -> error "Interleave should be applied to an array of arrays!")
-interleave _ _ _ (ArrPull _ _ _) = error "interleave only accepts pull-arrays of push-arrays"
-interleave _ _ _ (ArrPush _ _ _) = error "interleave only accepts pull-arrays. This should have raised a type error."
+interleave _ _ _ t = error ("interleave only accepts pull-arrays of push-arrays. Got: " ++ show t)
 
 
 whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
@@ -422,10 +422,6 @@ whileSeq (TagFn cond) (TagFn step) v =
        _ -> error "Conditional in 'while- should be boolean typed"  
      return v
 whileSeq _ _ _ = error "incompatible arguments for whileSeq"
-
-
-
-
 
 distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 distrPar (Step (Step Zero)) ub' f =

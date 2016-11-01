@@ -1,0 +1,4 @@
+test00 : ('a -> 'a)
+test01 : int
+test02 : ('a -> ('b -> 'a))
+test03 : int

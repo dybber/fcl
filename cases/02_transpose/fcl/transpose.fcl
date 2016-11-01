@@ -1,4 +1,4 @@
-sig transpose : int -> int -> [a] -> [a]
+sig transpose : int -> int -> ['a] -> ['a]
 fun transpose cols rows elems =
   generatePull (muli cols rows)
            (fn n =>
@@ -10,7 +10,7 @@ fun transpose cols rows elems =
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array
-sig splitGrid : int -> int -> int -> int -> int -> [a] -> [[a]]
+sig splitGrid : int -> int -> int -> int -> int -> ['a] -> [['a]]
 fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
   let mkTile =
         (fn groupIDy =>
@@ -34,7 +34,7 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
 -- Second argument @tileSize must be === splitSize*splitSize
 -- Third argument @groupsPerRow is the width of the outer array
 -- Total number of elements is thus splitSize*splitSize*groupsPerRow*groupsPerRow
-sig concatGrid : int -> int -> int -> int -> [[a]<lvl>] -> [a]<1+lvl>
+sig concatGrid : int -> int -> int -> int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
 fun concatGrid splitSize  -- width&height of inner array (2)
                tileSize
                groupsWidth       -- width of outer array (2)
@@ -60,7 +60,7 @@ fun concatGrid splitSize  -- width&height of inner array (2)
 --  - force each tile to shared memory
 --  - transpose outer array
 --  - write back to global memory with concatGrid
-sig transposeChunked : int -> int -> int -> [a] -> [a]<grid>
+sig transposeChunked : int -> int -> int -> ['a] -> Program <grid> ['a]<grid>
 fun transposeChunked splitSize width height elems =
   let tileSize = splitSize * splitSize in
   let groupsWidth = width / splitSize in -- width of outer array
@@ -68,12 +68,12 @@ fun transposeChunked splitSize width height elems =
     splitGrid splitSize tileSize width groupsWidth groupsHeight elems
      |> mapPull (fn arr => push <block> arr)
      |> mapPull force
-     |> mapPull (transpose splitSize splitSize)
+     |> mapPull (fn a => bind a (fn b => return <block> (transpose splitSize splitSize b)))
      |> transpose groupsWidth groupsHeight
-     |> mapPull (fn arr => push <block> arr)
+     |> mapPull (fn arr => bind arr (fn b => return <block> (push <block> b)))
      |> concatGrid splitSize tileSize groupsWidth height
 
-sig transposeChunked16 : int -> int -> [int] -> [int]<grid>
+sig transposeChunked16 : int -> int -> [int] -> Program <grid> [int]<grid>
 kernel transposeChunked16 = transposeChunked 16
   config #BlockSize = 256
 

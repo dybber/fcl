@@ -1,0 +1,6 @@
+-- 
+sig foo : Program <grid> int
+fun foo = return <grid> 0
+
+sig bar : Program <lvl> int -> (int -> Program <lvl> [int]) -> Program <lvl> [int]
+fun bar m f = bind m f

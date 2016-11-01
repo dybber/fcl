@@ -1,0 +1,7 @@
+fun test00 x = x
+
+fun test01 = test00 5
+
+fun test02 x y = x
+
+fun test03 = test02 5 7

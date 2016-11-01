@@ -1,0 +1,12 @@
+-- Test parsing and typechecking of simple boolean expressions
+
+fun test00 = true
+
+fun test01 = false
+
+fun test02 = if true then 1 else 0
+
+fun test03 = eqi 1 1
+
+fun test04 = if eqi 2 2 then 17 else 42
+

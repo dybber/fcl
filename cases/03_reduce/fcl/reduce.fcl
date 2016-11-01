@@ -2,20 +2,20 @@
 -- red1: evenOdds
 -- red2: halve
 
-sig red2 : <lvl> -> (a -> a -> a) -> [a] -> [a]<lvl>
+sig red2 : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
 fun red2 <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in push <lvl> (zipWith f (fst x) (snd x))
-  in push <lvl> (while cond step (step arr))
+  in return <lvl> (push <lvl> (while cond step (step arr)))
 
-sig red2Part : (a -> a -> a) -> [a] -> [a]<grid>
+sig red2Part : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun red2Part f arr =
  let workPerBlock = 2 * #BlockSize
  in concatMap 1 (red2 <block> f) (splitUp workPerBlock arr)
 
-sig red2Add : [int] -> [int]<grid>
+sig red2Add : [int] -> Program <grid> [int]<grid>
 kernel red2Add arr = red2Part addi arr
   config #BlockSize = 128
 
---fun main = red2Add (generatePull 2048 (fn i => i))
+-- --fun main = red2Add (generatePull 2048 (fn i => i))

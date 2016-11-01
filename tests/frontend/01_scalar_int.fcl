@@ -1,0 +1,20 @@
+-- Test parsing and typechecking of simple integer expressions
+fun test00 = 17
+
+fun test01 = -17
+
+fun test02 = 40 + 2
+
+fun test03 = 4 - 2
+
+fun test04 = 4 - 2 - 1
+
+fun test05 = 16 / 4
+
+fun test06 = 16 / 4 / 2
+
+fun test07 = maxi (-2) 10
+
+fun test08 = mini -2 10
+
+fun main = test00 + test01 + test02 + test03 + test04 + test05 + test06 + test07

@@ -15,7 +15,6 @@ import Language.FCL.SourceRegion
 import Language.FCL.Lexer
 import Language.FCL.Syntax
 
-
 -----------
 -- Monad --
 -----------
@@ -197,7 +196,7 @@ term =
    <|> if'
    <|> try bool
    <|> try floating
-   <|> integer
+   <|> try integer
    <|> try op
    <|> array
    <|> let'
@@ -210,8 +209,9 @@ sign = (oneOf "-~" >> return negate)
 integer :: ParserFCL (Exp Untyped)
 integer =
   withRegion $ do
+    f <- sign
     n <- natural
-    return (IntScalar (fromInteger n))
+    return (IntScalar (fromInteger (f n)))
 
 floating :: ParserFCL (Exp Untyped)
 floating =
@@ -266,18 +266,31 @@ let' =
     e2 <- expr
     return (Let ident e1 e2 Untyped)
 
+
+unop :: Bool -> (Exp Untyped -> Region -> Exp Untyped) -> ParserFCL (Region -> Exp Untyped)
+unop False opr =
+  do char '('
+     e1 <- expr
+     char ')'
+     return (opr e1)
 -- Wrap unary function, to allow partial application
-unop :: (Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
-unop opr =
+unop True opr =
   return (\r ->
       Lamb "x" Untyped
            (opr (Var "x" Untyped Missing) r)
            Untyped r)
 
+binop :: Bool -> (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
+binop False opr =
+  do char '('
+     e1 <- expr
+     char ','
+     e2 <- expr
+     char ')'
+     return (opr e1 e2)
 -- Wrap binary function, to allow partial application
-binop :: (Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
-binop opr =
-  return (\r ->
+binop True opr =
+    return (\r ->
       Lamb "x" Untyped
           (Lamb "y" Untyped
               (opr (Var "x" Untyped Missing)
@@ -285,9 +298,17 @@ binop opr =
               Untyped r)
           Untyped r)
 
--- Wrap ternary function, to allow partial application
-triop :: (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) ->  ParserFCL (Region -> Exp Untyped)
-triop opr =
+triop :: Bool -> (Exp Untyped -> Exp Untyped -> Exp Untyped -> Region -> Exp Untyped) -> ParserFCL (Region -> Exp Untyped)
+triop False opr =
+  do char '('
+     e1 <- expr
+     char ','
+     e2 <- expr
+     char ','
+     e3 <- expr
+     char ')'
+     return (opr e1 e2 e3)
+triop True opr = -- Wrap ternary function, to allow partial application
   return (\r ->
       Lamb "x" Untyped
           (Lamb "y" Untyped
@@ -299,47 +320,75 @@ triop opr =
               Untyped r)
           Untyped r)
 
+builtin_ops :: Bool -> String -> (ParserFCL (Region -> Exp Untyped))
+builtin_ops _ "BlockSize"  = return BlockSize
+builtin_ops curried "i2d"        = unop curried (UnOp I2D)
+builtin_ops curried "b2i"        = unop curried (UnOp B2I)
+builtin_ops curried "clz"        = unop curried (UnOp CLZ)
+builtin_ops curried "negatei"    = unop curried (UnOp NegateI)
+builtin_ops curried "addi"       = binop curried (BinOp AddI)
+builtin_ops curried "addr"       = binop curried (BinOp AddR)
+builtin_ops curried "subi"       = binop curried (BinOp SubI)
+builtin_ops curried "muli"       = binop curried (BinOp MulI)
+builtin_ops curried "divi"       = binop curried (BinOp DivI)
+builtin_ops curried "modi"       = binop curried (BinOp ModI)
+builtin_ops curried "mini"       = binop curried (BinOp MinI)
+builtin_ops curried "maxi"       = binop curried (BinOp MaxI)
+builtin_ops curried "eqi"        = binop curried (BinOp EqI)
+builtin_ops curried "neqi"       = binop curried (BinOp NeqI)
+builtin_ops curried "lti"        = binop curried (BinOp LtI)
+builtin_ops curried "powi"       = binop curried (BinOp PowI)
+builtin_ops curried "shiftLi"    = binop curried (BinOp ShiftLI)
+builtin_ops curried "shiftRi"    = binop curried (BinOp ShiftRI)
+builtin_ops curried "andi"       = binop curried (BinOp AndI)
+builtin_ops curried "ori"        = binop curried (BinOp OrI)
+builtin_ops curried "xori"       = binop curried (BinOp XorI)
+builtin_ops curried "powr"       = binop curried (BinOp PowR)
+builtin_ops curried "divr"       = binop curried (BinOp DivR)
+builtin_ops curried "fst"        = unop curried Proj1E
+builtin_ops curried "snd"        = unop curried Proj2E
+builtin_ops curried "lengthPull" = unop curried LengthPull
+builtin_ops curried "lengthPush" = unop curried LengthPush
+builtin_ops curried "force"      = unop curried Force
+builtin_ops False "push"       =
+  do char '('
+     lvl <- angles level
+     char ','
+     e <- expr
+     char ')'
+     return (Push lvl e)
+builtin_ops True "push"       =
+  do var <- newLvlVar
+     return (\r -> LambLvl var (Lamb "x" Untyped (Push (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
+builtin_ops False "return"       =
+  do char '('
+     lvl <- angles level
+     char ','
+     e <- expr
+     char ')'
+     return (Return lvl e)
+builtin_ops True "return"     =
+  do var <- newLvlVar
+     return (\r -> LambLvl var (Lamb "x" Untyped (Return (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
+builtin_ops curried "bind"         = binop curried Bind
+builtin_ops curried "index"        = binop curried Index
+builtin_ops curried "generatePull" = binop curried GeneratePull
+builtin_ops curried "mapPull"    = binop curried MapPull
+builtin_ops curried "mapPush"    = binop curried MapPush
+builtin_ops curried "while"      = triop curried While
+builtin_ops curried "whileSeq"   = triop curried WhileSeq
+builtin_ops curried "interleave" = triop curried Interleave
+builtin_ops curried "scanl"      = triop curried Scanl
+builtin_ops False n            = return (Var ('#':n) Untyped)
+builtin_ops True n            = return (Var n Untyped)
+
 op :: ParserFCL (Exp Untyped)
-op = withRegion (identifier >>= switch)
-  where
-    switch "#BlockSize"  = return BlockSize
-    switch "i2d"        = unop (UnOp I2D)
-    switch "b2i"        = unop (UnOp B2I)
-    switch "clz"        = unop (UnOp CLZ)
-    switch "negatei"    = unop (UnOp NegateI)
-    switch "addi"       = binop (BinOp AddI)
-    switch "subi"       = binop (BinOp SubI)
-    switch "muli"       = binop (BinOp MulI)
-    switch "divi"       = binop (BinOp DivI)
-    switch "modi"       = binop (BinOp ModI)
-    switch "mini"       = binop (BinOp MinI)
-    switch "eqi"        = binop (BinOp EqI)
-    switch "neqi"       = binop (BinOp NeqI)
-    switch "powi"       = binop (BinOp PowI)
-    switch "shiftLi"    = binop (BinOp ShiftLI)
-    switch "shiftRi"    = binop (BinOp ShiftRI)
-    switch "andi"       = binop (BinOp AndI)
-    switch "ori"        = binop (BinOp OrI)
-    switch "xori"       = binop (BinOp XorI)
-    switch "powr"       = binop (BinOp PowR)
-    switch "divr"       = binop (BinOp DivR)
-    switch "fst"        = unop Proj1E
-    switch "snd"        = unop Proj2E
-    switch "lengthPull" = unop LengthPull
-    switch "lengthPush" = unop LengthPush
-    switch "force"      = unop Force
-    switch "push"       =
-      do var <-newLvlVar
-         return (\r -> LambLvl var (Lamb "x" Untyped (Push (VarL var) (Var "x" Untyped Missing) r) Untyped r) Untyped r)
-    switch "index"      = binop Index
-    switch "generatePull" = binop GeneratePull
-    switch "mapPull"    = binop MapPull
-    switch "mapPush"    = binop MapPush
-    switch "while"      = triop While
-    switch "whileSeq"   = triop WhileSeq
-    switch "interleave" = triop Interleave
-    switch "scanl"      = triop Scanl
-    switch n            = return (Var n Untyped)
+op =
+  withRegion $
+    do name <- identifier
+       case name of
+         ('#':name') -> builtin_ops False name'
+         name'       -> builtin_ops True name'
 
 fn :: ParserFCL (Exp Untyped)
 fn =
@@ -379,9 +428,9 @@ expr =
             ]
   in buildExpressionParser table term
 
--- -------------------
--- -- Parsing types --
--- -------------------
+-------------------
+-- Parsing types --
+-------------------
 
 type' :: ParserFCL Type
 type' =
@@ -403,6 +452,7 @@ type' =
 simpleType :: ParserFCL Type
 simpleType =
   baseType
+  <|> programType
   <|> tyVar
   <|> tupleType
   <|> arrayType
@@ -411,6 +461,13 @@ baseType :: ParserFCL Type
 baseType = (reserved "int" >> return IntT)
        <|> (reserved "double" >> return DoubleT)
        <|> (reserved "bool" >> return BoolT)
+
+programType :: ParserFCL Type
+programType =
+ do reserved "Program"
+    lvl <- angles level
+    ty <- simpleType
+    return (ProgramT lvl ty)
 
 level :: ParserFCL Level
 level = (reserved "thread" >> return threadLevel)
@@ -442,7 +499,8 @@ tupleType =
              return t1
 
 tyVar :: ParserFCL Type
-tyVar = identifier >>= newNamedTV
+tyVar =
+  char '\'' >> identifier >>= newNamedTV
 
 lvlVar :: ParserFCL LvlVar
 lvlVar = identifier >>= newNamedLvlVar

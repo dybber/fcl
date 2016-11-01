@@ -28,9 +28,9 @@ showType (Definition v _ _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
 -- Names used when pretty printing type variables
 tyVarNames :: [String]
 tyVarNames =
-  map (:[]) ['a'..'z']
+  (map (\a -> '\'' : a : []) ['a'..'z']
    ++
-  ['t' : show (i :: Int) | i <- [0..]]
+  ['t' : show (i :: Int) | i <- [0..]])
 
 -- Names used when pretty printing level variables
 lvlVarNames :: [String]
@@ -51,28 +51,28 @@ startEnv :: PPEnv
 startEnv = PPEnv tyVarNames lvlVarNames Map.empty
 
 getName :: Int -> PP String
-getName i = return ("t" ++ show i)
--- getName i =
---  do used <- gets usedNames
---     case Map.lookup i used of
---        Just name -> return name
---        Nothing ->
---          do (name:xs) <- gets unusedTy
---             modify (\env -> env { unusedTy = xs,
---                                   usedNames = Map.insert i name used })
---             return name
+--getName i = return ("t" ++ show i)
+getName i =
+ do used <- gets usedNames
+    case Map.lookup i used of
+       Just name -> return name
+       Nothing ->
+         do (name:xs) <- gets unusedTy
+            modify (\env -> env { unusedTy = xs,
+                                  usedNames = Map.insert i name used })
+            return name
 
 getLvlName :: Int -> PP String
-getLvlName i = return ("lvl" ++ show i)
--- getLvlName i =
- -- do used <- gets usedNames
- --    case Map.lookup i used of
- --       Just name -> return name
- --       Nothing ->
- --         do (name:xs) <- gets unusedLvl
- --            modify (\env -> env { unusedLvl = xs,
- --                                  usedNames = Map.insert i name used })
- --            return name
+--getLvlName i = return ("lvl" ++ show i)
+getLvlName i =
+ do used <- gets usedNames
+    case Map.lookup i used of
+       Just name -> return name
+       Nothing ->
+         do (name:xs) <- gets unusedLvl
+            modify (\env -> env { unusedLvl = xs,
+                                  usedNames = Map.insert i name used })
+            return name
 
 
 ppProgram :: Program a -> PP Doc
@@ -122,13 +122,17 @@ ppType (PushArrayT lvl ty) =
   do ty' <- ppType ty
      prettylvl <- ppLevel lvl
      return (brackets ty' <> angles prettylvl)
+ppType (ProgramT lvl ty) =
+  do ty' <- ppType ty
+     prettylvl <- ppLevel lvl
+     return (text "Program" <+> angles prettylvl <+> ty')
 
 ppLvlVar :: LvlVar -> PP Doc
 ppLvlVar (LvlVar i Nothing) =
   do name <- getLvlName i
      return (text name)
-ppLvlVar (LvlVar i (Just name)) =
-  return (text name <> int i)
+ppLvlVar (LvlVar _ (Just name)) =
+  return (text name)
 
 -- Pretty print levels
 ppLevel :: Level -> PP Doc
@@ -140,6 +144,24 @@ ppLevel (Step lvl) = do
   prettylvl <- ppLevel lvl
   return (parens (text "1+" <> prettylvl))
 ppLevel (VarL lvlvar) = ppLvlVar lvlvar
+
+ppUnop :: String -> Exp a -> PP Doc
+ppUnop str e =
+  parens <$> (text str <>) <$> (parens <$> pp e)
+
+ppBinop :: String -> Exp a -> Exp a -> PP Doc
+ppBinop str e1 e2 =
+  do e1' <- pp e1
+     e2' <- pp e2
+     return (text str <> parens (e1' <> comma <> e2'))
+
+ppTriop :: String -> Exp a -> Exp a -> Exp a -> PP Doc
+ppTriop str e1 e2 e3 =
+  do e1' <- pp e1
+     e2' <- pp e2
+     e3' <- pp e3
+     return (text str <> parens (e1' <> comma <> e2' <> comma <> e3'))
+
 
 pp :: Exp a -> PP Doc
 pp (IntScalar i _)       = return (int i)
@@ -192,58 +214,30 @@ pp (Pair e1 e2 _)            =
     do e1' <- pp e1
        e2' <- pp e2
        return (parens (e1' <> char ',' <+> e2'))
-pp (Proj1E e1 _)             = parens <$> (text "fst" <+>) <$> pp e1
-pp (Proj2E e1 _)             = parens <$> (text "snd" <+>) <$> pp e1
-pp (Index e1 e2 _)           =
-  do e1' <- pp e1
-     e2' <- pp e2
-     return (text "index" <+> e1' <+> e2')
-pp (LengthPull e1 _)         = parens <$> (text "lengthPull" <+>) <$> pp e1
-pp (LengthPush e1 _)         = parens <$> (text "lengthPush" <+>) <$> pp e1
-pp (While e1 e2 e3 _)        =
-  do e1' <- pp e1
-     e2' <- pp e2
-     e3' <- pp e3
-     return (parens (text "while" <+> e1' <+> e2' <+> e3'))
-pp (WhileSeq e1 e2 e3 _)        =
-  do e1' <- pp e1
-     e2' <- pp e2
-     e3' <- pp e3
-     return (parens (text "whileSeq" <+> e1' <+> e2' <+> e3'))
-pp (GeneratePull e1 e2 _)    =
-  do e1' <- pp e1
-     e2' <- pp e2
-     return (parens (text "generatePull" <+> e1' <+> e2'))
-pp (MapPull e1 e2 _)    =
-  do e1' <- pp e1
-     e2' <- pp e2
-     return (parens (text "mapPull" <+> e1' <+> e2'))
-pp (MapPush e1 e2 _)    =
-  do e1' <- pp e1
-     e2' <- pp e2
-     return (parens (text "mapPush" <+> e1' <+> e2'))
-pp (Force e1 _)              =
-  do e1' <- pp e1
-     return (parens (text "force" <+> e1'))
-pp (Push lvl e1 _)            =
+pp (Proj1E e1 _)             = ppUnop "#fst" e1
+pp (Proj2E e1 _)             = ppUnop "#snd" e1
+pp (Index e1 e2 _)           = ppBinop "#index" e1 e2
+pp (LengthPull e1 _)         = ppUnop "#lengthPull" e1
+pp (LengthPush e1 _)         = ppUnop "#lengthPush" e1
+pp (While e1 e2 e3 _)        = ppTriop "#while" e1 e2 e3
+pp (WhileSeq e1 e2 e3 _)     = ppTriop "#whileseq" e1 e2 e3
+pp (GeneratePull e1 e2 _)    = ppBinop "#generatePull" e1 e2
+pp (MapPull e1 e2 _)    = ppBinop "#mapPull" e1 e2
+pp (MapPush e1 e2 _)    = ppBinop "#mapPush" e1 e2
+pp (Force e1 _)         = ppUnop "#force" e1
+pp (Push lvl e1 _)      =
   do e1' <- pp e1
      lvl' <- ppLevel lvl
-     return (parens (parens (text "push" <> angles lvl' <+> e1')))
-pp (Concat e1 e2 _)          =
-  do e1' <- pp e1
-     e2' <- pp e2
-     return (parens (text "concat" <+> e1' <+> e2'))
-pp (Interleave e1 e2 e3 _)          =
-  do e1' <- pp e1
-     e2' <- pp e2
-     e3' <- pp e3
-     return (parens (text "interleave" <+> e1' <+> e2' <+> e3'))
+     return (parens (text "#push" <> parens (angles lvl' <> comma <> e1')))
+pp (Concat e1 e2 _)          = ppBinop "#concat" e1 e2
+pp (Interleave e1 e2 e3 _)   = ppTriop "#interleave" e1 e2 e3
 pp (BlockSize _)             = return (text "#BlockSize")
-pp (Scanl e1 e2 e3 _)        =
+pp (Scanl e1 e2 e3 _)        = ppTriop "#scanl" e1 e2 e3
+pp (Return lvl e1 _)            =
   do e1' <- pp e1
-     e2' <- pp e2
-     e3' <- pp e3
-     return (parens (text "scanl" <+> e1' <+> e2' <+> e3'))
+     lvl' <- ppLevel lvl
+     return (parens (text "#return" <> parens (angles lvl' <> comma <> e1')))
+pp (Bind e1 e2 _)          = ppBinop "#bind" e1 e2
 
 ppUnOp :: UnOp -> Exp a -> PP Doc
 ppUnOp op e1 =
@@ -257,7 +251,7 @@ ppUnOp op e1 =
           B2I -> "b2i"
           CLZ -> "clz"
   in do e1' <- pp e1
-        return (text opName <+> e1')
+        return (char '#' <> text opName <> parens e1')
 
 ppBinOp :: BinOp -> Exp a -> Exp a -> PP Doc
 ppBinOp op e1 e2 =
@@ -269,8 +263,11 @@ ppBinOp op e1 e2 =
           DivI -> "divi"
           ModI -> "modi"
           MinI -> "mini"
+          MaxI -> "maxi"
+          AddR -> "addr"
           EqI -> "eqi"
           NeqI -> "neqi"
+          LtI -> "lti"
           AndI -> "andi"
           OrI -> "ori"
           XorI -> "xori"
@@ -281,6 +278,4 @@ ppBinOp op e1 e2 =
           PowR -> "powr"
   in do e1' <- pp e1
         e2' <- pp e2
-        return (text opName <+> e1' <+> e2')
-
-
+        return (char '#' <> text opName <> parens (e1' <> comma <> e2'))

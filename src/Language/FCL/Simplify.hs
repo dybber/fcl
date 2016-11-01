@@ -62,6 +62,8 @@ simplifyExp cfg (Interleave e0 e1 e2 reg)  = Interleave   (simplifyExp cfg e0) (
 simplifyExp cfg (Scanl e0 e1 e2 reg)       = Scanl        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
 simplifyExp cfg (LambLvl lvlvar ebody ty reg) = LambLvl lvlvar  (simplifyExp cfg ebody) ty reg
 simplifyExp cfg (AppLvl e lvl) = AppLvl (simplifyExp cfg e) lvl
+simplifyExp cfg (Return lvl e0 reg)        = Return         lvl (simplifyExp cfg e0) reg
+simplifyExp cfg (Bind e0 e1 reg)           = Bind         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 
 simplifyUnOp :: UnOp -> Exp ty -> Region -> Exp ty
 simplifyUnOp op e r = UnOp op e r

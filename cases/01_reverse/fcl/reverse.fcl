@@ -1,4 +1,4 @@
-sig reverse : [a] -> [a]
+sig reverse : ['a] -> ['a]
 fun reverse arr =
   let n = lengthPull arr
   in generatePull n (fn i => index arr (n - i - 1))
@@ -6,24 +6,28 @@ fun reverse arr =
 sig reverseBlock : [int] -> [int]<block>
 kernel reverseBlock arr = push <block> (reverse arr)
 
-sig distributeReverse : int -> [a] -> [a]<grid>
+-- return : <lvl> -> a -> Program <lvl> a
+
+-- bind : Program <lvl> a -> (a -> Program <lvl> b) -> Program <lvl> b
+
+sig distributeReverse : int -> ['a] -> Program <grid> ['a]<grid>
 fun distributeReverse splitSize arr =
   splitUp splitSize arr
-   |> mapPull (fn arr2 => push <block> (force (push <block> (reverse arr2))))
+    |> mapPull (fn arr2 => bind (force (push <block> (reverse arr2))) (fn arr3 => return <block> (push <block> arr3)))
    |> reverse
    |> concat splitSize
 
-sig reverseKernel : [int] -> [int]<grid>
+sig reverseKernel : [int] -> Program <grid> [int]<grid>
 kernel reverseKernel arr = distributeReverse #BlockSize arr
 
 
-sig simpleReverse : int -> [a] -> [a]<grid>
+sig simpleReverse : int -> ['a] -> Program <grid> ['a]<grid>
 fun simpleReverse splitSize arr =
   splitUp splitSize arr
-   |> mapPull (fn arr2 => push <block> (reverse arr2))
+   |> mapPull (fn arr2 => return <block> (push <block> (reverse arr2)))
    |> reverse
    |> concat splitSize
 
-sig simpleReverseKernel : [int] -> [int]<grid>
+sig simpleReverseKernel : [int] -> Program <grid> [int]<grid>
 kernel simpleReverseKernel arr = simpleReverse #BlockSize arr
   config #BlockSize = 256

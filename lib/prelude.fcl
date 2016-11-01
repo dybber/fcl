@@ -1,7 +1,7 @@
-sig id : a -> a
+sig id : 'a -> 'a
 fun id x = x
 
-sig concat : int -> [[a]<lvl>] -> [a]<1+lvl>
+sig concat : int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
 fun concat n arr =
   interleave n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
 
@@ -13,29 +13,29 @@ fun range begin end =
   iota (addi (subi end begin) 1)
    |> mapPull (addi begin)
 
-sig zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
+sig zipWith : ('a -> 'b -> 'c) -> ['a] -> ['b] -> ['c]
 fun zipWith f a1 a2 =
   generatePull (mini (lengthPull a1) (lengthPull a2))
     (fn ix => f (index a1 ix) (index a2 ix))
 
-sig backpermute : int -> (int -> (int, int)) -> [[a]] -> [a]
+sig backpermute : int -> (int -> (int, int)) -> [['a]] -> ['a]
 fun backpermute totalSize f array =
   generatePull totalSize
     (fn ix => let ix0 = f ix
               in index (index array (fst ix0)) (snd ix0))
 
 -- Split an array at a given point
-sig splitAt : int -> [a] -> ([a], [a])
+sig splitAt : int -> ['a] -> (['a], ['a])
 fun splitAt n arr =
   (generatePull n (fn i => index arr i),
    generatePull (subi (lengthPull arr) n) (fn x => index arr (addi x n)))
 
-sig halve : [a] -> ([a], [a])
+sig halve : ['a] -> (['a], ['a])
 fun halve arr = 
   let half = divi (lengthPull arr) 2
   in splitAt half arr
 
-sig evenOdds : [a] -> ([a], [a])
+sig evenOdds : ['a] -> (['a], ['a])
 fun evenOdds arr =
   let n  = lengthPull arr
   in let n2 = divi n 2
@@ -43,19 +43,19 @@ fun evenOdds arr =
      (generatePull (subi n n2) (fn ix => index arr (muli 2 ix)),
       generatePull n2     (fn ix => index arr (addi (muli 2 ix) 1)))
 
-sig splitUp : int -> [a] -> [[a]]
+sig splitUp : int -> ['a] -> [['a]]
 fun splitUp n arr =
   generatePull (divi (lengthPull arr) n)
     (fn i => generatePull n
        (fn j => index arr (addi (muli i n) j)))
 
-sig coalesce : int -> [a] -> [[a]]
+sig coalesce : int -> ['a] -> [['a]]
 fun coalesce n arr =
   let s = divi (lengthPull arr) n
   in generatePull s (fn i =>
        generatePull n (fn j => index arr (addi i (muli s j))))
 
-sig seqReduce : (a -> b -> a) -> a -> [b] -> a
+sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
 fun seqReduce f b array =
   let n = lengthPull array in
   let cond = fn x => neqi (fst x) n in
@@ -63,7 +63,7 @@ fun seqReduce f b array =
                        f (index array (fst x)) (snd x))
   in snd (whileSeq cond step (0,b))
 
-sig concatMap : int -> (a -> [b]<lvl>) -> [a] -> [b]<1+lvl>
+sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
 sig bit : int -> int
