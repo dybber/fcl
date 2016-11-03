@@ -1,7 +1,9 @@
-module Language.FCL.Compile (compileKernel, compileKernels) where
+module Language.FCL.Compile
+  (compileKernel, compileKernels)
+where
 
 import qualified Data.Map as Map
-import Control.Monad (liftM, (<=<))
+import Control.Monad (liftM)
 
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
@@ -23,7 +25,7 @@ initializeState :: KernelConfig -> CompileState
 initializeState cfg =
   CompileState { kernelConfig = cfg
                , allocPtrOffset = constant (0 :: Int)
-               , sharedMemPointer = error "Shared memory not initialized!" -- TODO, not nice.
+               , sharedMemPointer = error "Shared memory not be initialized!" -- TODO, not nice.
                } 
 
 allocate :: Type -> CExp -> IL VarName
@@ -42,15 +44,16 @@ allocate ty n =
 
 type Writer a = a -> CExp -> IL ()
 
-data Array a = ArrPull CExp Type (CExp -> IL a)
+data Array a = ArrPull CExp Type (CExp -> a)
              | ArrPush CExp Type (Writer a -> IL ())
 
-mapArray :: (a -> IL b) -> Type -> Array a -> Array b
+mapArray :: (a -> b) -> Type -> Array a -> Array b
 mapArray f outType (ArrPull len _ g) =
-  ArrPull len outType (f <=< g)
+  ArrPull len outType (f . g)
 mapArray f outType (ArrPush len _ g) =
-  ArrPush len outType (\w -> g (\e ix -> do v <- f e
+  ArrPush len outType (\w -> g (\e ix -> do let v = f e
                                             w v ix))
+
 size :: Array a -> CExp
 size (ArrPull len _ _)       = len
 size (ArrPush len _ _)       = len
@@ -65,7 +68,7 @@ forceTo writer (ArrPush _ _ m) = m writer
 forceTo _ (ArrPull _ _ _) = error "blah"
 
 createPull :: VarName -> Type -> CExp -> Array Tagged
-createPull name ty n = ArrPull n ty (\i -> return (TagInt (name ! i)))
+createPull name ty n = ArrPull n ty (\i -> TagInt (name ! i))
                                          -- TODO ^ This should pack
                                          -- according elem type (ty),
                                          -- currently only supports
@@ -74,7 +77,7 @@ data Tagged = TagInt CExp
             | TagBool CExp
             | TagDouble CExp
             | TagArray (Array Tagged)
-            | TagFn (Tagged -> IL Tagged)
+            | TagFn (Tagged -> Tagged)
             | TagPair Tagged Tagged
             | TagProgram (IL Tagged)
 
@@ -96,7 +99,7 @@ type VarEnv = Map.Map Name Tagged
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
-compileKernels :: Int -> Program Type -> [TopLevel]
+compileKernels :: Int -> [Definition Type] -> [TopLevel]
 compileKernels optIterations = map (compileKernel optIterations)
 
 compileKernel :: Int -> Definition Type -> TopLevel
@@ -125,28 +128,31 @@ compile i env (ty :> ty') e =
   do taggedExp <- addArgument ty
      let varName = "argument" ++ show i
      compile (i+1) (Map.insert varName taggedExp env) ty' (App e (Var varName ty Missing))
-compile _ env _ e = do
-  body <- compBody env e
-  case body of
-    TagInt i -> do
-      varOut <- addParam "output" int32_t
-      assign varOut i
-    TagBool b -> do
-      varOut <- addParam "output" bool_t
-      assign varOut b
-    TagDouble d -> do
-      varOut <- addParam "output" double_t
-      assign varOut d
-    TagFn _ -> error "compileFun: Cannot return functions"
-    TagPair _ _ -> error "compileFun: TODO return pairs" -- TODO
-    TagArray arr -> do
-      varOut <- addParam "arrOutput" (pointer_t [attrGlobal] (convertType (baseType arr)))
-      let writer tv i =
-            case tv of
-              TagInt v -> assignArray varOut v i
-              t -> error (show t)
-      forceTo writer arr
-    TagProgram _ -> error "TODO"
+compile _ env _ e =
+  case compBody env e of
+    TagProgram body -> do
+      kernelBody <- body
+      case kernelBody of
+        TagInt i -> do
+          varOut <- addParam "output" int32_t
+          assign varOut i
+        TagBool b -> do
+          varOut <- addParam "output" bool_t
+          assign varOut b
+        TagDouble d -> do
+          varOut <- addParam "output" double_t
+          assign varOut d
+        TagFn _ -> error "compileFun: Cannot return functions"
+        TagPair _ _ -> error "compileFun: TODO return pairs" -- TODO
+        TagArray arr -> do
+          varOut <- addParam "arrOutput" (pointer_t [attrGlobal] (convertType (baseType arr)))
+          let writer tv i =
+                case tv of
+                  TagInt v -> assignArray varOut v i
+                  t -> error (show t)
+          forceTo writer arr
+        TagProgram _ -> error "TODO"
+    v -> error ("Not a program, but: " ++ show v)
 
 tagExp :: Type -> CExp -> Tagged
 tagExp IntT e    = TagInt e
@@ -184,7 +190,6 @@ lets name s =
       do (n',_) <- letsVar "len" (TagInt len)
          return (TagArray (ArrPush (var n') bty wf))
 
-
 letsVar :: String -> Tagged -> IL (VarName, Tagged)
 letsVar name s =
   case s of
@@ -199,145 +204,110 @@ letsVar name s =
     TagArray _ -> error "letsVar TagArray" -- TODO
     TagProgram _ -> error "letsVar TagProgram"
 
-compBody :: Map.Map Name Tagged -> Exp Type -> IL Tagged
-compBody _ (IntScalar i _)    = return (TagInt (constant i))
-compBody _ (DoubleScalar d _) = return (TagDouble (constant d))
-compBody _ (BoolScalar b _)   = return (TagBool (constant b))
-compBody env (App e0 e1) = do
-  v0 <- compBody env e0
-  case v0 of
-    TagFn f -> f =<< compBody env e1
+compBody :: Map.Map Name Tagged -> Exp Type -> Tagged
+compBody _ (IntScalar i _)    = TagInt (constant i)
+compBody _ (DoubleScalar d _) = TagDouble (constant d)
+compBody _ (BoolScalar b _)   = TagBool (constant b)
+compBody env (App e0 e1) =
+  case compBody env e0 of
+    TagFn f -> f (compBody env e1)
     _ -> error "Unexpected value at function position in application"
-compBody env (Pair e0 e1 _) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  return (TagPair v0 v1)
-compBody env (Proj1E e reg) = do
-  v <- compBody env e
-  case v of
-    TagPair v0 _ -> return v0
+compBody env (Pair e0 e1 _) =
+  (TagPair (compBody env e0) (compBody env e1))
+compBody env (Proj1E e reg) =
+  case compBody env e of
+    TagPair v0 _ -> v0
     _ -> error (show reg ++ ": fst expects a pair as argument")
-compBody env (Proj2E e reg) = do
-  v <- compBody env e
-  case v of
-    TagPair _ v1 -> return v1
+compBody env (Proj2E e reg) =
+  case compBody env e of
+    TagPair _ v1 -> v1
     _ -> error (show reg ++ ": snd expects a pair as argument")
 compBody env (Var x _ reg) =
   case Map.lookup x env of
-    Just v -> return v
+    Just v -> v
     Nothing -> error (show reg ++ ": Variable not defined: " ++ x)
 compBody env (Lamb x _ e _ _) =
-  return . TagFn $ \v ->
-    do --v' <- lets "v" v
-       compBody (Map.insert x v env) e
+  TagFn (\v -> compBody (Map.insert x v env) e)
 compBody env (LambLvl _ e _ _) = compBody env e
 compBody env (AppLvl e _) = compBody env e
-compBody env (Let x e0 e1 _ _) = do
-  v0 <- compBody env e0
-  x0 <- lets x v0
-  compBody (Map.insert x x0 env) e1
-compBody env (UnOp op e0 reg) = do
-  v0 <- compBody env e0
-  return (compileUnOp op v0 reg)
-compBody env (BinOp op e0 e1 reg) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  return (compileBinOp op v0 v1 reg)
-compBody env (Cond e0 e1 e2 _ reg) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  v2 <- compBody env e2
-  case v0 of
-    (TagBool b0) -> case (v1, v2) of
-                     (TagInt i1, TagInt i2) -> return . TagInt $ if_ b0 i1 i2
-                     (TagBool b1, TagBool b2) -> return . TagBool $ if_ b0 b1 b2
+compBody env (Let x e0 e1 _ _) =
+  compBody (Map.insert x (compBody env e0) env) e1
+compBody env (UnOp op e0 reg) =
+  compileUnOp op (compBody env e0) reg
+compBody env (BinOp op e0 e1 reg) =
+  compileBinOp op (compBody env e0) (compBody env e1) reg
+compBody env (Cond e0 e1 e2 _ reg) =
+  case compBody env e0 of
+    (TagBool b0) -> case (compBody env e1, compBody env e2) of
+                     (TagInt i1, TagInt i2) -> TagInt (if_ b0 i1 i2)
+                     (TagBool b1, TagBool b2) -> TagBool (if_ b0 b1 b2)
                      (TagArray _, TagArray _) -> error (show reg ++ ": TODO: not possible yet")
                      (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
                      (_,_) -> error (show reg ++ ": branches are differing")
     _ -> error "Expecting boolean expression as conditional argument in branch"
-compBody env (GeneratePull e0 e1 reg) = do
+compBody env (GeneratePull e0 e1 reg) =
   let (_ :> ty1) = typeOf e1
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  case (v0, v1) of
-    (TagInt e0', TagFn f) ->
-      return (TagArray (ArrPull e0' ty1 (\i -> f (TagInt i))))
-    _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
+  in case (compBody env e0, compBody env e1) of
+      (TagInt e0', TagFn f) -> (TagArray (ArrPull e0' ty1 (\i -> f (TagInt i))))
+      _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
 compBody env (MapPull e0 e1 reg) = map_ env e0 e1 reg
 compBody env (MapPush e0 e1 reg) = map_ env e0 e1 reg
 compBody env (LengthPull e0 reg) = length_ env e0 reg
 compBody env (LengthPush e0 reg) = length_ env e0 reg
-compBody env (Index e0 e1 reg) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  case (v0, v1) of
+compBody env (Index e0 e1 reg) =
+  case (compBody env e0, compBody env e1) of
     (TagArray (ArrPull _ _ idx), TagInt i) -> idx i
     _ -> error (show reg ++ ": Index expects array and integer argument")
-compBody env (Force e0 reg) = do
-  v0 <- compBody env e0
-  case v0 of
-    TagArray arr -> return (TagProgram (TagArray <$> force arr))
+compBody env (Force e0 reg) =
+  case compBody env e0 of
+    TagArray arr -> TagProgram (TagArray <$> force arr)
     _ -> error (show reg ++ ": force expects array as argument")
-compBody env (Push lvl e0 _) = do
-  v0 <- compBody env e0
-  case v0 of
-    TagArray arr -> return (TagArray (push lvl arr))
+compBody env (Push lvl e0 _) =
+  case compBody env e0 of
+    TagArray arr -> TagArray (push lvl arr)
     _ -> error "pull expects array"
-compBody env (While e0 e1 e2 _) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  v2 <- compBody env e2
-  whileArray v0 v1 v2
-compBody env (WhileSeq e0 e1 e2 _) = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  v2 <- compBody env e2
-  whileSeq v0 v1 v2
-compBody env (Interleave i ixf e0 reg) = do
-  vi <- compBody env i
-  vixf <- compBody env ixf
-  v0 <- compBody env e0
+compBody env (While e0 e1 e2 _) =
+  whileArray (compBody env e0) (compBody env e1) (compBody env e2)
+compBody env (WhileSeq e0 e1 e2 _) =
+  whileSeq (compBody env e0) (compBody env e1) (compBody env e2)
+compBody env (Interleave i ixf e0 reg) =
   let PullArrayT (ProgramT _ (PushArrayT lvl _)) = typeOf e0
-  case (vi, vixf, v0) of
-    (TagInt rn, TagFn ixf', TagArray arr) -> return (TagArray (interleave lvl rn ixf' arr))
-    _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
-compBody _ (BlockSize _)   = do
-  s <- getState
-  return (TagInt (constant (configBlockSize (kernelConfig s))))
-compBody env (Return _ e _)   = do
-  v <- compBody env e
-  return (TagProgram (return v))
-compBody env (Bind e0 e1 _)   = do
-  v0 <- compBody env e0
-  v1 <- compBody env e1
-  case v0 of
-    TagProgram v0' ->
-      case v1 of
-        TagFn f -> f =<< v0'
-        _ -> error "TODO"
-    _ -> error "expected program as first argument to 'bind'"
+  in
+     case (compBody env i, compBody env ixf, compBody env e0) of
+       (TagInt rn, TagFn ixf', TagArray arr) -> TagProgram (return (TagArray (interleave lvl rn ixf' arr)))
+       _ -> error (show reg ++ " Interleave should be given an integer, a function and an array.")
+compBody env (Return _ e _)   =
+  TagProgram (return (compBody env e))
+compBody env (Bind e0 e1 _)   =
+  case (compBody env e0, compBody env e1) of
+    (TagProgram v0, TagFn f) ->
+      TagProgram (do m0 <- v0
+                     case f m0 of
+                       TagProgram m1 -> m1
+                       _ -> error "TODO")
+    _ -> error "TODO"
+-- compBody _ (BlockSize _)   = do
+--   s <- getState
+--   return (TagInt (constant (configBlockSize (kernelConfig s))))
 
-length_ :: Map.Map Name Tagged -> Exp Type -> Region -> IL Tagged
+length_ :: Map.Map Name Tagged -> Exp Type -> Region -> Tagged
 length_ env e0 reg = do
-  v <- compBody env e0
-  case v of
-    TagArray arr -> return (TagInt (size arr))
+  case compBody env e0 of
+    TagArray arr -> TagInt (size arr)
     e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
 
-map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> IL Tagged
-map_ env e0 e1 reg = do
+map_ :: Map.Map Name Tagged -> Exp Type -> Exp Type -> Region -> Tagged
+map_ env e0 e1 reg =
   let (_ :> outType) = typeOf e0
-  f' <- compBody env e0
-  e' <- compBody env e1
-  case (f', e') of
-    (TagFn f, TagArray arr) -> return (TagArray (mapArray f outType arr))
-    _ -> error $ concat [show reg,
-                         ": ",
-                         "Map expects function as first argument and",
-                         "an array as second argument, got:\n    ",
-                         show f',
-                         "\nand\n    ",
-                         show e']
+  in case (compBody env e0, compBody env e1) of
+       (TagFn f, TagArray arr) -> TagArray (mapArray f outType arr)
+       (f,e) -> error (concat [show reg,
+                           ": ",
+                           "Map expects function as first argument and",
+                           "an array as second argument, got:\n    ",
+                           show f,
+                           "\nand\n    ",
+                           show e])
 
 force :: Array Tagged -> IL (Array Tagged)
 force (ArrPull _ _ _) = error ("force: forcing a pull-array should raise type error." ++
@@ -356,18 +326,15 @@ push :: Level -> Array Tagged -> Array Tagged
 push lvl (ArrPull len bty idx) =
   ArrPush len bty
           (\wf -> forAll lvl len
-                    (\i -> do value <- idx i
-                              wf value i))
+                    (\i -> wf (idx i) i))
 push _ (ArrPush _ _ _) = error "force: push can only be applied to pull-arrays, how did this force appear?"
 
-interleave :: Level -> CExp -> (Tagged -> IL Tagged) -> Array Tagged -> Array Tagged
+interleave :: Level -> CExp -> (Tagged -> Tagged) -> Array Tagged -> Array Tagged
 interleave lvl n f (ArrPull len (ProgramT _ (PushArrayT _ bty)) idx) =
   ArrPush (len `muli` n) bty (\wf -> 
     distrPar lvl len $ \bix -> do
-      arrp <- idx bix
-      let writer' a ix =
-            do ix' <- f (TagPair (TagInt bix) (TagInt ix))
-               wf a (unInt ix')
+      let arrp = idx bix
+      let writer' a ix = wf a (unInt (f (TagPair (TagInt bix) (TagInt ix))))
       case arrp of
         TagProgram m ->
           do arrp' <- m
@@ -377,92 +344,92 @@ interleave lvl n f (ArrPull len (ProgramT _ (PushArrayT _ bty)) idx) =
         _ -> error "Interleave should be applied to an array of arrays!")
 interleave _ _ _ t = error ("interleave only accepts pull-arrays of push-arrays. Got: " ++ show t)
 
-
-whileArray :: Tagged -> Tagged -> Tagged -> IL Tagged
+whileArray :: Tagged -> Tagged -> Tagged -> Tagged
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _ _)) =
-  do -- Declare array
-     len <- lets "len" (TagInt (size arr))
-     var_array <- allocate (baseType arr) (unInt len)
-     (var_len,_) <- letsVar "arraySize" len
+  TagProgram $
+    do -- Declare array
+       len <- lets "len" (TagInt (size arr))
+       var_array <- allocate (baseType arr) (unInt len)
+       (var_len,_) <- letsVar "arraySize" len
 
-     let writer tv i =
-           case tv of
-             TagInt v -> assignArray var_array v i
-             e -> error (show e)
+       let writer tv i =
+             case tv of
+               TagInt v -> assignArray var_array v i
+               e -> error (show e)
 
-     forceTo writer arr
+       forceTo writer arr
 
-     let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
+       let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
 
-     cond' <- cond vararr
-     (var_cond,_) <- letsVar "cond" cond' -- stop condition
-     whileLoop (var var_cond) $
-       do arr' <- step vararr
-          assign var_len (size (unArray arr'))
-          -- TODO update arr' length to point to the var_len variable
-          forceTo writer (unArray arr')
-          cond'' <- liftM unBool (cond arr')
-          assign var_cond cond''
-     return vararr
+       (var_cond,_) <- letsVar "cond" (cond vararr) -- stop condition
+       whileLoop (var var_cond) $
+         do let arr' = step vararr
+            len' <- lets "len" (TagInt (size (unArray arr')))
+            let arr'' = case unArray arr' of
+                          ArrPush _ ty wf -> ArrPush (unInt len') ty wf
+                          _ -> error "step-function in while loop didn't return a pull array"
+            forceTo writer arr''
+            assign var_len (unInt len')
+            assign var_cond (unBool (cond (TagArray arr'')))
+       return vararr
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
 whileArray _ _ _ = error "first two arguments to while should be conditional and step function, respectively"
 
-whileSeq :: Tagged -> Tagged -> Tagged -> IL Tagged
+whileSeq :: Tagged -> Tagged -> Tagged -> Tagged
 whileSeq (TagFn cond) (TagFn step) v =
-  do (var0, var0tagged) <- letsVar "loopVar" v
-     cond' <- cond var0tagged
-     case cond' of
-       TagBool b -> whileLoop b
-                     (do v' <- step var0tagged
-                         case v' of
-                           TagInt x -> assign var0 x
-                           TagBool x -> assign var0 x
-                           TagDouble x -> assign var0 x
-                           _ -> error "unsupported type in whileSeq")
-       _ -> error "Conditional in 'while- should be boolean typed"  
-     return v
+  TagProgram $
+    do (var0, var0tagged) <- letsVar "loopVar" v
+       case cond var0tagged of
+         TagBool b -> whileLoop b
+                       (case step var0tagged of
+                          TagInt x -> assign var0 x
+                          TagBool x -> assign var0 x
+                          TagDouble x -> assign var0 x
+                          _ -> error "unsupported type in whileSeq")
+         _ -> error "Conditional in 'while- should be boolean typed"  
+       return v
 whileSeq _ _ _ = error "incompatible arguments for whileSeq"
 
 distrPar :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 distrPar (Step (Step Zero)) ub' f =
-  do ub <- let_ "ub" int32_t ub'
-     q <- let_ "blocksQ" int32_t (ub `divi` numWorkgroups)
-     for q (\i -> do
-               j <- let_ "j" int32_t ((workgroupID `muli` q) `addi` i)
-               f j)
-     iff (workgroupID `lti` (ub `modi` numWorkgroups))
-         (do j <- let_ "j" int32_t ((numWorkgroups `muli` q) `addi` workgroupID)
-             f j
-         , return ())
+    do ub <- let_ "ub" int32_t ub'
+       q <- let_ "blocksQ" int32_t (ub `divi` numWorkgroups)
+       for q (\i -> do
+                 j <- let_ "j" int32_t ((workgroupID `muli` q) `addi` i)
+                 f j)
+       iff (workgroupID `lti` (ub `modi` numWorkgroups))
+           (do j <- let_ "j" int32_t ((numWorkgroups `muli` q) `addi` workgroupID)
+               f j
+           , return ())
 distrPar (Step Zero) ub' f = -- warp level
-  do ub <- let_ "ub" int32_t ub'
-     cfg <- kernelConfig <$> getState
-     numWarps <- let_ "numWarps" int32_t (constant (configBlockSize cfg `div` configWarpSize cfg))
-     warpsQ <- let_ "warpsQ" int32_t (ub `divi` numWarps)
-     warpsR <- let_ "warpsR" int32_t (ub `modi` numWarps)
-     lwid <- let_ "lwid" int32_t (localID `divi` warpSize)
-     for warpsQ
-       (\i -> do warpID <- let_ "warpID" int32_t ((lwid `muli` warpsQ) `addi` i)
-                 f warpID)
-     iff (lwid `lti` warpsR)
-         (do warpID <- let_ "warpID" int32_t ((numWarps `muli` warpsQ) `addi` lwid)
-             f warpID
-         , return ())
+    do ub <- let_ "ub" int32_t ub'
+       cfg <- kernelConfig <$> getState
+       numWarps <- let_ "numWarps" int32_t (constant (configBlockSize cfg `div` configWarpSize cfg))
+       warpsQ <- let_ "warpsQ" int32_t (ub `divi` numWarps)
+       warpsR <- let_ "warpsR" int32_t (ub `modi` numWarps)
+       lwid <- let_ "lwid" int32_t (localID `divi` warpSize)
+       for warpsQ
+         (\i -> do warpID <- let_ "warpID" int32_t ((lwid `muli` warpsQ) `addi` i)
+                   f warpID)
+       iff (lwid `lti` warpsR)
+           (do warpID <- let_ "warpID" int32_t ((numWarps `muli` warpsQ) `addi` lwid)
+               f warpID
+           , return ())
 distrPar lvl _ _ = error ("Unsupported level in distrPar: " ++ show lvl)
 
 forAll :: Level -> CExp -> (CExp -> IL ()) -> IL ()
 forAll (Step (Step Zero)) ub' f =
-  do ub <- let_ "ub" int32_t ub'
-     s <- getState
-     let blockSize = constant (configBlockSize (kernelConfig s))
-     q <- let_ "q" int32_t (ub `divi` blockSize)
-     for q (\i -> do v <- let_ "j" int32_t ((i `muli` blockSize) `addi` localID)
-                     f v)
-     iff (localID `lti` (ub `modi` blockSize))
-       (do v <- let_ "j" int32_t ((q `muli` blockSize) `addi` localID)
-           f v
-       , return ())
-     syncLocal
+    do ub <- let_ "ub" int32_t ub'
+       s <- getState
+       let blockSize = constant (configBlockSize (kernelConfig s))
+       q <- let_ "q" int32_t (ub `divi` blockSize)
+       for q (\i -> do v <- let_ "j" int32_t ((i `muli` blockSize) `addi` localID)
+                       f v)
+       iff (localID `lti` (ub `modi` blockSize))
+         (do v <- let_ "j" int32_t ((q `muli` blockSize) `addi` localID)
+             f v
+         , return ())
+       syncLocal
 forAll (Step Zero) ub' f =
   do ub <- let_ "ub" int32_t ub'
      q <- let_ "q" int32_t (ub `divi` warpSize)

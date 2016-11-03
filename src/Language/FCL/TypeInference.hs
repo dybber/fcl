@@ -298,7 +298,7 @@ infer env (While e1 e2 e3 reg) = do
   unify reg t1 (PullArrayT tv :> BoolT)
   unify reg t2 (PullArrayT tv :> PushArrayT (VarL lvlVar) tv)
   unify reg t3 (PushArrayT (VarL lvlVar) tv)
-  return (PullArrayT tv, While e1' e2' e3' reg)
+  return (ProgramT (VarL lvlVar) (PullArrayT tv), While e1' e2' e3' reg)
 infer env (WhileSeq e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
@@ -397,8 +397,8 @@ infer env (Bind e1 e2 reg) = do
   return (ty, Bind e1' e2' reg)
 
 unifyAll :: Region -> [Type] -> TI Type
-unifyAll r [] = newtv
-unifyAll r [t] = return t
+unifyAll _ [] = newtv
+unifyAll _ [t] = return t
 unifyAll r (t1 : t2 : ts) =
   do unify r t1 t2
      unifyAll r (t2 : ts)

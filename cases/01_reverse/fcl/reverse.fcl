@@ -3,8 +3,8 @@ fun reverse arr =
   let n = lengthPull arr
   in generatePull n (fn i => index arr (n - i - 1))
 
-sig reverseBlock : [int] -> [int]<block>
-kernel reverseBlock arr = push <block> (reverse arr)
+sig reverseBlock : [int] -> Program <block> [int]<block>
+kernel reverseBlock arr = return <block> (push <block> (reverse arr))
 
 -- return : <lvl> -> a -> Program <lvl> a
 

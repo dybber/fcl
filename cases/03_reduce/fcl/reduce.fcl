@@ -7,7 +7,7 @@ fun red2 <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in push <lvl> (zipWith f (fst x) (snd x))
-  in return <lvl> (push <lvl> (while cond step (step arr)))
+  in bind (while cond step (step arr)) (fn a => return <lvl> (push <lvl> a))
 
 sig red2Part : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun red2Part f arr =

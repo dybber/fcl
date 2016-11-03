@@ -131,7 +131,11 @@ evalExp env (BinOp op e1 e2 r) = do
     DivI    -> IntV <$> liftM2 div (unInt r "divi" v1) (unInt r "divi" v2)
     ModI    -> IntV <$> liftM2 mod (unInt r "modi" v1) (unInt r "modi" v2)
     MinI    -> IntV <$> liftM2 min (unInt r "mini" v1) (unInt r "mini" v2)
+    MaxI    -> IntV <$> liftM2 max (unInt r "maxi" v1) (unInt r "maxi" v2)
     PowI    -> IntV <$> liftM2 (^) (unInt r "powi" v1) (unInt r "powi" v2)
+
+    AddR    -> DoubleV <$> liftM2 (+) (unDouble r "addr" v1) (unDouble r "addr" v2)
+    
     AndI    -> IntV <$> liftM2 (.&.) (unInt r "andi" v1) (unInt r "andi" v2)
     OrI     -> IntV <$> liftM2 (.|.) (unInt r "ori" v1) (unInt r "ori" v2)
     XorI    -> IntV <$> liftM2 xor (unInt r "xori" v1) (unInt r "xori" v2)
@@ -140,6 +144,7 @@ evalExp env (BinOp op e1 e2 r) = do
     
     EqI     -> BoolV <$> liftM2 (==) (unInt r "eqi" v1) (unInt r "eqi" v2)
     NeqI    -> BoolV <$> liftM2 (/=) (unInt r "neqi" v1) (unInt r "neqi" v2)
+    LtI     -> BoolV <$> liftM2 (<)  (unInt r "lti" v1) (unInt r "lti" v2)
     
     PowR    -> DoubleV <$> liftM2 (**) (unDouble r "powr" v1) (unDouble r "powr" v2)
     DivR    -> DoubleV <$> liftM2 (/) (unDouble r "divr" v1) (unDouble r "divr" v2)
@@ -237,6 +242,13 @@ evalExp env (Scanl ef e es reg) = do
     (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
     _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (BlockSize reg) = evalError (Just reg) "blockSize not implemented"
+evalExp env (Bind e1 e2 _) = do
+  v2 <- evalExp env e2
+  v1 <- evalExp env e1
+  case v1 of
+    LamV env' x e -> evalExp (insertVar x v2 env') e
+    _ -> evalError Nothing "Using non-function value as a function"
+evalExp env (Return _ e0 _) = evalExp env e0
 
 ---------------------
 -- Various helpers --
