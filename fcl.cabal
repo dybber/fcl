@@ -30,6 +30,8 @@ Library
                    Language.FCL.Simplify
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
+                   Language.FCL.Values
+                   Language.FCL.KernelProgram
                    Language.FCL.Compile
 
   Default-Language: Haskell2010

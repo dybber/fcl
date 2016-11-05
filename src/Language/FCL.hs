@@ -3,9 +3,9 @@ module Language.FCL
   eval,
   compileKernels, pretty,
 
-  showType, prettyPrintType, prettyPrintExp, prettyPrintProgram,
+  showType, prettyPrintType, prettyPrintExp, prettyPrint,
   
-  Program, Untyped, Type,
+  Definition, Untyped, Type,
   
   TypeError, ParseError
  )
@@ -16,7 +16,7 @@ import Language.FCL.TypeInference (typeinfer, TypeError)
 import Language.FCL.Inline      (inline)
 import Language.FCL.Simplify    (simplify)
 import Language.FCL.Compile     (compileKernels)
-import Language.FCL.Syntax      (Program, Type, Untyped)
-import Language.FCL.Pretty      (showType, prettyPrintType, prettyPrintExp, prettyPrintProgram)
+import Language.FCL.Syntax      (Definition, Type, Untyped)
+import Language.FCL.Pretty      (showType, prettyPrintType, prettyPrintExp, prettyPrint)
 import Language.FCL.Eval        (eval)
 import CGen                     (pretty)

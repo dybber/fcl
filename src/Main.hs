@@ -144,13 +144,13 @@ readFileSafe filename = do
   contents <- liftIO (tryIOError (readFile filename))
   liftEither IOError contents
 
-parseFile :: String -> CLI (Program Untyped)
+parseFile :: String -> CLI [Definition Untyped]
 parseFile fname = do
   contents <- readFileSafe fname
   logInfo ("Parsing " ++ fname ++ ".")
   liftEither ParseError (parseTopLevel fname contents)
 
-parseFiles :: [String] -> CLI (Program Untyped)
+parseFiles :: [String] -> CLI [Definition Untyped]
 parseFiles files = do
   definitions <- mapM parseFile files
   return (concat definitions)
@@ -166,21 +166,21 @@ showUsageAndExit =
        putStr (usageInfo heading optionDescriptions)
        exitFailure
 
-dumpAST :: Show a => Program a -> CLI ()
+dumpAST :: Show a => [Definition a] -> CLI ()
 dumpAST ast = message (show ast)
 
-printTypes :: Program Type -> CLI ()
+printTypes :: [Definition Type] -> CLI ()
 printTypes ast = mapM_ (message . showType) ast
 
-prettyPrint :: Program a -> CLI ()
-prettyPrint ast = message (prettyPrintProgram ast)
+pp :: [Definition a] -> CLI ()
+pp ast = message (prettyPrint ast)
 
-evalAndPrint :: Program Type -> CLI ()
+evalAndPrint :: [Definition Type] -> CLI ()
 evalAndPrint ast =
   do v <- liftEither EvalError (return (eval ast))
      liftIO (print v)
 
-compile :: Program Type -> CLI ()
+compile :: [Definition Type] -> CLI ()
 compile ast =
   do logInfo "Inlining."
      let inlined = inline ast
@@ -212,17 +212,17 @@ parserTest filenames =
           
           ast <- parseFile filename
           logInfo "Pretty printing."          
-          let pp = prettyPrintProgram ast
+          let pp1 = prettyPrint ast
 
           logInfo "Parsing again."
-          result <- liftEither ParseError (parseTopLevel "<<input>>" pp)
-          let pp2 = prettyPrintProgram result
+          result <- liftEither ParseError (parseTopLevel "<<input>>" pp1)
+          let pp2 = prettyPrint result
 
-          if pp == pp2
+          if pp1 == pp2
             then message ("Parser test of '" ++ filename ++ "': OK.")
             else do message ("Parser test of '" ++ filename ++ "': ERROR. Pretty printed output differed after second parse.")
                     message "After first parse:"
-                    message pp
+                    message pp1
                     message "After second parse:"
                     message pp2
      
@@ -270,7 +270,7 @@ dispatch filenames opts =
      typed_ast <- liftEither TypeError (typeinfer ast)
 
      onCommand DumpAST     (dumpAST typed_ast)
-     onCommand PrettyPrint (prettyPrint typed_ast)
+     onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
      onCommand Eval        (evalAndPrint typed_ast)
      onCommand Compile     (compile typed_ast)

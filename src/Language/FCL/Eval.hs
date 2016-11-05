@@ -66,10 +66,10 @@ instance Show (Value ty) where
 ------------------------------
 -- Interpretation functions --
 ------------------------------
-eval :: Show ty => Program ty -> Either EvalError (Value ty)
+eval :: Show ty => [Definition ty] -> Either EvalError (Value ty)
 eval prog = runEval (evalProgram emptyEnv prog)
 
-evalProgram :: Show ty => Env ty -> Program ty -> Eval (Value ty)
+evalProgram :: Show ty => Env ty -> [Definition ty] -> Eval (Value ty)
 evalProgram _ [] = evalError Nothing "No main, exiting."
 evalProgram env (def:defs) =
   if defVar def == "main"

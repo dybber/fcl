@@ -27,7 +27,6 @@ module Language.FCL.Syntax (
   KernelConfig(..),
   defaultKernelConfig,
   Definition(..),
-  Program,
   mapBody
 ) where
 
@@ -283,8 +282,6 @@ typeOf (Bind _ e1 _) =
 ------------------------
 -- Syntax of programs --
 ------------------------
-
-type Program ty = [Definition ty]
 
 data KernelConfig =
   KernelConfig

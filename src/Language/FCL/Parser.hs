@@ -95,7 +95,7 @@ newNamedLvlVar name =
 ----------------------
 -- Exported parsers --
 ----------------------
-parseTopLevel :: String -> String -> Either ParseError (Program Untyped)
+parseTopLevel :: String -> String -> Either ParseError [Definition Untyped]
 parseTopLevel filename programText = runParser topLevel initState filename programText
 
 -- parseType :: String -> String -> Either ParseError Type
@@ -104,7 +104,7 @@ parseTopLevel filename programText = runParser topLevel initState filename progr
 ---------------------------
 -- Top-level definitions --
 ---------------------------
-topLevel :: ParserFCL (Program Untyped)
+topLevel :: ParserFCL [Definition Untyped]
 topLevel =
   do whitespace
      prog <- many1 definition

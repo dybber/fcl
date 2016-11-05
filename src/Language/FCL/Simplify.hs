@@ -7,7 +7,7 @@ import Language.FCL.SourceRegion
 
 
 -- Right now, types are not maintained correctly by the simplifier
-simplify :: Program ty -> Program ty
+simplify :: [Definition ty] -> [Definition ty]
 simplify = map simplifyDef
 
 simplifyDef :: Definition ty -> Definition ty

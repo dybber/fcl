@@ -367,7 +367,7 @@ infer env (BinOp op e1 e2 reg) = do
 infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
   t <- unifyAll reg (map fst tes)
-  return (PullArrayT t, Vec (map snd tes) t reg)
+  return (ProgramT gridLevel (PullArrayT t), Vec (map snd tes) t reg)
 infer env (Scanl e1 e2 e3 reg) = do
   (tf, e1') <- infer env e1
   (ta, e2') <- infer env e2
@@ -480,12 +480,12 @@ tvdependentset (TVE i s_before) s_after =
 initEnv :: TVE
 initEnv = TVE 0 (Map.empty, Map.empty)
 
-typeinfer :: Program a -> Either TypeError (Program Type)
+typeinfer :: [Definition a] -> Either TypeError [Definition Type]
 typeinfer prog =
   do (typrog, TVE _ s) <- runTI (typecheckProg Map.empty prog) initEnv
      return (map (mapBody (tvsubExp s)) typrog)
 
-typecheckProg :: TyEnv -> Program a -> TI (Program Type)
+typecheckProg :: TyEnv -> [Definition a] -> TI [Definition Type]
 typecheckProg _ [] = return []
 typecheckProg tenv (d : ds) = do
   (tysc@(TypeScheme _ ty), ety) <- generalize (infer tenv (defBody d))

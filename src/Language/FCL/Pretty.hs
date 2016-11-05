@@ -1,4 +1,4 @@
-module Language.FCL.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrintProgram, showType) where
+module Language.FCL.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
 
 import Text.PrettyPrint
 import Language.FCL.Syntax
@@ -18,8 +18,8 @@ prettyPrintExp e = render $ evalState (pp e) startEnv
 prettyPrintDef :: Definition Type -> String
 prettyPrintDef d = render $ evalState (ppDef d) startEnv
 
-prettyPrintProgram :: Program a -> String
-prettyPrintProgram prog = render $ evalState (ppProgram prog) startEnv
+prettyPrint :: [Definition a] -> String
+prettyPrint prog = render $ evalState (ppProgram prog) startEnv
 
 showType :: Definition Type -> String
 showType (Definition v _ _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
@@ -75,7 +75,7 @@ getLvlName i =
             return name
 
 
-ppProgram :: Program a -> PP Doc
+ppProgram :: [Definition a] -> PP Doc
 ppProgram ds = vcat <$> mapM (\d -> do def <- ppDef d
                                        return (def <> char '\n')) ds
 

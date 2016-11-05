@@ -14,10 +14,10 @@ type Env = Map.Map Name (TypeScheme Type, Exp Type)
 emptyEnv :: Env
 emptyEnv = Map.empty
 
-inline :: Program Type -> Program Type
+inline :: [Definition Type] -> [Definition Type]
 inline prog = inlineFuncs emptyEnv prog
 
-inlineFuncs :: Env -> Program Type -> Program Type
+inlineFuncs :: Env -> [Definition Type] -> [Definition Type]
 inlineFuncs _ [] = []
 inlineFuncs env (d : ds) =
   let e' = inlineAll env (defBody d)
