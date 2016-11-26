@@ -303,7 +303,7 @@ data Definition ty =
     , defSignature  :: Maybe Type
     , defTypeScheme :: TypeScheme ty
     , defEmitKernel :: Bool
-    , defKernelConfig :: KernelConfig
+--    , defKernelConfig :: KernelConfig
     , defBody       :: Exp ty
     }
   deriving (Show, Eq)

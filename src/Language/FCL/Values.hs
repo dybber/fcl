@@ -1,6 +1,6 @@
 module Language.FCL.Values where
 
-import Language.FCL.KernelProgram
+import Language.FCL.ILKernel
 import Language.FCL.Syntax
 import CGen
 
@@ -27,13 +27,18 @@ baseType (ArrPush _ _ bty _)      = bty
 createPull :: VarName -> Type -> CExp -> Array Value
 createPull name ty n = ArrPull n ty (\i -> tagExp ty (name ! i))
 
+-- type ProgramThread a = (ILKernel a)
+-- type ProgramWarp a  = ILKernel a
+-- type ProgramBlock a  = ILKernel a
+-- type ProgramGrid a = (ILKernel a, ILHost a, [TopLevel])
+
 data Value = TagInt CExp
-            | TagBool CExp
-            | TagDouble CExp
-            | TagArray (Array Value)
-            | TagFn (Value -> Value)
-            | TagPair Value Value
-            | TagProgram (ILKernel Value)
+           | TagBool CExp
+           | TagDouble CExp
+           | TagArray (Array Value)
+           | TagFn (Value -> Value)
+           | TagPair Value Value
+           | TagProgram (ILKernel Value)
 
 instance Show (Array a) where
   show (ArrPull _ ty _) = show ty
@@ -46,7 +51,7 @@ instance Show Value where
   show (TagArray e) = "TagArray: " ++ show e
   show (TagFn _) = "TagFn"
   show (TagPair e0 e1) = "TagPair(" ++ show e0 ++ ", " ++ show e1 ++ ")"
-  show (TagProgram _) = "TagKernelProgram"
+  show (TagProgram _) = "TagProgram"
 
 tagExp :: Type -> CExp -> Value
 tagExp IntT e    = TagInt e

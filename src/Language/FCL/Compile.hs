@@ -1,9 +1,9 @@
 module Language.FCL.Compile
-  (compileKernel, compileKernels)
+--  (compileKernel, compileKernels)
 where
 
 import Language.FCL.Values
-import Language.FCL.KernelProgram
+import Language.FCL.ILKernel
 
   
 import qualified Data.Map as Map
@@ -12,13 +12,6 @@ import Control.Monad (liftM)
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
 import CGen
-
-initializeState :: KernelConfig -> CompileState
-initializeState cfg =
-  CompileState { kernelConfig = cfg
-               , allocPtrOffset = constant (0 :: Int)
-               , sharedMemPointer = error "Shared memory is not initialized!" -- TODO, not nice.
-               } 
 
 type VarEnv = Map.Map Name Value
 
@@ -36,8 +29,8 @@ compileKernel optIterations def =
          sbase <- addParam "sbase" (pointer_t [attrLocal] uint8_t)
          modifyState (\s -> s { sharedMemPointer = sbase })
          compile 0 emptyEnv (typeOf e) e
-      initialState = initializeState (defKernelConfig def)
-  in fst (generateKernel initialState optIterations kernel_name kernel_body)
+      initialState = initializeState
+  in fst (generateKernelOld initialState optIterations kernel_name kernel_body)
 
 addArgument :: Type -> ILKernel Value
 addArgument (PullArrayT bty) =
@@ -79,6 +72,25 @@ compile _ env _ e =
           forceTo writer arr
         TagProgram _ -> error "TODO"
     v -> error ("Not a program, but: " ++ show v)
+
+-- compile :: Int -> [Definition Type] -> (ILKernel Value, [TopLevel])
+-- compile optIterations defs =
+--   let findMain [] = error "No 'main'-function defined"
+--       findMain (d:ds) =
+--           if defVar d == "main"
+--           then d
+--           else findMain ds
+--       main = findMain defs
+--   in case compBody emptyEnv (defBody main) of
+--        TagProgram p -> (p, [])
+--        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
+
+-- createHostProgram :: ILHost a -> [TopLevel]
+-- createHostProgram hostProg = undefined
+ -- includes
+ -- initialize OpenCL context and device
+ -- create main function with hostProg as body
+ -- add instructions for moving return value back to host
  
 compBody :: VarEnv -> Exp Type -> Value
 compBody _ (IntScalar i _)    = TagInt (constant i)
@@ -171,6 +183,12 @@ map_ env e0 e1 reg =
                            show e])
 
 force :: Value -> Value
+  -- force (TagArray(arr@(ArrPush len (Step (Step (Step Zero))) ty wf))) = undefined
+  -- allocate space for return value
+  -- determine input arrays
+  -- create kernel
+  -- create kernel invocation
+
 force (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
   let len = size arr                     -- calculate size of complete nested array structure
   name <- allocateKernel (convertType (baseType arr)) len    -- allocate shared memory
@@ -189,7 +207,6 @@ push lvl (ArrPull len bty idx) =
   ArrPush len lvl bty
           (\wf -> forAllKernel lvl len (\i -> wf (idx i) i))
 push _ _ = error "force: push can only be applied to pull-arrays, how did this force appear?"
-
 
 interleave :: Value -> Value -> Value -> Value
 interleave (TagInt n) (TagFn f) (TagArray (ArrPull len (ProgramT lvl (PushArrayT _ bty)) idx)) =

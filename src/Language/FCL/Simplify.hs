@@ -11,7 +11,7 @@ simplify :: [Definition ty] -> [Definition ty]
 simplify = map simplifyDef
 
 simplifyDef :: Definition ty -> Definition ty
-simplifyDef d = d { defBody = simplifyExp (defKernelConfig d) (defBody d) }
+simplifyDef d = d { defBody = simplifyExp defaultKernelConfig (defBody d) }
 
 simplifyExp :: KernelConfig -> Exp ty -> Exp ty
 simplifyExp _ e@(IntScalar _ _)    = e

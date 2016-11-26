@@ -151,14 +151,14 @@ fundef tyanno =
        args <- arguments
        reservedOp "="
        rhs <- expr
-       conf <- kernelConfig defaultKernelConfig
+--       conf <- kernelConfig defaultKernelConfig
        let function = args rhs Missing
        return (Definition
                  { defVar = name
                  , defSignature = fmap snd tyanno
                  , defTypeScheme = TypeScheme [] Untyped
                  , defEmitKernel = make_kernel
-                 , defKernelConfig = conf
+--                 , defKernelConfig = conf
                  , defBody = function
                  })
 
