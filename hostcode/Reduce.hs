@@ -1,6 +1,7 @@
-module Language.FCL.ReduceProgram where
+module Main where
 
-import Language.FCL.Program
+import Language.FCL.Host.Program
+import Language.FCL.Host.Syntax
 import Language.FCL.ILKernel
 import CGen
 
@@ -28,26 +29,27 @@ kernelBody inData n outData =
          (assignArray outData (sdata ! int 0) workgroupID,
           return ())
 
-hostCode :: HostProgram ([VarName], ILKernel ())
+hostCode :: HostProgram
 hostCode =
- let n = "n"
-     inputArray = "input"
-     outputArray = "output"
- in [-- Assign n (IntScalar 1000),
-     -- Assign inputArray (IntVector (map IntScalar [0..999])),
-     Declare  n (EInt 1000),
-     Declare  inputArray (EAlloc int32_t (EInt 1000)),
-     Declare  outputArray (EAlloc int32_t (EInt 1000)),
-     Declare "reduce"  (EKernel ([("out", pointer_t [] int32_t)],
-                                 kernelBody (inputArray, pointer_t [] int32_t) (n, int32_t) ("out", pointer_t [] int32_t))),
-     Call "reduce" (EInt 1000) [(outputArray, pointer_t [] int32_t)]
+ let n = ("n", int32_t)
+     inputArray = ("input", pointer_t [] int32_t)
+     outputArray = ("output", pointer_t [] int32_t)
+ in [Declare n (EInt 1000),
+     Alloc inputArray int32_t (EVar n),
+     Alloc outputArray int32_t (EVar n),
+     DefKernel "reduce"  ([("out", pointer_t [] int32_t)],
+                                 kernelBody inputArray n ("out", pointer_t [] int32_t)),
+     Call "reduce" (EInt 1000) [outputArray]
     ]
 
-test :: IO () --(String, String)
+test :: IO ()
 test =
-  let (hostcode, kernelcode) = compile initializeState hostCode
+  let (hostcode, kernelcode) = compile hostCode
   in do putStrLn kernelcode
         putStrLn hostcode
+
+main :: IO ()
+main = compileAndOutput hostCode "."
 
 
 -- TODO

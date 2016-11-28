@@ -1,7 +1,5 @@
-usage:
-	@echo "use 'make install', 'make build', 'make build-cases', 'make clean'"
-
 install:
+	$(MAKE) -C ../cgen/ install
 	$(MAKE) -C microcl all
 	cabal install
 
@@ -32,3 +30,6 @@ benchmark-fcl: build-cases
 
 benchmark-opencl: build-cases
 	$(MAKE) -C cases/ run-opencl
+
+usage:
+	@echo "use 'make install', 'make build', 'make build-cases', 'make clean'"
