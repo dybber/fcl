@@ -9,7 +9,7 @@ kernelBody :: VarName -> VarName -> VarName -> ILKernel ()
 kernelBody inData n outData =
  let int :: Int -> CExp
      int = constant
-     sdata = ("sdata", pointer_t [] int32_t)
+     sdata = ("sdata", pointer_t [attrLocal] int32_t)
  in
     do tid <- let_ "tid" int32_t localID
        i <- let_ "i" int32_t ((workgroupID `muli` (localSize `muli` (int 2))) `addi` localID)
@@ -32,14 +32,15 @@ kernelBody inData n outData =
 hostCode :: HostProgram
 hostCode =
  let n = ("n", int32_t)
-     inputArray = ("input", pointer_t [] int32_t)
-     outputArray = ("output", pointer_t [] int32_t)
- in [Declare n (EInt 1000),
-     Alloc inputArray int32_t (EVar n),
-     Alloc outputArray int32_t (EVar n),
-     DefKernel "reduce"  ([("out", pointer_t [] int32_t)],
-                                 kernelBody inputArray n ("out", pointer_t [] int32_t)),
-     Call "reduce" (EInt 1000) [outputArray]
+     inputArray = ("input", pointer_t [attrGlobal] int32_t)
+     outputArray = ("output", pointer_t [attrGlobal] int32_t)
+ in [Declare inputArray (EReadIntCSV (EString "input.csv")),
+     Declare n (ELength (EVar inputArray)),
+     Declare outputArray (EAlloc int32_t (EVar n)),
+     DefKernel "reduce"  ([("out", pointer_t [attrGlobal] int32_t)],
+                                 kernelBody inputArray n ("out", pointer_t [attrGlobal] int32_t)),
+     Call "reduce" (EInt 1024) [outputArray],
+     PrintArray (EVar n) (EVar outputArray)
     ]
 
 test :: IO ()
@@ -50,19 +51,3 @@ test =
 
 main :: IO ()
 main = compileAndOutput hostCode "."
-
-
--- TODO
----- generate and print code for Reduce example, too see what's missing
----- shared memory allocation
-
--- kernel :: ILKernel ()
--- kernel =
---   do sdata <- allocate double_t [] localSize
---      inData <- addParam "inData" (pointer_t [attrGlobal] double_t)
---      outData <- addParam "outData" (pointer_t [attrGlobal] double_t)
---      n <- addParam "n" uint32_t
---      kernelBody sdata inData outData n
-
--- kernel_gen :: TopLevel
--- kernel_gen = fst (generateKernel () 20 "reduce4" kernel)

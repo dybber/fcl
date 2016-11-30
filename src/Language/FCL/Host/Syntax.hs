@@ -10,7 +10,13 @@ data HostExp =
   | EBool Bool
   | EString String
   | EVar VarName
+  | EAlloc CType HostExp
+  | EReadIntCSV HostExp
+  | EReadDoubleCSV HostExp
+  | ELength HostExp
 --  | EBinOp BinOp HostExp HostExp
+  -- | RandomIntVector VarName HostExp
+  -- | RandomDoubleVector VarName HostExp
 
 --data BinOp = AddI | MulI | EqI | LtI
 
@@ -24,14 +30,10 @@ data Type = IntT | BoolT | StringT | KernelT | DeviceArray Type
 
 data HostStmt =
     Declare VarName HostExp
-  | Alloc VarName CType HostExp
   | DefKernel Name ([VarName], ILKernel ())
   | Call Name HostExp [VarName]
-  | ReadIntCSV VarName HostExp
-  | ReadDoubleCSV VarName HostExp
-  | RandomIntVector VarName HostExp
-  | RandomDoubleVector VarName HostExp
-  | While HostExp [HostStmt]
-  | Benchmark Name [HostStmt]
+  | PrintArray HostExp HostExp
+  -- | While HostExp [HostStmt]
+  -- | Benchmark Name [HostStmt]
 
 type HostProgram = [HostStmt]
