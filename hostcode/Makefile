@@ -5,13 +5,16 @@ LIB=-lmcl -lOpenCL
 
 build: reduce
 
-Reduce:
+Reduce: Reduce.hs
 	ghc Reduce.hs 
 
 main.c: Reduce
 	./Reduce
 
-reduce: main.c kernels.cl
+kernels.cl: Reduce
+	./Reduce
+
+reduce: main.c
 	gcc $(CFLAGS) $(INCLUDE) $(LIBDIR) -o $@ main.c $(LIB)
 
 run: build

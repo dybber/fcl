@@ -61,7 +61,6 @@ allocate ctx elemty size =
      modifyState (\s -> s { deviceAllocations = Map.insert buf (unInt size, elemty) (deviceAllocations s) })
      sizeVar <- letVar "size" int32_t (unInt size)
      return (VBufPtr sizeVar elemty buf)
-allocate _ _ _ = error "Can not allocate to a non-pointer type"
 
 readCSVFile :: CType -> Value -> ILHost (VarName, VarName)
 readCSVFile CInt32 filename =
@@ -88,7 +87,6 @@ copyToDevice ctx elemty n hostptr =
      modifyState (\s -> s { deviceAllocations = Map.insert buf (n, elemty) (deviceAllocations s) })
      size <- letVar "size" int32_t n
      return (VBufPtr size elemty buf)
-copyToDevice _ _ _ _ = error "Can not allocate to a non-pointer type"
 
 
 mkKernel :: ClProgram -> Set VarName -> Name -> ([VarName], ILKernel ()) -> ILHost ()
@@ -200,7 +198,6 @@ compileProgram ctx p program =
          go env ss
          
   in go Map.empty program
-
 
 releaseAllDeviceArrays :: ILHost ()
 releaseAllDeviceArrays =

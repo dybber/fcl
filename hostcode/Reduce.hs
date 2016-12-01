@@ -15,13 +15,13 @@ kernelBody inData n outData =
        i <- let_ "i" int32_t ((workgroupID `muli` (localSize `muli` (int 2))) `addi` localID)
        assignArray sdata (if_ (i `lti` var n) (inData ! i) (int 0)) tid
        iff ((i `addi` localSize) `lti` var n)
-         (assignArray sdata ((sdata ! tid) `addd` (inData ! (i `addi` localSize))) tid,
+         (assignArray sdata ((sdata ! tid) `addi` (inData ! (i `addi` localSize))) tid,
           return ())
        syncLocal
        s <- letVar "s" int32_t (localSize `divi` int 2)
-       whileUnroll 5 (var s `gti` (int 32)) $
+       whileLoop (var s `gti` (int 0)) $
          do iff (tid `lti` var s)
-              (assignArray sdata (sdata ! (tid `addi` var s)) tid,
+              (assignArray sdata ((sdata ! tid) `addi` (sdata ! (tid `addi` var s))) tid,
                return ())
             syncLocal
             s <== (var s `srl` int 1)
@@ -39,8 +39,8 @@ hostCode =
      Declare outputArray (EAlloc int32_t (EVar n)),
      DefKernel "reduce"  ([("out", pointer_t [attrGlobal] int32_t)],
                                  kernelBody inputArray n ("out", pointer_t [attrGlobal] int32_t)),
-     Call "reduce" (EInt 1024) [outputArray],
-     PrintArray (EVar n) (EVar outputArray)
+     Call "reduce" (EInt 512) [outputArray],
+     PrintArray (EInt 2) (EVar outputArray)
     ]
 
 test :: IO ()
