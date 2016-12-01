@@ -88,7 +88,6 @@ copyToDevice ctx elemty n hostptr =
      size <- letVar "size" int32_t n
      return (VBufPtr size elemty buf)
 
-
 mkKernel :: ClProgram -> Set VarName -> Name -> ([VarName], ILKernel ()) -> ILHost ()
 mkKernel p env name (explicit_params, body) =
   do (stmts, _, _) <- embed body initializeState
@@ -159,6 +158,17 @@ compExp ctx env (ELength e) =
      case arr of
        (VBufPtr size _ _) -> return (VInt (var size))
        _ -> error ""
+compExp ctx env (EBinOp op e1 e2) =
+  do v1 <- compExp ctx env e1
+     v2 <- compExp ctx env e2
+     return (binop op v1 v2)
+
+binop :: BinOp -> Value -> Value -> Value
+binop AddI (VInt i1) (VInt i2) = VInt (addi i1 i2)
+binop SubI (VInt i1) (VInt i2) = VInt (subi i1 i2)
+binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
+binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
+binop _ _ _ = error "binop error"
 
 printArray :: ClContext -> Value -> Value -> ILHost ()
 printArray ctx n (VBufPtr _ ty buf) =

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 
@@ -34,9 +35,10 @@ int* read_csv_ints(FILE* handle, int* valuesRead) {
   }
 
   int i = 0;
-	char line[1024];
+  size_t bufsize = 1024;
+  char* line = (char*)malloc(bufsize * sizeof(char));  
   //printf("Reading first line\n");
-  while (fgets(line, 1024, handle)) {
+  while (getline(&line, &bufsize, handle) > 0) {
     const char* tok;
     tok = strtok(line, " ,\n");
     while (tok != NULL) {
@@ -65,9 +67,10 @@ double* read_csv_doubles(FILE* handle, int* valuesRead) {
   }
 
   int i = 0;
-	char line[1024];
+	size_t bufsize = 1024;
+  char* line = (char*)malloc(bufsize * sizeof(char));
   //printf("Reading first line\n");
-  while (fgets(line, 1024, handle)) {
+  while (getline(&line, &bufsize, handle) > 0) {
     const char* tok;
     tok = strtok(line, " ,\n");
     while (tok != NULL) {

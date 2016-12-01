@@ -14,11 +14,11 @@ data HostExp =
   | EReadIntCSV HostExp
   | EReadDoubleCSV HostExp
   | ELength HostExp
---  | EBinOp BinOp HostExp HostExp
+  | EBinOp BinOp HostExp HostExp
   -- | RandomIntVector VarName HostExp
   -- | RandomDoubleVector VarName HostExp
 
---data BinOp = AddI | MulI | EqI | LtI
+data BinOp = AddI | SubI | MulI | DivI
 
 data Type = IntT | BoolT | StringT | KernelT | DeviceArray Type
 
@@ -33,7 +33,7 @@ data HostStmt =
   | DefKernel Name ([VarName], ILKernel ())
   | Call Name HostExp [VarName]
   | PrintArray HostExp HostExp
-  -- | While HostExp [HostStmt]
+  | While HostExp [HostStmt]
   -- | Benchmark Name [HostStmt]
 
 type HostProgram = [HostStmt]
