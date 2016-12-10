@@ -30,6 +30,7 @@ inlineAll :: Env -> Exp Type -> Exp Type
 inlineAll _ e@(IntScalar _ _) = e
 inlineAll _ e@(DoubleScalar _ _) = e
 inlineAll _ e@(BoolScalar _ _) = e
+inlineAll _ e@(String _ _) = e
 inlineAll _ e@(BlockSize _) = e
 inlineAll env (Var v ty _) =
   case Map.lookup v env of
@@ -62,3 +63,5 @@ inlineAll env (Interleave e0 e1 e2 reg)  = Interleave   (inlineAll env e0) (inli
 inlineAll env (Scanl e0 e1 e2 reg)       = Scanl        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (Return lvl e0 reg)        = Return       lvl (inlineAll env e0) reg
 inlineAll env (Bind e0 e1 reg)           = Bind         (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (ReadIntCSV e0 reg)        = ReadIntCSV (inlineAll env e0) reg
+inlineAll env (PrintIntArray e0 e1 reg)  = PrintIntArray (inlineAll env e0) (inlineAll env e1) reg

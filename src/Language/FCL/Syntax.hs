@@ -54,6 +54,8 @@ data Type =
     IntT
   | BoolT
   | DoubleT
+  | StringT
+  | UnitT
   | VarT TyVar
   | LvlVar :-> Type
   | Type :> Type
@@ -71,16 +73,18 @@ data TypeScheme ty = TypeScheme [TyVar] ty
 
 -- | Return the list of type variables in t (possibly with duplicates)
 freeTyVars :: Type -> [TyVar]
-freeTyVars IntT       = []
+freeTyVars IntT        = []
 freeTyVars BoolT       = []
-freeTyVars DoubleT       = []
-freeTyVars (_ :-> t) = freeTyVars t
-freeTyVars (t1 :> t2) = freeTyVars t1 ++ freeTyVars t2
+freeTyVars DoubleT     = []
+freeTyVars StringT     = []
+freeTyVars UnitT       = []
+freeTyVars (_ :-> t)   = freeTyVars t
+freeTyVars (t1 :> t2)  = freeTyVars t1 ++ freeTyVars t2
 freeTyVars (t1 :*: t2) = freeTyVars t1 ++ freeTyVars t2
-freeTyVars (PullArrayT t) = freeTyVars t
+freeTyVars (PullArrayT t)   = freeTyVars t
 freeTyVars (PushArrayT _ t) = freeTyVars t
-freeTyVars (VarT v)  = [v]
-freeTyVars (ProgramT _ t) = freeTyVars t
+freeTyVars (VarT v)         = [v]
+freeTyVars (ProgramT _ t)   = freeTyVars t
 
 data Untyped = Untyped
   deriving (Eq, Show)
@@ -94,6 +98,7 @@ data Exp ty =
     IntScalar Int Region
   | DoubleScalar Double Region
   | BoolScalar Bool Region
+  | String String Region
   | UnOp UnOp (Exp ty) Region
   | BinOp BinOp (Exp ty) (Exp ty) Region
   | Var Name ty Region
@@ -128,6 +133,12 @@ data Exp ty =
   | Bind (Exp ty) (Exp ty) Region
   | Return Level (Exp ty) Region
   | BlockSize Region
+
+-- I/O
+  | ReadIntCSV (Exp ty) Region
+  -- | ReadDoubleCSV (Exp ty)
+  | PrintIntArray (Exp ty) (Exp ty) Region
+  -- | PrintDoubleArray (Exp ty) (Exp ty)
 
   -- Sequential scan, I don't really want this!
   | Scanl (Exp ty) (Exp ty) (Exp ty) Region
@@ -192,6 +203,7 @@ typeOf :: Exp Type -> Type
 typeOf (IntScalar _ _) = IntT
 typeOf (DoubleScalar _ _) = DoubleT
 typeOf (BoolScalar _ _) = BoolT
+typeOf (String _ _) = StringT
 typeOf (UnOp op _ _) =
     if op `elem` [ AbsI, SignI ]
     then IntT
@@ -278,6 +290,8 @@ typeOf (Bind _ e1 _) =
   case typeOf e1 of
     (_ :> ty) -> ty
     _ -> error "typeOf: bind"
+typeOf (ReadIntCSV _ _) = ProgramT gridLevel (PullArrayT StringT)
+typeOf (PrintIntArray _ _ _) = ProgramT gridLevel UnitT
 
 ------------------------
 -- Syntax of programs --
@@ -319,6 +333,7 @@ freeIn :: Name -> Exp ty -> Bool
 freeIn _ (IntScalar _ _)          = True
 freeIn _ (DoubleScalar _ _)       = True
 freeIn _ (BoolScalar _ _)         = True
+freeIn _ (String _ _)             = True
 freeIn x (UnOp _ e _)             = freeIn x e
 freeIn x (BinOp _ e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Var y _ _)              = x /= y
@@ -348,11 +363,14 @@ freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn _ (BlockSize _)            = True
 freeIn x (Return _ e _)           = freeIn x e
 freeIn x (Bind e1 e2 _)           = freeIn x e1 && freeIn x e2
+freeIn x (PrintIntArray e1 e2 _)  = freeIn x e1 && freeIn x e2
+freeIn x (ReadIntCSV e1 _)        = freeIn x e1
 
 freeVars :: Exp ty -> Set.Set Name
 freeVars (IntScalar _ _)          = Set.empty
 freeVars (DoubleScalar _ _)       = Set.empty
 freeVars (BoolScalar _ _)         = Set.empty
+freeVars (String _ _)             = Set.empty
 freeVars (UnOp _ e _)             = freeVars e
 freeVars (BinOp _ e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Var x _ _)              = Set.singleton x
@@ -383,6 +401,8 @@ freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (BlockSize _)            = Set.empty
 freeVars (Return _ e _)           = freeVars e
 freeVars (Bind e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
+freeVars (PrintIntArray e1 e2 _)  = Set.union (freeVars e1) (freeVars e2)
+freeVars (ReadIntCSV e1 _)        = freeVars e1
 
 freshVar :: State [Name] Name
 freshVar =
@@ -433,6 +453,7 @@ subst s x e =
     IntScalar _ _ -> return e
     DoubleScalar _ _ -> return e
     BoolScalar _ _ -> return e
+    String _ _ -> return e
     UnOp op e1 r ->
        do e1' <- subst s x e1
           return (UnOp op e1' r)
@@ -518,6 +539,13 @@ subst s x e =
       do e1' <- subst s x e1
          e2' <- subst s x e2
          return (Bind e1' e2' r)
+    PrintIntArray e1 e2 r ->
+      do e1' <- subst s x e1
+         e2' <- subst s x e2
+         return (PrintIntArray e1' e2' r)
+    ReadIntCSV e1 r ->
+      do e1' <- subst s x e1
+         return (ReadIntCSV e1' r)
 
 apply :: (Name, Exp ty) -> Exp ty -> Exp ty
 apply (x, ebody) e =

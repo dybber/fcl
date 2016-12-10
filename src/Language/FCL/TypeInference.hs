@@ -72,6 +72,8 @@ tvsub :: Subst -> Type -> Type
 tvsub _ IntT = IntT
 tvsub _ BoolT = BoolT
 tvsub _ DoubleT = DoubleT
+tvsub _ StringT = StringT
+tvsub _ UnitT = UnitT
 tvsub s (t1 :> t2) = tvsub s t1 :> tvsub s t2
 tvsub s (lvl :-> t2) = lvl :-> tvsub s t2
 tvsub s (t1 :*: t2) = tvsub s t1 :*: tvsub s t2
@@ -95,6 +97,7 @@ tvsubExp :: Subst -> Exp Type -> Exp Type
 tvsubExp _ (IntScalar i reg) = IntScalar i reg
 tvsubExp _ (BoolScalar b reg) = BoolScalar b reg
 tvsubExp _ (DoubleScalar d reg) = DoubleScalar d reg
+tvsubExp _ (String str reg) = String str reg
 tvsubExp s (UnOp op e reg) = UnOp op (tvsubExp s e) reg
 tvsubExp s (BinOp op e1 e2 reg) = BinOp op (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Var x t reg) = Var x (tvsub s t) reg
@@ -124,6 +127,8 @@ tvsubExp _ (BlockSize reg) = BlockSize reg
 tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (Return lvl e1 reg) = Return (lvlVarSub s lvl) (tvsubExp s e1) reg
 tvsubExp s (Bind e1 e2 reg) = Bind (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (ReadIntCSV e1 reg) = ReadIntCSV (tvsubExp s e1) reg
+tvsubExp s (PrintIntArray e1 e2 reg) = PrintIntArray (tvsubExp s e1) (tvsubExp s e2) reg
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
@@ -197,6 +202,8 @@ occurs :: Subst -> TyVar -> Type -> Bool
 occurs _ _ IntT = False
 occurs _ _ BoolT = False
 occurs _ _ DoubleT = False
+occurs _ _ StringT = False
+occurs _ _ UnitT = False
 occurs s tv (t1 :> t2) = occurs s tv t1 || occurs s tv t2
 occurs s tv (_ :-> t) = occurs s tv t
 occurs s tv (t1 :*: t2) = occurs s tv t1 || occurs s tv t2
@@ -220,6 +227,7 @@ infer :: TyEnv -> Exp ty -> TI (Type, Exp Type)
 infer _ (IntScalar i reg) = return (IntT, IntScalar i reg)
 infer _ (BoolScalar b reg) = return (BoolT, BoolScalar b reg)
 infer _ (DoubleScalar d reg) = return (DoubleT, DoubleScalar d reg)
+infer _ (String str reg) = return (StringT, String str reg)
 infer env (Var x _ reg) = do
   ty <- lkup env x
   ty' <- instantiate ty
@@ -395,6 +403,16 @@ infer env (Bind e1 e2 reg) = do
   unify reg te2 (ta :> ProgramT (VarL lvlVar) tb)
   let ty = ProgramT (VarL lvlVar) tb
   return (ty, Bind e1' e2' reg)
+infer env (ReadIntCSV e1 reg) = do
+  (te1, e1') <- infer env e1
+  unify reg te1 StringT
+  return (PullArrayT IntT, ReadIntCSV e1' reg)
+infer env (PrintIntArray e1 e2 reg) = do
+  (te1, e1') <- infer env e1
+  (te2, e2') <- infer env e2
+  unify reg te1 (PullArrayT IntT)
+  unify reg te2 IntT
+  return (UnitT, PrintIntArray e1' e2' reg)
 
 unifyAll :: Region -> [Type] -> TI Type
 unifyAll _ [] = newtv

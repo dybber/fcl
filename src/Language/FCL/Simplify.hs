@@ -17,6 +17,7 @@ simplifyExp :: KernelConfig -> Exp ty -> Exp ty
 simplifyExp _ e@(IntScalar _ _)    = e
 simplifyExp _ e@(DoubleScalar _ _) = e
 simplifyExp _ e@(BoolScalar _ _)   = e
+simplifyExp _ e@(String _ _)   = e
 simplifyExp cfg (BlockSize r)      = IntScalar (configBlockSize cfg) r
 simplifyExp _ e@(Var _ _ _)        = e
 simplifyExp cfg (App (Lamb x _ ebody _ _) e) = simplifyExp cfg (apply (x, ebody) e)
@@ -64,6 +65,8 @@ simplifyExp cfg (LambLvl lvlvar ebody ty reg) = LambLvl lvlvar  (simplifyExp cfg
 simplifyExp cfg (AppLvl e lvl) = AppLvl (simplifyExp cfg e) lvl
 simplifyExp cfg (Return lvl e0 reg)        = Return         lvl (simplifyExp cfg e0) reg
 simplifyExp cfg (Bind e0 e1 reg)           = Bind         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
+simplifyExp cfg (ReadIntCSV e0 reg)        = ReadIntCSV (simplifyExp cfg e0) reg
+simplifyExp cfg (PrintIntArray e0 e1 reg)  = PrintIntArray (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 
 simplifyUnOp :: UnOp -> Exp ty -> Region -> Exp ty
 simplifyUnOp op e r = UnOp op e r

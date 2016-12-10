@@ -73,7 +73,7 @@ compile _ env _ e =
         TagProgram _ -> error "TODO"
     v -> error ("Not a program, but: " ++ show v)
 
--- compile :: Int -> [Definition Type] -> (ILKernel Value, [TopLevel])
+-- compile :: Int -> [Definition Type] -> H.HostProgram
 -- compile optIterations defs =
 --   let findMain [] = error "No 'main'-function defined"
 --       findMain (d:ds) =
@@ -82,20 +82,14 @@ compile _ env _ e =
 --           else findMain ds
 --       main = findMain defs
 --   in case compBody emptyEnv (defBody main) of
---        TagProgram p -> (p, [])
+--        TagHostProgram p -> p
 --        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
--- createHostProgram :: ILHost a -> [TopLevel]
--- createHostProgram hostProg = undefined
- -- includes
- -- initialize OpenCL context and device
- -- create main function with hostProg as body
- -- add instructions for moving return value back to host
- 
 compBody :: VarEnv -> Exp Type -> Value
 compBody _ (IntScalar i _)    = TagInt (constant i)
 compBody _ (DoubleScalar d _) = TagDouble (constant d)
 compBody _ (BoolScalar b _)   = TagBool (constant b)
+compBody _ (String str _)   = TagString (string str)
 compBody env (App e0 e1) =
   case compBody env e0 of
     TagFn f -> f (compBody env e1)
@@ -159,6 +153,10 @@ compBody env (Bind e0 e1 _)   =
                        TagProgram m1 -> m1
                        _ -> error "TODO")
     _ -> error "TODO"
+-- compBody env (ReadIntCSV e0 _) =
+--   case compBody env e0 of
+--     (TagString m) -> TagHostProgram [
+      
 -- compBody _ (BlockSize _)   = do
 --   s <- getState
 --   return (TagInt (constant (configBlockSize (kernelConfig s))))
@@ -183,11 +181,16 @@ map_ env e0 e1 reg =
                            show e])
 
 force :: Value -> Value
-  -- force (TagArray(arr@(ArrPush len (Step (Step (Step Zero))) ty wf))) = undefined
-  -- allocate space for return value
-  -- determine input arrays
-  -- create kernel
-  -- create kernel invocation
+force (TagArray(arr@(ArrPush len (Step (Step (Step Zero))) bty wf))) = undefined
+
+ -- compute size of arrays (postpone any problems, and assume we can always compute it on the host...)
+                                                                       
+ -- allocate global memory for return values
+ -- create kernel by:
+ --  - creating parameter list
+ --  - calling "wf", with assignment statement
+ -- add DefKernel
+ -- add Call to kernel
 
 force (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
   let len = size arr                     -- calculate size of complete nested array structure
