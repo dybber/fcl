@@ -7,7 +7,7 @@ import Data.Map (Map)
 
 import CGen
 import CGen.OpenCL.HostCode
-import Language.FCL.ILKernel
+
 import Language.FCL.Host.Syntax
 
 type ILHost a = CGen CompileHostState a
@@ -88,10 +88,9 @@ copyToDevice ctx elemty n hostptr =
      size <- letVar "size" int32_t n
      return (VBufPtr size elemty buf)
 
-mkKernel :: ClProgram -> Set VarName -> Name -> ([VarName], ILKernel ()) -> ILHost ()
-mkKernel p env name (explicit_params, body) =
-  do (stmts, _, _) <- embed body initializeState
-     let sharedMemVar = ("sdata", pointer_t [attrLocal] int32_t)
+mkKernel :: ClProgram -> Set VarName -> Name -> ([VarName], Statements) -> ILHost ()
+mkKernel p env name (explicit_params, stmts) =
+  do let sharedMemVar = ("sdata", pointer_t [attrLocal] int32_t)
      
          -- free variables occuring in host-code should be implicitly given as arguments
          free = freeVars stmts `Set.difference` (Set.fromList [("CLK_LOCAL_MEM_FENCE", int32_t), sharedMemVar])

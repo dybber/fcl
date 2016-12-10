@@ -6,7 +6,7 @@ import Language.FCL.ILKernel
 import CGen
 
 -- Input size: n
--- blockSize: variable
+-- blockSize: variable (default 256)
 -- Num. blocks: (n+blockSize*2-1)/(blockSize*2)
 -- Output size = num blocks
 -- Shared memory need: blockSize
@@ -51,15 +51,18 @@ hostCode =
      num_blocks = ("num_blocks", int32_t)
      inputArray = ("input", pointer_t [attrGlobal] int32_t)
      outputArray = ("output", pointer_t [attrGlobal] int32_t)
+     out = ("out", pointer_t [attrGlobal] int32_t)
  in [Declare inputArray (EReadIntCSV (EString "input.csv")),
      Declare n (ELength (EVar inputArray)),
      Declare blockSize_ (EInt 256),
-     Declare num_blocks (EBinOp DivI (EBinOp AddI (EVar n) (EBinOp SubI (EBinOp MulI (EVar blockSize_) (EInt 2)) (EInt 1))) (EBinOp MulI (EVar blockSize_) (EInt 2))),
+     Declare num_blocks (EBinOp DivI (EBinOp AddI (EVar n) (EBinOp SubI (EBinOp MulI (EVar blockSize_) (EInt 2)) (EInt 1)))
+                         (EBinOp MulI (EVar blockSize_) (EInt 2))),
      Declare outputArray (EAlloc int32_t (EVar num_blocks)),
-     DefKernel "reduce"  reduceBody,
-     Call "reduce" (EBinOp MulI (EVar num_blocks) (EVar blockSize_)) [inputArray, n, outputArray],
+     DefKernel "reduce"  ([out], kernelBody inputArray n out),
+     Call "reduce" (EBinOp MulI (EVar num_blocks) (EVar blockSize_)) [outputArray],
      PrintArray (EVar num_blocks) (EVar outputArray),
-     Call "reduce" (EVar blockSize_) [outputArray, num_blocks, outputArray],
+     DefKernel "reduce2"  ([out], kernelBody outputArray num_blocks out),
+     Call "reduce2" (EVar blockSize_) [outputArray],
      PrintArray (EInt 1) (EVar outputArray)
     ]
 

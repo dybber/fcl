@@ -34,7 +34,7 @@ Library
                    Language.FCL.ILKernel
                    Language.FCL.Compile
                    Language.FCL.Host.Syntax
-                   Language.FCL.Host.Program
+                   Language.FCL.Host.Compile
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

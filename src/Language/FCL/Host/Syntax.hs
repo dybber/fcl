@@ -1,9 +1,10 @@
 module Language.FCL.Host.Syntax where
 
-import Language.FCL.ILKernel
 import CGen
 
 type Name = String
+
+-- type HostGen x = WriterT HostProgram (State Int) x
 
 data HostExp =
     EInt Int
@@ -20,7 +21,7 @@ data HostExp =
 
 data BinOp = AddI | SubI | MulI | DivI
 
-data Type = IntT | BoolT | StringT | KernelT | DeviceArray Type
+-- data Type = IntT | BoolT | StringT | KernelT | DeviceArray Type
 
 -- Statements are either:
 --   - An allocation: a variable name (incl. type) and size in number of elements
@@ -30,7 +31,7 @@ data Type = IntT | BoolT | StringT | KernelT | DeviceArray Type
 
 data HostStmt =
     Declare VarName HostExp
-  | DefKernel Name ([VarName], ILKernel ())
+  | DefKernel Name ([VarName], Statements)
   | Call Name HostExp [VarName]
   | PrintArray HostExp HostExp
   | While HostExp [HostStmt]
