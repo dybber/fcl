@@ -14,7 +14,6 @@ data ILExp =
   | EBool Bool
   | EString String
   | EVar Name
-  | ELength ILExp
   | EBinOp BinOp ILExp ILExp
 
   -- | EAlloc ILType ILExp
@@ -51,8 +50,6 @@ liveInExp e =
     EInt _              -> Set.empty
     EBool _             -> Set.empty
     EString _           -> Set.empty
-    ELength e0          -> liveInExp e0
-
 
 freeVars :: [Stmt] -> Set Name
 freeVars stmts =
