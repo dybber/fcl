@@ -2,63 +2,76 @@ module Language.FCL.IL.Syntax where
 
 import Data.Set as Set
 
-type Name = (String, ILType)
+type ILName = (String, ILType)
 
-data Level = Thread | Block | Grid
-
-data ILType = IntT | BoolT | ArrayT ILType
+data ILLevel = Thread | Block | Grid
+  deriving Show
+data ILType = ILInt | ILDouble | ILBool | ILArray ILType
   deriving (Ord, Eq, Show)
 
 data ILExp =
     EInt Int
+  | EDouble Double
   | EBool Bool
   | EString String
-  | EVar Name
+  | EVar ILName
+  | EIndex ILName ILExp
+  | EUnaryOp UnaryOp ILExp
   | EBinOp BinOp ILExp ILExp
 
   -- | EAlloc ILType ILExp
   -- | EReadIntCSV ILExp
   -- | EReadDoubleCSV ILExp
-  -- | RandomIntVector VarName ILExp
-  -- | RandomDoubleVector VarName ILExp
+  -- | RandomIntVector VarILName ILExp
+  -- | RandomDoubleVector VarILName ILExp
+  deriving Show
 
-data BinOp = AddI | SubI | MulI | DivI
+data BinOp = AddI | SubI | MulI | DivI | ModI
+           | LtI | LteI | GtI | GteI | EqI | NeqI
+           | MinI | MaxI
+  deriving Show
+
+data UnaryOp = SignI | AbsI | AbsD
+  deriving Show
 
 data Stmt =
-    Declare Name ILExp
-  | Alloc Name ILType ILExp
-  | Distribute Level Name ILExp [Stmt]
-  | ParFor Level Name ILExp [Stmt]
+    Declare ILName ILExp
+  | Alloc ILName ILType ILExp
+  | Distribute ILLevel ILName ILExp [Stmt]
+  | ParFor ILLevel ILName ILExp [Stmt]
   | Synchronize
-  | Assign Name ILExp
-  | AssignSub Name ILExp ILExp
+  | Assign ILName ILExp
+  | AssignSub ILName ILExp ILExp
   | Cond ILExp [Stmt] [Stmt]
   | While ILExp [Stmt]
-  | ReadIntCSV Name ILExp
+  | ReadIntCSV ILName ILExp
   | PrintIntArray ILExp ILExp
-  -- | Benchmark Name [Stmt]
-
+  -- | Benchmark ILName [Stmt]
+ deriving Show
 type ILProgram = [Stmt]
 
-liveInExp :: ILExp -> Set Name
+liveInExp :: ILExp -> Set ILName
 liveInExp e =
   case e of
     EVar name           -> Set.singleton name
     -- Recursive
+    EUnaryOp _ e0       -> liveInExp e0
     EBinOp _ e0 e1      -> liveInExp e0 `Set.union` liveInExp e1
+    EIndex name e0      -> Set.insert name (liveInExp e0)
     -- Scalars and constants
     EInt _              -> Set.empty
+    EDouble _           -> Set.empty
     EBool _             -> Set.empty
     EString _           -> Set.empty
 
-freeVars :: [Stmt] -> Set Name
+freeVars :: [Stmt] -> Set ILName
 freeVars stmts =
   let
-    freeInExp :: Set Name -> ILExp -> Set Name
+    freeInExp :: Set ILName -> ILExp -> Set ILName
     freeInExp bound e = liveInExp e `difference` bound
 
     
-    fv :: Set Name -> [Stmt] -> Set Name
+    fv :: Set ILName -> [Stmt] -> Set ILName
     fv _ [] = Set.empty
     -- binding forms
     fv bound (Declare x e : ss) = freeInExp bound e `union` fv (insert x bound) ss

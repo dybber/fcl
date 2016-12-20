@@ -11,10 +11,12 @@ loop =
   let tid = ("tid", IntT)
       inputArray = ("input", ArrayT IntT)
       outputArray = ("output", ArrayT IntT)
+      shared = ("tmp", ArrayT IntT)
   in 
-    [ParFor Block tid (EVar blockSize_)
-       [AssignSub ],
-     Synchronize
+    [Alloc shared IntT (EVar blockSize_),
+     ParFor Block tid (EVar blockSize_)
+       [AssignSub shared (EVar tid) (EBinOp AddI (EIndex inputArray (EVar tid)) (EIndex inputArray (EBinOp AddI (EVar tid) (EVar blockSize_))))]
+     
     ]
 
 reduce :: ILProgram

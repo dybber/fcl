@@ -1,6 +1,4 @@
 -- TODO IL
--- o array indexing
--- o shared memory
 -- o reading CSV file size (reintroduce array sizes?)
 -- o Deallocating in kernels?
 
@@ -27,31 +25,34 @@ import Language.FCL.IL.Syntax
 
 data Kernel =
   Kernel
-    [Name]    -- parameters, bound in host-code
+    [ILName]    -- parameters, bound in host-code
     TopLevel  -- kernel declaration
     ClKernel  -- kernel handle in hostcode
 
 data Value =
     VInt CExp
   | VBool CExp
+  | VDouble CExp
   | VString CExp
-  | VKernelArray VarName -- size, elem type and ptr
-  | VHostBuffer CType ClDeviceBuffer -- size, elem type and opencl memobject
+  | VKernelArray ILType VarName -- size, elem type and ptr
+  | VHostBuffer ILType ClDeviceBuffer -- size, elem type and opencl memobject
 
 data Var =
     VarInt VarName
   | VarBool VarName
+  | VarDouble VarName
   | VarString VarName
-  | VarKernelArray VarName
-  | VarHostBuffer CType ClDeviceBuffer
+  | VarKernelArray ILType VarName
+  | VarHostBuffer ILType ClDeviceBuffer
 
-type VarEnv = Map.Map Name Var
+type VarEnv = Map.Map ILName Var
 
 getVarName :: Var -> VarName
 getVarName (VarInt x) = x
 getVarName (VarBool x) = x
+getVarName (VarDouble x) = x
 getVarName (VarString x) = x
-getVarName (VarKernelArray x) = x
+getVarName (VarKernelArray _ x) = x
 getVarName (VarHostBuffer _ (ClDeviceBuffer x)) =  x
 
 unInt :: Value -> CExp
@@ -67,19 +68,21 @@ unString (VString str) = str
 unString _ = error ("Unexpected value, expecting string.")
 
 convertType :: ILType -> CType
-convertType IntT = int32_t
-convertType BoolT = bool_t
-convertType (ArrayT ty) = pointer_t [] (convertType ty)
+convertType ILInt = int32_t
+convertType ILBool = bool_t
+convertType ILDouble = double_t
+convertType (ILArray ty) = pointer_t [] (convertType ty)
 
-hostVarToKernelVar :: VarEnv -> Name -> CGen a Var
+hostVarToKernelVar :: VarEnv -> ILName -> CGen a Var
 hostVarToKernelVar env v@(x,_) =
   case Map.lookup v env of
     Just (VarInt _) -> VarInt `fmap` (newVar int32_t x)
     Just (VarBool _) -> VarBool `fmap` (newVar bool_t x)
-    Just (VarHostBuffer elemty _) -> VarKernelArray `fmap` (newVar (pointer_t [] elemty) x)
+    Just (VarDouble _) -> VarDouble `fmap` (newVar double_t x)
+    Just (VarHostBuffer elemty _) -> VarKernelArray elemty `fmap` (newVar (pointer_t [attrGlobal] (convertType elemty)) x)
     Just (VarString _) -> error "string"
-    Just (VarKernelArray _) -> error "kernel array"
-    Nothing -> error "not defined"
+    Just (VarKernelArray _ _) -> error "kernel array"
+    Nothing -> error ("not defined: " ++ x)
 
 ---------------------------
 -- Host generation monad --
@@ -92,7 +95,7 @@ type KernelMap = Map String Kernel
 data HostState =
   HostState
     { kernels :: KernelMap
-    , deviceAllocations :: Map ClDeviceBuffer (CExp, CType)
+    , deviceAllocations :: Map ClDeviceBuffer (CExp, ILType)
     , hostAllocations :: Set VarName
     }
 
@@ -114,7 +117,7 @@ addKernel name k =
 type ILKernel a = CGen KernelState a
 
 sharedMemPtrName :: VarName
-sharedMemPtrName = ("sbase", pointer_t [attrLocal] int32_t)
+sharedMemPtrName = ("sbase", pointer_t [attrLocal] uint8_t)
 
 data KernelState =
   KernelState { allocPtrOffset :: CExp
@@ -144,41 +147,59 @@ allocateKernel cty n =
 compExp :: VarEnv -> ILExp -> Value
 compExp _ (EInt i) = VInt (constant i)
 compExp _ (EBool b) = VBool (constant b)
+compExp _ (EDouble d) = VDouble (constant d)
 compExp _ (EString s) = VString (string s)
+compExp env (EIndex x i) =
+  let v1 = compExp env i
+  in case Map.lookup x env of
+       (Just (VarKernelArray ILInt v)) -> VInt (index v (unInt v1))
+       (Just (VarKernelArray ILBool v)) -> VBool (index v (unInt v1))
+       _ -> error "not an array"
 compExp env (EVar x) =
-  do case Map.lookup x env of
-       (Just (VarInt v)) -> VInt (var v)
-       (Just (VarBool v)) -> VBool (var v)
-       (Just (VarString v)) -> VString (var v)
-       (Just (VarKernelArray v)) -> VKernelArray v
-       (Just (VarHostBuffer ty buf)) -> VHostBuffer ty buf
-       Nothing -> error ("Undefined variable " ++ show x)
-compExp env (EBinOp op e1 e2) =
-  let v1 = compExp env e1
-      v2 = compExp env e2
-  in binop op v1 v2
+  case Map.lookup x env of
+    (Just (VarInt v)) -> VInt (var v)
+    (Just (VarBool v)) -> VBool (var v)
+    (Just (VarDouble v)) -> VDouble (var v)
+    (Just (VarString v)) -> VString (var v)
+    (Just (VarKernelArray ty v)) -> VKernelArray ty v
+    (Just (VarHostBuffer ty buf)) -> VHostBuffer ty buf
+    Nothing -> error ("Undefined variable " ++ show x)
+compExp env (EUnaryOp op e0) =
+  let v0 = compExp env e0
+  in unop op v0
+compExp env (EBinOp op e0 e1) =
+  let v0 = compExp env e0
+      v1 = compExp env e1
+  in binop op v0 v1
 
+unop :: UnaryOp -> Value -> Value
+unop AbsI (VInt i0) = VInt (absi i0)
+unop AbsD (VDouble i0) = VDouble (absd i0)
+unop SignI (VInt i0) = VInt (signi i0)
+unop _ _ = error "unop error"
 
 binop :: BinOp -> Value -> Value -> Value
 binop AddI (VInt i1) (VInt i2) = VInt (addi i1 i2)
 binop SubI (VInt i1) (VInt i2) = VInt (subi i1 i2)
 binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
 binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
+binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
+binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
 binop _ _ _ = error "binop error"
 
-assignVar :: VarEnv -> Name -> Value -> CGen a ()
+assignVar :: VarEnv -> ILName -> Value -> CGen a ()
 assignVar env x v =
   case (Map.lookup x env, v) of
     (Just (VarInt x'), VInt v') -> assign x' v'
     (Just (VarBool x'), VBool v') -> assign x' v'
-    _ -> error "TODO"
+    _ -> error "TODO assignvar"
 
-assignSub :: VarEnv -> Name -> Value -> Value -> CGen a ()
+assignSub :: VarEnv -> ILName -> Value -> Value -> CGen a ()
 assignSub env x ix v =
   case (Map.lookup x env, ix, v) of
-    (Just (VarInt x'), VInt ix', VInt v') -> assignArray x' ix' v'
-    (Just (VarBool x'), VInt ix', VBool v') -> assignArray x' ix' v'
-    _ -> error "TODO"
+    (Just (VarKernelArray ILInt x'), VInt ix', VInt v') -> assignArray x' v' ix'
+    (Just (VarKernelArray ILBool x'), VInt ix', VBool v') -> assignArray x' v' ix'
+    _ -> error "TODO assignsub"
 
 ------------------------
 -- Kernel compilation --
@@ -196,7 +217,7 @@ compKernelBody env stmts =
           sizeVar <- letVar "size" int32_t (unInt size)
           let cty = convertType elemty
           ptr <- allocateKernel cty (var sizeVar)
-          v <- lett "arr" (VKernelArray ptr)
+          v <- lett "arr" (VKernelArray elemty ptr)
           compKernelBody (Map.insert (x,ty) v env) ss
           -- TODO: deallocate?
     (ParFor _ loopVar loopBound body : ss) ->
@@ -231,7 +252,7 @@ compKernelBody env stmts =
     (ReadIntCSV _ _ : _)     -> error "reading input-data: not possible at block level"
     (PrintIntArray _ _ : _)  -> error "printing not possible at block level"
 
-mkKernelBody :: VarEnv -> Name -> ILExp -> [Stmt] -> ILKernel ()
+mkKernelBody :: VarEnv -> ILName -> ILExp -> [Stmt] -> ILKernel ()
 mkKernelBody env loopVar loopBound body =
   do let ub = compExp env loopBound
      distrParBlock (unInt ub) (\i ->
@@ -271,8 +292,9 @@ forAllBlock n f =
 lett :: String -> Value -> CGen a Var
 lett x (VInt e) = VarInt `fmap` (letVar x int32_t e)
 lett x (VBool e) = VarBool `fmap` (letVar x bool_t e)
+lett x (VDouble e) = VarDouble `fmap` (letVar x double_t e)
 lett _ (VString _) = error "string declarations: not implemented yet"
-lett _ (VKernelArray v) = return (VarKernelArray v)
+lett _ (VKernelArray ty v) = return (VarKernelArray ty v)
 lett _ (VHostBuffer ty buf) = return (VarHostBuffer ty buf)
 
 ----------------------
@@ -302,11 +324,11 @@ compHost ctx p env stmts =
     (ReadIntCSV (x,ty) e : ss) ->
       do let filename = compExp env e
          (valuesRead, hostPtr) <- readCSVFile int32_t filename
-         v <- copyToDevice ctx int32_t (var valuesRead) (var hostPtr)
+         v <- copyToDevice ctx ILInt (var valuesRead) (var hostPtr)
          compHost ctx p (Map.insert (x,ty) v env) ss
     (Alloc (x,ty) elemty e : ss) ->
       do let size = compExp env e
-         v <- allocate ctx (convertType elemty) size
+         v <- allocate ctx elemty size
          compHost ctx p (Map.insert (x,ty) v env) ss
     (Assign x e : ss) ->
       do let e' = compExp env e
@@ -328,16 +350,17 @@ compHost ctx p env stmts =
              ,compHost ctx p env else_)
          compHost ctx p env ss
 
-distribute :: ClContext -> ClProgram -> VarEnv -> Name -> ILExp -> [Stmt] -> ILHost ()
+distribute :: ClContext -> ClProgram -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILHost ()
 distribute ctx p env loopVar loopBound stmts =
   let
-    createArgument :: Name -> ILHost KernelArg
+    createArgument :: ILName -> ILHost KernelArg
     createArgument (x, ty) =
       do case Map.lookup (x,ty) env of
            Just (VarInt v) -> return (ArgScalar (convertType ty) (var v))
            Just (VarBool v) -> return (ArgScalar (convertType ty) (var v))
+           Just (VarDouble v) -> return (ArgScalar (convertType ty) (var v))
            Just (VarHostBuffer _ buf) -> return (ArgBuffer buf)
-           Just (VarKernelArray _) -> error "kernel arrays can not occur outside kernels"
+           Just (VarKernelArray _ _) -> error "kernel arrays can not occur outside kernels"
            Just (VarString _) -> error "Can not use strings inside kernels"
            Nothing -> error "variable not found"
 
@@ -363,10 +386,10 @@ distribute ctx p env loopVar loopBound stmts =
 -- create kernel definition (using distrParBlock)
 -- create/build kernel on host
 -- call the kernel using the same order of arguments, as in the parameter list.
-mkKernel :: VarEnv -> String -> ClProgram -> Name -> ILExp -> [Stmt] -> ILHost Kernel
+mkKernel :: VarEnv -> String -> ClProgram -> ILName -> ILExp -> [Stmt] -> ILHost Kernel
 mkKernel env kernelName p loopVar loopBound stmts =
-  let params = Set.toList (freeVars stmts `Set.union` liveInExp loopBound)
-      mkArgumentList :: [Name] -> ILHost [Var]
+  let params = Set.toList (Set.delete loopVar (freeVars stmts `Set.union` liveInExp loopBound))
+      mkArgumentList :: [ILName] -> ILHost [Var]
       mkArgumentList = mapM (hostVarToKernelVar env)
       
   in do args <- mkArgumentList params
@@ -374,12 +397,12 @@ mkKernel env kernelName p loopVar loopBound stmts =
         let kernelEnv = Map.fromList (zip params args)
         (kernelBody, _, _) <- embed (mkKernelBody kernelEnv loopVar loopBound stmts) initKernelState
         
-        let fndef = kernel kernelName (map getVarName args) kernelBody
+        let fndef = kernel kernelName (sharedMemPtrName : map getVarName args) kernelBody
         return (Kernel params fndef kernelHandle)
 
-allocate :: ClContext -> CType -> Value -> ILHost Var
+allocate :: ClContext -> ILType -> Value -> ILHost Var
 allocate ctx elemty size =
-  do buf <- allocDevice ctx ReadWrite (unInt size) elemty
+  do buf <- allocDevice ctx ReadWrite (unInt size) (convertType elemty)
      modifyState (\s -> s { deviceAllocations = Map.insert buf (unInt size, elemty) (deviceAllocations s) })
      return (VarHostBuffer elemty buf)
 
@@ -402,15 +425,15 @@ readCSVFile CDouble filename =
      return (valuesRead, hostPtr)
 readCSVFile _ _ = error "Can only read CSV files of doubles or integers"
 
-copyToDevice :: ClContext -> CType -> CExp -> CExp -> ILHost Var
+copyToDevice :: ClContext -> ILType -> CExp -> CExp -> ILHost Var
 copyToDevice ctx elemty n hostptr =
-  do buf <- dataToDevice ctx ReadWrite n elemty hostptr
+  do buf <- dataToDevice ctx ReadWrite n (convertType elemty) hostptr
      modifyState (\s -> s { deviceAllocations = Map.insert buf (n, elemty) (deviceAllocations s) })
      return (VarHostBuffer elemty buf)
 
 printArray :: ClContext -> Value -> Value -> ILHost ()
 printArray ctx n (VHostBuffer elemty buf) =
-  do hostptr <- mmapToHost ctx buf elemty (unInt n)
+  do hostptr <- mmapToHost ctx buf (convertType elemty) (unInt n)
      for (unInt n) (\i ->
        exec void_t "printf" [string "%i: %i\\n", i, index hostptr i])
      unmmap ctx buf hostptr
@@ -452,8 +475,8 @@ includes = [includeSys "stdio.h",
             includeSys "mcl.h",
             includeSys "fcl.h"]
                   
-compile :: ILProgram -> (String, String)
-compile program =
+codeGen :: ILProgram -> (String, String)
+codeGen program =
  let (mainBody, _, _, finalState) =
        runCGen initHostState (compProgram program)
  in (createMain mainBody,
@@ -461,7 +484,7 @@ compile program =
 
 compileAndOutput :: ILProgram -> FilePath -> IO ()
 compileAndOutput program path =
-  let (main, kernelsfile) = compile program
+  let (main, kernelsfile) = codeGen program
       mainPath = path ++ "/main.c"
       kernelPath = path ++ "/kernels.cl"
   in do writeFile mainPath main

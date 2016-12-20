@@ -31,10 +31,11 @@ Library
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Values
-                   Language.FCL.ILKernel
                    Language.FCL.Compile
-                   Language.FCL.Host.Syntax
-                   Language.FCL.Host.Compile
+                   Language.FCL.IL.Syntax
+                   Language.FCL.IL.Compile
+                   Language.FCL.IL.Program
+                   Language.FCL.IL.Cons
 
   Default-Language: Haskell2010
   GHC-Options: -Wall

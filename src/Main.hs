@@ -180,8 +180,8 @@ evalAndPrint ast =
   do v <- liftEither EvalError (return (eval ast))
      liftIO (print v)
 
-compile :: [Definition Type] -> CLI ()
-compile ast =
+compileAndWrite :: [Definition Type] -> CLI ()
+compileAndWrite ast =
   do logInfo "Inlining."
      let inlined = inline ast
      logInfo (show (length inlined) ++ " kernels.")
@@ -197,10 +197,10 @@ compile ast =
      
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
-     let cp = compileKernels optIter typed_ast
-     let kernels = pretty cp
+     let (main, kernels) = compile optIter typed_ast
      outputFile <- asks fclOutputFile
-     liftIO (writeFile outputFile kernels)
+     liftIO (writeFile outputFile main)
+     liftIO (writeFile "kernels.cl" kernels)
 
 parserTest :: [FilePath] -> CLI ()
 parserTest filenames =
@@ -273,4 +273,4 @@ dispatch filenames opts =
      onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
      onCommand Eval        (evalAndPrint typed_ast)
-     onCommand Compile     (compile typed_ast)
+     onCommand Compile     (compileAndWrite typed_ast)
