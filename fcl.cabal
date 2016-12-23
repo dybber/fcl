@@ -27,13 +27,14 @@ Library
                    Language.FCL.Pretty
                    Language.FCL.TypeInference
                    Language.FCL.Inline
+                   Language.FCL.CompileConfig
                    Language.FCL.Simplify
                    Language.FCL.Eval
                    Language.FCL.Eval.ArrayLib
                    Language.FCL.Values
                    Language.FCL.Compile
                    Language.FCL.IL.Syntax
-                   Language.FCL.IL.Compile
+                   Language.FCL.IL.CodeGen
                    Language.FCL.IL.Program
                    Language.FCL.IL.Cons
 

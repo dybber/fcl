@@ -125,23 +125,23 @@ typesig =
      resetEnv oldEnv
      return (Just (ident,ty))
 
-parseConfig :: KernelConfig -> String -> ParserFCL KernelConfig
-parseConfig cfg "#BlockSize" =
-  do i <- natural
-     return (cfg { configBlockSize = fromInteger i })
-parseConfig cfg "#WarpSize" =
-  do i <- natural
-     return (cfg { configWarpSize = fromInteger i})
-parseConfig _ str = error ("Unsupported kernel configuration option: " ++ str)
+-- parseConfig :: KernelConfig -> String -> ParserFCL KernelConfig
+-- parseConfig cfg "#BlockSize" =
+--   do i <- natural
+--      return (cfg { configBlockSize = fromInteger i })
+-- parseConfig cfg "#WarpSize" =
+--   do i <- natural
+--      return (cfg { configWarpSize = fromInteger i})
+-- parseConfig _ str = error ("Unsupported kernel configuration option: " ++ str)
 
-kernelConfig :: KernelConfig -> ParserFCL KernelConfig
-kernelConfig cfg =
-  do reserved "config"
-     ident <- identifier
-     reservedOp "="
-     cfg' <- parseConfig cfg ident
-     kernelConfig cfg'
-  <|> return cfg
+-- kernelConfig :: KernelConfig -> ParserFCL KernelConfig
+-- kernelConfig cfg =
+--   do reserved "config"
+--      ident <- identifier
+--      reservedOp "="
+--      cfg' <- parseConfig cfg ident
+--      kernelConfig cfg'
+--   <|> return cfg
 
 fundef :: Maybe (String, Type) -> ParserFCL (Definition Untyped)
 fundef tyanno =
@@ -379,7 +379,7 @@ builtin_ops curried "while"      = triop curried While
 builtin_ops curried "whileSeq"   = triop curried WhileSeq
 builtin_ops curried "interleave" = triop curried Interleave
 builtin_ops curried "scanl"      = triop curried Scanl
-builtin_ops curried "printIntArray" = binop curried PrintIntArray
+builtin_ops curried "forceAndPrint" = binop curried ForceAndPrint
 builtin_ops curried "readIntCSV" = unop curried ReadIntCSV
 builtin_ops False n            = return (Var ('#':n) Untyped)
 builtin_ops True n            = return (Var n Untyped)

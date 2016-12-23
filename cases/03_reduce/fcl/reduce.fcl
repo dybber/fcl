@@ -1,7 +1,6 @@
 
 -- red1: evenOdds
 -- red2: halve
-
 sig red2 : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
 fun red2 <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
@@ -15,7 +14,19 @@ fun red2Part f arr =
  in concatMap 1 (red2 <block> f) (splitUp workPerBlock arr)
 
 sig red2Add : [int] -> Program <grid> [int]<grid>
-kernel red2Add arr = red2Part addi arr
-  config #BlockSize = 128
+fun red2Add arr = red2Part addi arr
 
--- --fun main = red2Add (generatePull 2048 (fn i => i))
+fun main = bind (red2Add (generatePull 2048 (fn i => i))) (fn arr => forceAndPrint 4 arr)
+
+-- sig reduce : [int] -> Program <host> [int]<host>
+-- fun reduce arr = concat (map red2Add (splitUp workPerDevice arr))
+
+-- sig main : Program <host> ()
+-- fun main =
+--   do { input <- readIntCSV "blah.csv" ; -- [int]
+--        arrpush <- reduce input; -- Program <host> [int]<host>
+--        arr <- force arrpush; -- [int]
+--        printIntArray arr;
+--      }
+
+-- printIntArray : [int] -> Program <host> ()

@@ -1,15 +1,15 @@
 include ../../shared/config.mk
 
-build: reduce
+build: red
 
-reduce.cl: reduce.fcl
+red.c: reduce.fcl
 	fcl -o $@ reduce.fcl
 
-reduce: reduce.c reduce.cl
-	gcc $(CFLAGS) $(INCLUDE) $(LIBDIR) -o $@ reduce.c $(LIB)
+red: red.c kernels.cl
+	gcc $(CFLAGS) $(INCLUDE) $(LIBDIR) -o $@ red.c $(LIB)
 
 run: build
-	./reduce
+	./red
 
 clean:
-	rm -f reduce reduce.cl
+	rm -f reduce reduce.cl kernels.cl red.c

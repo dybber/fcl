@@ -128,7 +128,7 @@ tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubEx
 tvsubExp s (Return lvl e1 reg) = Return (lvlVarSub s lvl) (tvsubExp s e1) reg
 tvsubExp s (Bind e1 e2 reg) = Bind (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (ReadIntCSV e1 reg) = ReadIntCSV (tvsubExp s e1) reg
-tvsubExp s (PrintIntArray e1 e2 reg) = PrintIntArray (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (ForceAndPrint e1 e2 reg) = ForceAndPrint (tvsubExp s e1) (tvsubExp s e2) reg
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
@@ -344,6 +344,12 @@ infer env (Force e reg) = do
   lvlVar <- newLvlVar
   unify reg t (PushArrayT (VarL lvlVar) tv)
   return (ProgramT (VarL lvlVar) (PullArrayT tv), Force e' reg)
+infer env (ForceAndPrint e1 e2 reg) = do
+  (te1, e1') <- infer env e1
+  (te2, e2') <- infer env e2
+  unify reg te1 IntT
+  unify reg te2 (PushArrayT gridLevel IntT)
+  return (ProgramT gridLevel (PullArrayT IntT), ForceAndPrint e1' e2' reg)
 infer env (Concat e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
@@ -406,13 +412,7 @@ infer env (Bind e1 e2 reg) = do
 infer env (ReadIntCSV e1 reg) = do
   (te1, e1') <- infer env e1
   unify reg te1 StringT
-  return (PullArrayT IntT, ReadIntCSV e1' reg)
-infer env (PrintIntArray e1 e2 reg) = do
-  (te1, e1') <- infer env e1
-  (te2, e2') <- infer env e2
-  unify reg te1 (PullArrayT IntT)
-  unify reg te2 IntT
-  return (UnitT, PrintIntArray e1' e2' reg)
+  return (ProgramT gridLevel (PullArrayT IntT), ReadIntCSV e1' reg)
 
 unifyAll :: Region -> [Type] -> TI Type
 unifyAll _ [] = newtv

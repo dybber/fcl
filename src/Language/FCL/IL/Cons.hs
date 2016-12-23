@@ -27,6 +27,7 @@ module Language.FCL.IL.Cons (
  allocate,
  distribute, parFor, while, -- iff,
  assign, (<==), assignArray,
+ printIntArray,
 
  -- Monad
  ILName,
@@ -119,6 +120,9 @@ name <== e = assign name e
 -- assign to an array
 assignArray :: ILName -> ILExp -> ILExp -> Program ()
 assignArray arrILName e idx = addStmt (AssignSub arrILName idx e)
+
+printIntArray :: ILExp -> ILExp -> Program ()
+printIntArray prefix arr = addStmt (PrintIntArray prefix arr)
 
 -----------------
 -- Expressions --

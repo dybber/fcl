@@ -24,8 +24,6 @@ module Language.FCL.Syntax (
   isScalar,
 
   -- Programs
-  KernelConfig(..),
-  defaultKernelConfig,
   Definition(..),
   mapBody
 ) where
@@ -137,7 +135,7 @@ data Exp ty =
 -- I/O
   | ReadIntCSV (Exp ty) Region
   -- | ReadDoubleCSV (Exp ty)
-  | PrintIntArray (Exp ty) (Exp ty) Region
+  | ForceAndPrint (Exp ty) (Exp ty) Region
   -- | PrintDoubleArray (Exp ty) (Exp ty)
 
   -- Sequential scan, I don't really want this!
@@ -291,25 +289,11 @@ typeOf (Bind _ e1 _) =
     (_ :> ty) -> ty
     _ -> error "typeOf: bind"
 typeOf (ReadIntCSV _ _) = ProgramT gridLevel (PullArrayT StringT)
-typeOf (PrintIntArray _ _ _) = ProgramT gridLevel UnitT
+typeOf (ForceAndPrint _ _ _) = ProgramT gridLevel UnitT
 
 ------------------------
 -- Syntax of programs --
 ------------------------
-
-data KernelConfig =
-  KernelConfig
-    { configBlockSize :: Int
-    , configWarpSize  :: Int
-    }
-  deriving (Show, Eq)
-
-defaultKernelConfig :: KernelConfig
-defaultKernelConfig =
-  KernelConfig
-    { configBlockSize = 128
-    , configWarpSize = 32
-    }
 
 data Definition ty =
   Definition
@@ -317,7 +301,6 @@ data Definition ty =
     , defSignature  :: Maybe Type
     , defTypeScheme :: TypeScheme ty
     , defEmitKernel :: Bool
---    , defKernelConfig :: KernelConfig
     , defBody       :: Exp ty
     }
   deriving (Show, Eq)
@@ -363,7 +346,7 @@ freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn _ (BlockSize _)            = True
 freeIn x (Return _ e _)           = freeIn x e
 freeIn x (Bind e1 e2 _)           = freeIn x e1 && freeIn x e2
-freeIn x (PrintIntArray e1 e2 _)  = freeIn x e1 && freeIn x e2
+freeIn x (ForceAndPrint e1 e2 _)  = freeIn x e1 && freeIn x e2
 freeIn x (ReadIntCSV e1 _)        = freeIn x e1
 
 freeVars :: Exp ty -> Set.Set Name
@@ -401,7 +384,7 @@ freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (BlockSize _)            = Set.empty
 freeVars (Return _ e _)           = freeVars e
 freeVars (Bind e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
-freeVars (PrintIntArray e1 e2 _)  = Set.union (freeVars e1) (freeVars e2)
+freeVars (ForceAndPrint e1 e2 _)  = Set.union (freeVars e1) (freeVars e2)
 freeVars (ReadIntCSV e1 _)        = freeVars e1
 
 freshVar :: State [Name] Name
@@ -539,10 +522,10 @@ subst s x e =
       do e1' <- subst s x e1
          e2' <- subst s x e2
          return (Bind e1' e2' r)
-    PrintIntArray e1 e2 r ->
+    ForceAndPrint e1 e2 r ->
       do e1' <- subst s x e1
          e2' <- subst s x e2
-         return (PrintIntArray e1' e2' r)
+         return (ForceAndPrint e1' e2' r)
     ReadIntCSV e1 r ->
       do e1' <- subst s x e1
          return (ReadIntCSV e1' r)

@@ -76,7 +76,7 @@ defaultOptions =
           , fclOptimizeIterations = 10
           , fclNoPrelude = False
           , fclCommand = Compile
-          , fclOutputFile = "kernels.cl"
+          , fclOutputFile = "main.c"
           }
 
 optionDescriptions :: [OptDescr (Options -> Options)]
@@ -86,7 +86,7 @@ optionDescriptions =
   , Option []  ["prettyprint"]      (NoArg (\opt -> opt {fclCommand = PrettyPrint})) "Typecheck and prettyprint"
   , Option "t" ["typecheck"]        (NoArg (\opt -> opt {fclCommand = Typecheck})) "Type check and print top-level types"
   , Option []  ["eval"]             (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
-  , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "where to emit OpenCL kernels"
+  , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "where to emit C-code (kernels are always in kernels.cl)"
   , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
   , Option []  ["dump-ast-untyped"] (NoArg (\opt -> opt {fclCommand = DumpASTUntyped})) "Dump AST after parsing"
   , Option []  ["dump-ast-simplified"] (NoArg (\opt -> opt {fclCommand = DumpASTSimplified})) "Dump AST after parsing"
@@ -184,20 +184,19 @@ compileAndWrite :: [Definition Type] -> CLI ()
 compileAndWrite ast =
   do logInfo "Inlining."
      let inlined = inline ast
-     logInfo (show (length inlined) ++ " kernels.")
 
      logInfo "Simplifying."
-     let simpl = simplify inlined
+     let simpl = simplify defaultCompileConfig inlined
 
      logInfo "Typechecking again."
-     typed_ast <- liftEither TypeError (typeinfer simpl)
+     typed_ast <- liftEither TypeError (typeinfer [simpl])
      mapM_ (logInfo . (" " ++) . showType) typed_ast
 
      onCommand DumpASTSimplified (dumpAST typed_ast)
      
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
-     let (main, kernels) = compile optIter typed_ast
+     let (main, kernels) = compile defaultCompileConfig typed_ast
      outputFile <- asks fclOutputFile
      liftIO (writeFile outputFile main)
      liftIO (writeFile "kernels.cl" kernels)

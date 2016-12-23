@@ -6,15 +6,17 @@ import qualified Data.Map as Map
 import Control.Monad (liftM)
 
 import Language.FCL.Values
---import Language.FCL.ILKernel
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
+
+import Language.FCL.CompileConfig
+
 import Language.FCL.IL.Cons
 import Language.FCL.IL.Program (runProgram)
-import Language.FCL.IL.Compile (codeGen)
+import Language.FCL.IL.CodeGen (codeGen)
 
-compile :: Int -> [Definition Type] -> (String, String)
-compile optIterations defs =
+compile :: CompileConfig -> [Definition Type] -> (String, String)
+compile compileConfig defs =
   let findMain [] = error "No 'main'-function defined"
       findMain (d:ds) =
           if defVar d == "main"
@@ -24,7 +26,7 @@ compile optIterations defs =
   in case compBody emptyEnv (defBody main) of
        TagProgram p ->
          let (stmts, _) = runProgram p
-         in codeGen stmts
+         in codeGen compileConfig stmts
        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
 type VarEnv = Map.Map String Value
@@ -100,13 +102,7 @@ compBody env (Bind e0 e1 _)   =
                        TagProgram m1 -> m1
                        _ -> error "TODO")
     _ -> error "TODO"
--- compBody env (ReadIntCSV e0 _) =
---   case compBody env e0 of
---     (TagString m) -> TagHostProgram [
-      
--- compBody _ (BlockSize _)   = do
---   s <- getState
---   return (TagInt (constant (configBlockSize (kernelConfig s))))
+compBody env (ForceAndPrint e0 e1 _) = forceAndPrint (compBody env e0) (compBody env e1)
   
 length_ :: VarEnv -> Exp Type -> Region -> Value
 length_ env e0 reg = do
@@ -127,18 +123,24 @@ map_ env e0 e1 reg =
                            "\nand\n    ",
                            show e])
 
+forceAndPrint :: Value -> Value -> Value
+forceAndPrint n (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
+  let len = size arr                     -- calculate size of complete nested array structure
+  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+  let writer tv i =                     -- creater writer function (right now: only integer arrays supported!)
+        case tv of
+          TagInt v -> assignArray name v i
+          e -> error (show e)
+  forceTo writer arr                   -- recursively generate loops for each layer
+  printIntArray (unInt n) (var name)
+  return (TagArray (createPull name (baseType arr) len))
+forceAndPrint _ (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
+                                                    "Needs iteration scheme before it can be forced.")
+forceAndPrint _ _ = error ("force expects array as argument")
+
+
+
 force :: Value -> Value
--- force (TagArray(arr@(ArrPush len (Step (Step (Step Zero))) bty wf))) = undefined
-
- -- compute size of arrays (postpone any problems, and assume we can always compute it on the host...)
-                                                                       
- -- allocate global memory for return values
- -- create kernel by:
- --  - creating parameter list
- --  - calling "wf", with assignment statement
- -- add DefKernel
- -- add Call to kernel
-
 force (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
   let len = size arr                     -- calculate size of complete nested array structure
   name <- allocate (convertType (baseType arr)) len    -- allocate shared memory

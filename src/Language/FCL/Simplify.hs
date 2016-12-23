@@ -2,18 +2,15 @@
 -- and a few peep-hole optimizations.
 module Language.FCL.Simplify (simplify, simplifyExp) where
 
+import Language.FCL.CompileConfig
 import Language.FCL.Syntax
 import Language.FCL.SourceRegion
 
-
 -- Right now, types are not maintained correctly by the simplifier
-simplify :: [Definition ty] -> [Definition ty]
-simplify = map simplifyDef
+simplify :: CompileConfig -> Definition ty -> Definition ty
+simplify info d = d { defBody = simplifyExp info (defBody d) }
 
-simplifyDef :: Definition ty -> Definition ty
-simplifyDef d = d { defBody = simplifyExp defaultKernelConfig (defBody d) }
-
-simplifyExp :: KernelConfig -> Exp ty -> Exp ty
+simplifyExp :: CompileConfig -> Exp ty -> Exp ty
 simplifyExp _ e@(IntScalar _ _)    = e
 simplifyExp _ e@(DoubleScalar _ _) = e
 simplifyExp _ e@(BoolScalar _ _)   = e
@@ -66,7 +63,7 @@ simplifyExp cfg (AppLvl e lvl) = AppLvl (simplifyExp cfg e) lvl
 simplifyExp cfg (Return lvl e0 reg)        = Return         lvl (simplifyExp cfg e0) reg
 simplifyExp cfg (Bind e0 e1 reg)           = Bind         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (ReadIntCSV e0 reg)        = ReadIntCSV (simplifyExp cfg e0) reg
-simplifyExp cfg (PrintIntArray e0 e1 reg)  = PrintIntArray (simplifyExp cfg e0) (simplifyExp cfg e1) reg
+simplifyExp cfg (ForceAndPrint e0 e1 reg)  = ForceAndPrint (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 
 simplifyUnOp :: UnOp -> Exp ty -> Region -> Exp ty
 simplifyUnOp op e r = UnOp op e r

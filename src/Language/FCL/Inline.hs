@@ -14,17 +14,17 @@ type Env = Map.Map Name (TypeScheme Type, Exp Type)
 emptyEnv :: Env
 emptyEnv = Map.empty
 
-inline :: [Definition Type] -> [Definition Type]
+inline :: [Definition Type] -> Definition Type
 inline prog = inlineFuncs emptyEnv prog
 
-inlineFuncs :: Env -> [Definition Type] -> [Definition Type]
-inlineFuncs _ [] = []
+inlineFuncs :: Env -> [Definition Type] -> Definition Type
+inlineFuncs _ [] = error "No main function found"
 inlineFuncs env (d : ds) =
   let e' = inlineAll env (defBody d)
-      rest = inlineFuncs (Map.insert (defVar d) (defTypeScheme d,e') env) ds
-  in if defEmitKernel d
-     then d { defBody = e'} : rest
-     else rest
+  in 
+    if defVar d == "main"
+    then d { defBody = e'}
+    else inlineFuncs (Map.insert (defVar d) (defTypeScheme d,e') env) ds
   
 inlineAll :: Env -> Exp Type -> Exp Type
 inlineAll _ e@(IntScalar _ _) = e
@@ -34,7 +34,7 @@ inlineAll _ e@(String _ _) = e
 inlineAll _ e@(BlockSize _) = e
 inlineAll env (Var v ty _) =
   case Map.lookup v env of
-    Just (_, e) -> inlineAll env e  -- TODO fix up types
+    Just (_, e) -> inlineAll env e  -- TODO fix up types (currently we perform a re-run of the typechecker after inlining)
     Nothing -> Var v ty Missing
 inlineAll env (UnOp op e0 reg)           = UnOp op      (inlineAll env e0) reg
 inlineAll env (BinOp op e0 e1 reg)       = BinOp op     (inlineAll env e0) (inlineAll env e1) reg
@@ -64,4 +64,4 @@ inlineAll env (Scanl e0 e1 e2 reg)       = Scanl        (inlineAll env e0) (inli
 inlineAll env (Return lvl e0 reg)        = Return       lvl (inlineAll env e0) reg
 inlineAll env (Bind e0 e1 reg)           = Bind         (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (ReadIntCSV e0 reg)        = ReadIntCSV (inlineAll env e0) reg
-inlineAll env (PrintIntArray e0 e1 reg)  = PrintIntArray (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (ForceAndPrint e0 e1 reg)  = ForceAndPrint (inlineAll env e0) (inlineAll env e1) reg
