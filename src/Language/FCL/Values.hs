@@ -34,6 +34,7 @@ createPull name ty n = ArrPull n ty (\i -> tagExp ty (name ! i))
 data Value = TagInt ILExp
            | TagBool ILExp
            | TagDouble ILExp
+           | TagString ILExp
            | TagArray (Array Value)
            | TagFn (Value -> Value)
            | TagPair Value Value
@@ -47,6 +48,7 @@ instance Show Value where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
   show (TagDouble e) = "TagDouble(" ++ show e ++ ")"
   show (TagBool e) = "TagBool(" ++ show e ++ ")"
+  show (TagString e) = "TagString(" ++ show e ++ ")"
   show (TagArray e) = "TagArray: " ++ show e
   show (TagFn _) = "TagFn"
   show (TagPair e0 e1) = "TagPair(" ++ show e0 ++ ", " ++ show e1 ++ ")"
@@ -66,6 +68,10 @@ unBool :: Value -> ILExp
 unBool (TagBool e) = e
 unBool _           = error "expected bool"
 
+unString :: Value -> ILExp
+unString (TagString e) = e
+unString _           = error "expected string"
+
 unArray :: Value -> Array Value
 unArray (TagArray e) = e
 unArray _            = error "expected array"
@@ -78,6 +84,7 @@ convertType :: Type -> ILType
 convertType IntT              = ILInt
 convertType DoubleT           = ILDouble
 convertType BoolT             = ILBool
+convertType StringT           = ILString
 convertType (PullArrayT ty)   = ILArray (convertType ty)
 convertType (PushArrayT _ ty) = ILArray (convertType ty)
 convertType (_ :> _)          = error "convertType: functions can not be used as arguments to kernels or occur in arrays"
@@ -85,9 +92,11 @@ convertType (_ :-> _)         = error "convertType: functions can not be used as
 convertType (_ :*: _)         = error "convertType: tuples not yet support in argument or results from kernels (on the TODO!)"
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
 convertType (ProgramT _ _)    = error "convertType: cannot convert Program type"
+convertType UnitT             = error "convertType: cannot convert unit type"
 
 
 convertLevel :: Level -> ILLevel
 convertLevel Zero               = Thread
 convertLevel (Step Zero)        = Block
 convertLevel (Step (Step Zero)) = Grid
+convertLevel _ = error "can not convert level"

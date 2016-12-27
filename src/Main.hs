@@ -86,7 +86,7 @@ optionDescriptions =
   , Option []  ["prettyprint"]      (NoArg (\opt -> opt {fclCommand = PrettyPrint})) "Typecheck and prettyprint"
   , Option "t" ["typecheck"]        (NoArg (\opt -> opt {fclCommand = Typecheck})) "Type check and print top-level types"
   , Option []  ["eval"]             (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
-  , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "where to emit C-code (kernels are always in kernels.cl)"
+  , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
   , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
   , Option []  ["dump-ast-untyped"] (NoArg (\opt -> opt {fclCommand = DumpASTUntyped})) "Dump AST after parsing"
   , Option []  ["dump-ast-simplified"] (NoArg (\opt -> opt {fclCommand = DumpASTSimplified})) "Dump AST after parsing"
@@ -196,10 +196,15 @@ compileAndWrite ast =
      
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
-     let (main, kernels) = compile defaultCompileConfig typed_ast
      outputFile <- asks fclOutputFile
-     liftIO (writeFile outputFile main)
-     liftIO (writeFile "kernels.cl" kernels)
+     let cfile = outputFile ++ ".c"
+         kernelsFile = outputFile ++ ".cl"
+         cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
+                                    , configOptimizeIterations = optIter
+                                    }
+         (main_, kernels) = compile cfg typed_ast
+     liftIO (writeFile cfile main_)
+     liftIO (writeFile kernelsFile kernels)
 
 parserTest :: [FilePath] -> CLI ()
 parserTest filenames =

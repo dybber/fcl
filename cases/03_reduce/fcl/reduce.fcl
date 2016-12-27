@@ -6,7 +6,9 @@ fun red2 <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in push <lvl> (zipWith f (fst x) (snd x))
-  in bind (while cond step (step arr)) (fn a => return <lvl> (push <lvl> a))
+  in do { a <- while cond step (step arr)
+        ; return <lvl> (push <lvl> a)
+        }
 
 sig red2Part : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun red2Part f arr =
@@ -16,7 +18,20 @@ fun red2Part f arr =
 sig red2Add : [int] -> Program <grid> [int]<grid>
 fun red2Add arr = red2Part addi arr
 
-fun main = bind (red2Add (generatePull 2048 (fn i => i))) (fn arr => forceAndPrint 4 arr)
+sig main : Program <grid> [int]
+fun main =
+  do { arr <- red2Add (generatePull 511 (fn i => i))
+     -- ; arr2 <- force arr
+     -- ; arr3 <- red2Add arr2
+     ; forceAndPrint 1 arr
+     }
+
+
+-- Current problems:
+---- splitUp does not work on arrays that does not divide
+---- no "push" on Grid-level
+---- no conditionals on host-level
+
 
 -- sig reduce : [int] -> Program <host> [int]<host>
 -- fun reduce arr = concat (map red2Add (splitUp workPerDevice arr))

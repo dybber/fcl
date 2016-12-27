@@ -27,7 +27,7 @@ module Language.FCL.IL.Cons (
  allocate,
  distribute, parFor, while, -- iff,
  assign, (<==), assignArray,
- printIntArray,
+ printIntArray, readIntCSV,
 
  -- Monad
  ILName,
@@ -123,6 +123,14 @@ assignArray arrILName e idx = addStmt (AssignSub arrILName idx e)
 
 printIntArray :: ILExp -> ILExp -> Program ()
 printIntArray prefix arr = addStmt (PrintIntArray prefix arr)
+
+readIntCSV :: ILExp -> Program (ILName, ILExp)
+readIntCSV file =
+  do arr <- newVar (ILArray ILInt) "arr"
+     len <- newVar ILInt "len"
+     addStmt (ReadIntCSV arr len file)
+     return (arr, var len)
+
 
 -----------------
 -- Expressions --

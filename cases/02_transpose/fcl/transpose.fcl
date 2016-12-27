@@ -6,7 +6,6 @@ fun transpose cols rows elems =
               let j = n % rows
               in index elems (j * rows + i))
 
-
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array
@@ -66,19 +65,25 @@ fun transposeChunked splitSize width height elems =
   let groupsWidth = width / splitSize in -- width of outer array
   let groupsHeight = height / splitSize in -- height of outer array
     splitGrid splitSize tileSize width groupsWidth groupsHeight elems
-     |> mapPull (fn arr => push <block> arr)
-     |> mapPull force
-     |> mapPull (fn a => bind a (fn b => return <block> (transpose splitSize splitSize b)))
+     |> mapPull (fn arr =>
+                   do { b <- force (push <block> arr)
+                      ; return <block> (transpose splitSize splitSize b)
+                      })
      |> transpose groupsWidth groupsHeight
-     |> mapPull (fn arr => bind arr (fn b => return <block> (push <block> b)))
+     |> mapPull (fn arr => do { b <- arr
+                              ; return <block> (push <block> b)
+                              })
      |> concatGrid splitSize tileSize groupsWidth height
 
 sig transposeChunked16 : int -> int -> [int] -> Program <grid> [int]<grid>
-kernel transposeChunked16 = transposeChunked 16
-  config #BlockSize = 256
+fun transposeChunked16 = transposeChunked 16
 
 --- Testing
 sig make_NxN_Matrix : int -> [int]
 fun make_NxN_Matrix n = generatePull (n / n) (fn i => i)
 
-fun main = transposeChunked 4 12 12 (make_NxN_Matrix 12)
+sig main : Program <grid> [int]
+fun main =
+  do { arr <- transposeChunked 4 12 12 (make_NxN_Matrix 12)
+     ; forceAndPrint 12 arr
+     }

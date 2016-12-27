@@ -58,11 +58,6 @@ incVarCount =
      modifyState (\s -> s {varCount = i+1})
      return i
 
--- newtv :: ParserFCL Type
--- newtv = do
---  i <- incVarCount
---  return (VarT (TyVar i Nothing))
-
 newLvlVar :: ParserFCL LvlVar
 newLvlVar = do
  i <- incVarCount
@@ -194,6 +189,7 @@ term =
    try fn
    <|> tupleOrParens
    <|> if'
+   <|> do'
    <|> try bool
    <|> try floating
    <|> try integer
@@ -236,6 +232,32 @@ if' =
     reserved "else"
     e3 <- expr
     return (Cond e1 e2 e3 Untyped)
+
+do' :: ParserFCL (Exp Untyped)
+do' = reserved "do" >> braces dobody
+ where
+   dobody :: ParserFCL (Exp Untyped)
+   dobody =
+     try bind <|> try bindignore <|> expr
+
+   bindignore :: ParserFCL (Exp Untyped)
+   bindignore =
+     withRegion $
+       do e <- expr
+          symbol ";"
+          rest <- dobody
+          return (Bind e (Lamb "$ignored" Untyped rest Untyped Missing))
+
+   bind :: ParserFCL (Exp Untyped)
+   bind =
+     withRegion $
+       do v <- identifier
+          symbol "<-"
+          e <- expr
+          symbol ";"
+          rest <- dobody
+          return (Bind e (Lamb v Untyped rest Untyped Missing))
+
 
 array :: ParserFCL (Exp Untyped)
 array = withRegion $ do

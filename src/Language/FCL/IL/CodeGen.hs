@@ -72,6 +72,7 @@ convertType :: ILType -> CType
 convertType ILInt = int32_t
 convertType ILBool = bool_t
 convertType ILDouble = double_t
+convertType ILString = string_t
 convertType (ILArray ty) = pointer_t [] (convertType ty)
 
 hostVarToKernelVar :: VarEnv -> ILName -> CGen a Var
@@ -177,7 +178,7 @@ unop :: UnaryOp -> Value -> Value
 unop AbsI (VInt i0) = VInt (absi i0)
 unop AbsD (VDouble i0) = VDouble (absd i0)
 unop SignI (VInt i0) = VInt (signi i0)
-unop _ _ = error "unop error"
+unop op _ = error ("operation not implemented yet: " ++ show op)
 
 binop :: BinOp -> Value -> Value -> Value
 binop AddI (VInt i1) (VInt i2) = VInt (addi i1 i2)
@@ -186,7 +187,8 @@ binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
 binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
 binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
 binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
-binop _ _ _ = error "binop error"
+binop ModI (VInt i1) (VInt i2) = VInt (modi i1 i2)
+binop op _ _ = error ("binary operation not implemented yet: " ++ show op)
 
 assignVar :: VarEnv -> ILName -> Value -> CGen a ()
 assignVar env x v =
@@ -250,7 +252,7 @@ compKernelBody cfg env stmts =
              ,compKernelBody cfg env else_)
          compKernelBody cfg env ss
     (Distribute _ _ _ _ : _) -> error "Not possible at block level"
-    (ReadIntCSV _ _ : _)     -> error "reading input-data: not possible at block level"
+    (ReadIntCSV _ _ _ : _)     -> error "reading input-data: not possible at block level"
     (PrintIntArray _ _ : _)  -> error "printing not possible at block level"
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILKernel ()
@@ -321,9 +323,10 @@ compHost cfg ctx p env stmts =
     (Synchronize : ss) ->
       do finish ctx
          compHost cfg ctx p env ss
-    (ReadIntCSV (x,ty) e : ss) ->
+    (ReadIntCSV (x,ty) xlen e : ss) ->
       do let filename = compExp env e
          (valuesRead, hostPtr) <- readCSVFile int32_t filename
+         assignVar env xlen (VInt (var valuesRead))
          v <- copyToDevice ctx ILInt (var valuesRead) (var hostPtr)
          compHost cfg ctx p (Map.insert (x,ty) v env) ss
     (Alloc (x,ty) elemty e : ss) ->
@@ -445,7 +448,7 @@ printArray _ _ _ = error "Print array expects array"
 compProgram :: CompileConfig -> [Stmt] -> ILHost ()
 compProgram cfg program =
   do ctx <- initializeContext 2
-     p <- buildProgram ctx "kernels.cl"
+     p <- buildProgram ctx (configKernelsFilename cfg)
      compHost cfg ctx p Map.empty program
      releaseAllDeviceArrays
      releaseAllKernels
@@ -466,7 +469,7 @@ prettyKernels :: KernelMap -> String
 prettyKernels kernelMap = pretty (map (\(Kernel _ s _) -> s) (Map.elems kernelMap))
 
 createMain :: Statements -> String
-createMain body = pretty (includes ++ [function [] "main" body])
+createMain body = pretty (includes ++ [function int32_t [] "main" body])
 
 includes :: [TopLevel]
 includes = [includeSys "stdio.h",

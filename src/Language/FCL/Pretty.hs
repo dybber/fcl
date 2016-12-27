@@ -101,6 +101,8 @@ ppType :: Type -> PP Doc
 ppType IntT = return (text "int")
 ppType BoolT = return (text "bool")
 ppType DoubleT = return (text "double")
+ppType StringT = return (text "string")
+ppType UnitT = return (text "()")
 ppType (VarT (TyVar i Nothing)) =
   do name <- getName i
      return (text name)
@@ -168,6 +170,7 @@ pp (IntScalar i _)       = return (int i)
 pp (DoubleScalar d _)    = return (double d)
 pp (BoolScalar True _)   = return (text "true")
 pp (BoolScalar False _)  = return (text "false")
+pp (String str _)        = return (char '\"' <> text str <> char '\"')
 pp (UnOp op e1 _)        = parens <$> (ppUnOp op e1)
 pp (BinOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
 pp (Var x _ _)          =
@@ -214,30 +217,33 @@ pp (Pair e1 e2 _)            =
     do e1' <- pp e1
        e2' <- pp e2
        return (parens (e1' <> char ',' <+> e2'))
-pp (Proj1E e1 _)             = ppUnop "#fst" e1
-pp (Proj2E e1 _)             = ppUnop "#snd" e1
-pp (Index e1 e2 _)           = ppBinop "#index" e1 e2
-pp (LengthPull e1 _)         = ppUnop "#lengthPull" e1
-pp (LengthPush e1 _)         = ppUnop "#lengthPush" e1
-pp (While e1 e2 e3 _)        = ppTriop "#while" e1 e2 e3
-pp (WhileSeq e1 e2 e3 _)     = ppTriop "#whileseq" e1 e2 e3
-pp (GeneratePull e1 e2 _)    = ppBinop "#generatePull" e1 e2
-pp (MapPull e1 e2 _)    = ppBinop "#mapPull" e1 e2
-pp (MapPush e1 e2 _)    = ppBinop "#mapPush" e1 e2
-pp (Force e1 _)         = ppUnop "#force" e1
+pp (Proj1E e1 _)             = ppUnop "fst" e1
+pp (Proj2E e1 _)             = ppUnop "snd" e1
+pp (Index e1 e2 _)           = ppBinop "index" e1 e2
+pp (LengthPull e1 _)         = ppUnop "lengthPull" e1
+pp (LengthPush e1 _)         = ppUnop "lengthPush" e1
+pp (While e1 e2 e3 _)        = ppTriop "while" e1 e2 e3
+pp (WhileSeq e1 e2 e3 _)     = ppTriop "whileSeq" e1 e2 e3
+pp (GeneratePull e1 e2 _)    = ppBinop "generate" e1 e2
+pp (MapPull e1 e2 _)    = ppBinop "mapPull" e1 e2
+pp (MapPush e1 e2 _)    = ppBinop "mapPush" e1 e2
+pp (Force e1 _)         = ppUnop "force" e1
 pp (Push lvl e1 _)      =
   do e1' <- pp e1
      lvl' <- ppLevel lvl
-     return (parens (text "#push" <> parens (angles lvl' <> comma <> e1')))
-pp (Concat e1 e2 _)          = ppBinop "#concat" e1 e2
-pp (Interleave e1 e2 e3 _)   = ppTriop "#interleave" e1 e2 e3
+     return (parens (text "push" <> parens (angles lvl' <> comma <> e1')))
+pp (Concat e1 e2 _)          = ppBinop "concat" e1 e2
+pp (Interleave e1 e2 e3 _)   = ppTriop "interleave" e1 e2 e3
 pp (BlockSize _)             = return (text "#BlockSize")
-pp (Scanl e1 e2 e3 _)        = ppTriop "#scanl" e1 e2 e3
+pp (Scanl e1 e2 e3 _)        = ppTriop "scanl" e1 e2 e3
 pp (Return lvl e1 _)            =
   do e1' <- pp e1
      lvl' <- ppLevel lvl
-     return (parens (text "#return" <> parens (angles lvl' <> comma <> e1')))
-pp (Bind e1 e2 _)          = ppBinop "#bind" e1 e2
+     return (parens (text "return" <> parens (angles lvl' <> comma <> e1')))
+pp (Bind e1 e2 _)          = ppBinop "bind" e1 e2
+pp (ReadIntCSV e _)        = ppUnop "readIntCSV" e
+pp (ForceAndPrint e1 e2 _) = ppBinop "forceAndPrint" e1 e2
+
 
 ppUnOp :: UnOp -> Exp a -> PP Doc
 ppUnOp op e1 =
@@ -251,7 +257,7 @@ ppUnOp op e1 =
           B2I -> "b2i"
           CLZ -> "clz"
   in do e1' <- pp e1
-        return (char '#' <> text opName <> parens e1')
+        return (text opName <> parens e1')
 
 ppBinOp :: BinOp -> Exp a -> Exp a -> PP Doc
 ppBinOp op e1 e2 =
@@ -278,4 +284,4 @@ ppBinOp op e1 e2 =
           PowR -> "powr"
   in do e1' <- pp e1
         e2' <- pp e2
-        return (char '#' <> text opName <> parens (e1' <> comma <> e2'))
+        return (text opName <> parens (e1' <> comma <> e2'))

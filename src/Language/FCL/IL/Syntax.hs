@@ -6,7 +6,7 @@ type ILName = (String, ILType)
 
 data ILLevel = Thread | Block | Grid
   deriving Show
-data ILType = ILInt | ILDouble | ILBool | ILArray ILType
+data ILType = ILInt | ILDouble | ILBool | ILString | ILArray ILType
   deriving (Ord, Eq, Show)
 
 data ILExp =
@@ -44,7 +44,7 @@ data Stmt =
   | AssignSub ILName ILExp ILExp
   | Cond ILExp [Stmt] [Stmt]
   | While ILExp [Stmt]
-  | ReadIntCSV ILName ILExp
+  | ReadIntCSV ILName ILName ILExp
   | PrintIntArray ILExp ILExp
   -- | Benchmark ILName [Stmt]
  deriving Show
@@ -76,7 +76,7 @@ freeVars stmts =
     -- binding forms
     fv bound (Declare x e : ss) = freeInExp bound e `union` fv (insert x bound) ss
     fv bound (Alloc x _ e : ss) = freeInExp bound e `union` fv (insert x bound) ss
-    fv bound (ReadIntCSV x e : ss) = freeInExp bound e `union` fv (insert x bound) ss
+    fv bound (ReadIntCSV x xlen e : ss) = freeInExp bound e `union` fv (insert xlen (insert x bound)) ss
     -- loops
     fv bound (Distribute _ x e body : ss) =
         freeInExp bound e

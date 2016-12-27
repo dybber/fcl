@@ -7,6 +7,7 @@ data CompileConfig =
     , configNumWorkGroups :: Int
     , configWarpSize  :: Int
     , configOptimizeIterations :: Int
+    , configKernelsFilename :: FilePath
     }
   deriving (Show, Eq)
 
@@ -18,4 +19,5 @@ defaultCompileConfig =
     , configNumWorkGroups = 2048
     , configSharedMemory = 2048 -- bytes
     , configOptimizeIterations = 20
+    , configKernelsFilename = "kernels.cl"
     }

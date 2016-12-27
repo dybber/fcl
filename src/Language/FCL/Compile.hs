@@ -38,7 +38,7 @@ compBody :: VarEnv -> Exp Type -> Value
 compBody _ (IntScalar i _)    = TagInt (int i)
 compBody _ (DoubleScalar d _) = TagDouble (double d)
 compBody _ (BoolScalar b _)   = TagBool (bool b)
---compBody _ (String s _)       = TagString (string s)
+compBody _ (String s _)       = TagString (string s)
 compBody env (App e0 e1) =
   case compBody env e0 of
     TagFn f -> f (compBody env e1)
@@ -103,7 +103,16 @@ compBody env (Bind e0 e1 _)   =
                        _ -> error "TODO")
     _ -> error "TODO"
 compBody env (ForceAndPrint e0 e1 _) = forceAndPrint (compBody env e0) (compBody env e1)
+compBody env (ReadIntCSV e0 _) = readIntCSV_ (compBody env e0)
+
+readIntCSV_ :: Value -> Value
+readIntCSV_ file =
+  TagProgram $
+    do (name, len) <- readIntCSV (unString file)
+       return (TagArray (createPull name IntT len))
   
+
+                                       
 length_ :: VarEnv -> Exp Type -> Region -> Value
 length_ env e0 reg = do
   case compBody env e0 of
@@ -182,6 +191,7 @@ lets name s =
     TagInt x -> liftM TagInt (let_ name ILInt x)
     TagBool x -> liftM TagBool (let_ name ILBool x)
     TagDouble x -> liftM TagDouble (let_ name ILDouble x)
+    TagString x -> liftM TagString (let_ name ILString x)
     TagFn _ -> return s
     TagProgram _ -> return s
     TagPair x y -> do x' <- lets name x
@@ -203,6 +213,8 @@ letsVar name s =
                     return (var0, TagBool (var var0))
     TagDouble x -> do var0 <- letVar name ILDouble x
                       return (var0, TagDouble (var var0))
+    TagString x -> do var0 <- letVar name ILString x
+                      return (var0, TagString (var var0))
     TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
     TagPair _ _ -> error "letsVar TagPair" -- TODO
     TagArray _ -> error "letsVar TagArray" -- TODO

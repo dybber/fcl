@@ -3,24 +3,6 @@ fun reverse arr =
   let n = lengthPull arr
   in generatePull n (fn i => index arr (n - i - 1))
 
-sig reverseBlock : [int] -> Program <block> [int]<block>
-kernel reverseBlock arr = return <block> (push <block> (reverse arr))
-
--- return : <lvl> -> a -> Program <lvl> a
-
--- bind : Program <lvl> a -> (a -> Program <lvl> b) -> Program <lvl> b
-
-sig distributeReverse : int -> ['a] -> Program <grid> ['a]<grid>
-fun distributeReverse splitSize arr =
-  splitUp splitSize arr
-    |> mapPull (fn arr2 => bind (force (push <block> (reverse arr2))) (fn arr3 => return <block> (push <block> arr3)))
-   |> reverse
-   |> concat splitSize
-
-sig reverseKernel : [int] -> Program <grid> [int]<grid>
-kernel reverseKernel arr = distributeReverse #BlockSize arr
-
-
 sig simpleReverse : int -> ['a] -> Program <grid> ['a]<grid>
 fun simpleReverse splitSize arr =
   splitUp splitSize arr
@@ -28,6 +10,8 @@ fun simpleReverse splitSize arr =
    |> reverse
    |> concat splitSize
 
-sig simpleReverseKernel : [int] -> Program <grid> [int]<grid>
-kernel simpleReverseKernel arr = simpleReverse #BlockSize arr
-  config #BlockSize = 256
+sig main : Program <grid> [int]
+fun main =
+  do { arr <- simpleReverse #BlockSize (generatePull (2048 * 2048) (fn i => i))
+     ; forceAndPrint 10 arr
+     }
