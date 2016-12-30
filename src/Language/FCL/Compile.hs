@@ -1,6 +1,4 @@
-module Language.FCL.Compile
-  (compile)
-where
+module Language.FCL.Compile (compile) where
 
 import qualified Data.Map as Map
 import Control.Monad (liftM)
@@ -44,7 +42,7 @@ compBody env (App e0 e1) =
     TagFn f -> f (compBody env e1)
     _ -> error "Unexpected value at function position in application"
 compBody env (Pair e0 e1 _) =
-  (TagPair (compBody env e0) (compBody env e1))
+  TagPair (compBody env e0) (compBody env e1)
 compBody env (Proj1E e reg) =
   case compBody env e of
     TagPair v0 _ -> v0
@@ -63,15 +61,15 @@ compBody env (AppLvl e _)          = compBody env e
 compBody env (Let x e0 e1 _ _)     = compBody (Map.insert x (compBody env e0) env) e1
 compBody env (UnOp op e0 reg)      = compileUnOp op (compBody env e0) reg
 compBody env (BinOp op e0 e1 reg)  = compileBinOp op (compBody env e0) (compBody env e1) reg
--- compBody env (Cond e0 e1 e2 _ reg) =
---   case compBody env e0 of
---     (TagBool b0) -> case (compBody env e1, compBody env e2) of
---                      (TagInt i1, TagInt i2) -> TagInt (if_ b0 i1 i2)
---                      (TagBool b1, TagBool b2) -> TagBool (if_ b0 b1 b2)
---                      (TagArray _, TagArray _) -> error (show reg ++ ": TODO: not possible yet")
---                      (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
---                      (_,_) -> error (show reg ++ ": branches are differing")
---     _ -> error "Expecting boolean expression as conditional argument in branch"
+compBody env (Cond e0 e1 e2 _ reg) =
+  case compBody env e0 of
+    (TagBool b0) -> case (compBody env e1, compBody env e2) of
+                     (TagInt i1, TagInt i2) -> TagInt (if_ b0 i1 i2)
+                     (TagBool b1, TagBool b2) -> TagBool (if_ b0 b1 b2)
+                     (TagArray _, TagArray _) -> error (show reg ++ ": TODO: not possible yet")
+                     (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
+                     (_,_) -> error (show reg ++ ": branches are differing")
+    _ -> error "Expecting boolean expression as conditional argument in branch"
 compBody env (GeneratePull e0 e1 reg) =
   let (_ :> ty1) = typeOf e1
   in case (compBody env e0, compBody env e1) of
@@ -91,6 +89,7 @@ compBody env (Push lvl e0 _) =
     TagArray arr -> TagArray (push lvl arr)
     _ -> error "pull expects array"
 compBody env (While e0 e1 e2 _)      = whileArray (compBody env e0) (compBody env e1) (compBody env e2)
+compBody env (Power e0 e1 e2 _)      = power (compBody env e0) (compBody env e1) (compBody env e2)
 compBody env (WhileSeq e0 e1 e2 _)   = whileSeq (compBody env e0) (compBody env e1) (compBody env e2)
 compBody env (Interleave i ixf e0 _) = interleave (compBody env i) (compBody env ixf) (compBody env e0)
 compBody env (Return _ e _)          = TagProgram (return (compBody env e))
@@ -110,8 +109,6 @@ readIntCSV_ file =
   TagProgram $
     do (name, len) <- readIntCSV (unString file)
        return (TagArray (createPull name IntT len))
-  
-
                                        
 length_ :: VarEnv -> Exp Type -> Region -> Value
 length_ env e0 reg = do
@@ -146,8 +143,6 @@ forceAndPrint n (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
 forceAndPrint _ (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
                                                     "Needs iteration scheme before it can be forced.")
 forceAndPrint _ _ = error ("force expects array as argument")
-
-
 
 force :: Value -> Value
 force (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
@@ -220,6 +215,43 @@ letsVar name s =
     TagArray _ -> error "letsVar TagArray" -- TODO
     TagProgram _ -> error "letsVar TagKernelProgram"
 
+power :: Value -> Value -> Value -> Value
+power (TagInt n) (TagFn step) (TagProgram p) =
+  TagProgram $
+    do TagArray arr <- p
+       -- Declare array
+       len <- lets "len" (TagInt (size arr))
+       var_array <- allocate (convertType (baseType arr)) (unInt len)
+       (var_len,_) <- letsVar "arraySize" len
+
+       let writer tv i =
+             case tv of
+               TagInt v -> assignArray var_array v i
+               e -> error (show e)
+
+       forceTo writer arr
+
+       let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
+
+       (i,_) <- letsVar "i" (TagInt (int 0)) -- stop condition
+       while (lti (var i) n) $
+         do let TagProgram p =
+                   case step (TagInt (var i)) of
+                     TagFn step' -> step' vararr
+                     _ -> error "expected step function to take two arguments"
+            arr' <- p
+            len' <- lets "len" (TagInt (size (unArray arr')))
+            let arr'' = case unArray arr' of
+                          ArrPush _ lvl ty wf -> ArrPush (unInt len') lvl ty wf
+                          _ -> error "step-function in while loop didn't return a pull array"
+            forceTo writer arr''
+            assign var_len (unInt len')
+            assign i (addi (var i) (int 1))
+       return vararr
+power _ _ _ = error "first two arguments to while should be integer and step function, respectively"
+
+
+
 whileArray :: Value -> Value -> Value -> Value
 whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _ _ _)) =
   TagProgram $
@@ -275,10 +307,13 @@ compileBinOp ModI (TagInt i0) (TagInt i1) _ = TagInt (modi i0 i1)
 compileBinOp MinI (TagInt i0) (TagInt i1) _ = TagInt (mini i0 i1)
 compileBinOp EqI  (TagInt i0) (TagInt i1) _ = TagBool (eqi i0 i1)
 compileBinOp NeqI (TagInt i0) (TagInt i1) _ = TagBool (neqi i0 i1)
+compileBinOp LtI  (TagInt i0) (TagInt i1) _ = TagBool (lti i0 i1)
+compileBinOp ShiftLI (TagInt i0) (TagInt i1) _ = TagInt (sll i0 i1)
+compileBinOp ShiftRI (TagInt i0) (TagInt i1) _ = TagInt (srl i0 i1)
 compileBinOp op _ _ reg =
   error (concat [show reg,
                  ": ",
-                 "Unexpected arguments to unary operator ",
+                 "Unexpected arguments to binary operator ",
                  show op,
                  ", expecting integer expression."])
 

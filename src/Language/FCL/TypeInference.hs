@@ -114,6 +114,7 @@ tvsubExp s (Proj2E e1 reg) = Proj2E (tvsubExp s e1) reg
 tvsubExp s (Index e1 e2 reg) = Index (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (LengthPull e1 reg) = LengthPull (tvsubExp s e1) reg
 tvsubExp s (LengthPush e1 reg) = LengthPush (tvsubExp s e1) reg
+tvsubExp s (Power e1 e2 e3 reg) = Power (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (While e1 e2 e3 reg) = While (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (WhileSeq e1 e2 e3 reg) = WhileSeq (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (GeneratePull e1 e2 reg) = GeneratePull (tvsubExp s e1) (tvsubExp s e2) reg
@@ -297,6 +298,17 @@ infer env (LengthPush e reg) = do
   lvlVar <- newLvlVar
   unify reg t (PushArrayT (VarL lvlVar) tv)
   return (IntT, LengthPush e' reg)
+infer env (Power e1 e2 e3 reg) = do
+  (t1, e1') <- infer env e1
+  (t2, e2') <- infer env e2
+  (t3, e3') <- infer env e3
+  tv <- newtv
+  lvlVar <- newLvlVar
+  let lvl = VarL lvlVar
+  unify reg t1 IntT
+  unify reg t2 (IntT :> (PullArrayT tv :> ProgramT lvl (PushArrayT lvl tv)))
+  unify reg t3 (ProgramT lvl (PushArrayT lvl tv))
+  return (ProgramT lvl (PullArrayT tv), Power e1' e2' e3' reg)
 infer env (While e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2

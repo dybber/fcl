@@ -2,7 +2,7 @@
 module Language.FCL.IL.Cons (
   
  -- Expressions
- let_, letVar, index, (!), 
+ let_, letVar, index, (!), if_,
  -- Getter's (launch parameters and current thread info)
  var, string, int, bool, double,
 
@@ -19,13 +19,14 @@ module Language.FCL.IL.Cons (
  -- addPtr,
  lti, ltei, gti, gtei, eqi, neqi,
  -- ltd, lted, gtd, gted, eqd, neqd,
- -- land, lor, xor, sll, srl,
+ -- land, lor, xor,
+ sll, srl,
  -- (&&*), (||*),
  mini, maxi,
  
  -- Statements
  allocate,
- distribute, parFor, while, -- iff,
+ distribute, parFor, while, iff,
  assign, (<==), assignArray,
  printIntArray, readIntCSV,
 
@@ -104,11 +105,11 @@ while cond body = do
   body' <- run body -- TODO: Var count should be passed on!
   addStmt (While cond body')
                                     
--- iff :: CExp -> (CGen u (), CGen u ()) -> CGen u ()
--- iff cond (f1, f2) = do
---   f1' <- run f1
---   f2' <- run f2
---   addStmt (If cond f1' f2' ())
+iff :: ILExp -> (Program (), Program ()) -> Program ()
+iff cond (f1, f2) = do
+  f1' <- run f1
+  f2' <- run f2
+  addStmt (If cond f1' f2')
 
 -- assign variable, and add to current list of operators
 assign :: ILName -> ILExp -> Program ()
@@ -148,9 +149,8 @@ double = EDouble
 bool :: Bool -> ILExp
 bool = EBool
 
--- if_ :: CExp -> CExp -> CExp -> CExp
--- if_ econd etrue efalse =
---   IfE econd etrue efalse
+if_ :: ILExp -> ILExp -> ILExp -> ILExp
+if_ econd etrue efalse = EIf econd etrue efalse
 
 -- (?) :: CExp -> (CExp, CExp) -> CExp
 -- econd ? (e0,e1) = if_ econd e0 e1
@@ -229,8 +229,8 @@ neqi e0 e1 = (EBinOp NeqI e0 e1)
 -- land e0 e1 = (EBinOp Land e0 e1)
 -- lor  e0 e1 = (EBinOp Lor e0 e1)
 -- xor  e0 e1 = (EBinOp Xor e0 e1)
--- sll  e0 e1 = (EBinOp Sll e0 e1)
--- srl  e0 e1 = (EBinOp Srl e0 e1)
+sll  e0 e1 = (EBinOp Sll e0 e1)
+srl  e0 e1 = (EBinOp Srl e0 e1)
 
 -- -- Boolean 'and' and 'or'
 -- (&&*), (||*) :: ILExp -> ILExp -> ILExp

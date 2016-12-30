@@ -51,6 +51,7 @@ inlineAll env (Proj2E e0 reg)            = Proj2E       (inlineAll env e0) reg
 inlineAll env (Index e0 e1 reg)          = Index        (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (LengthPull e0 reg)        = LengthPull   (inlineAll env e0) reg
 inlineAll env (LengthPush e0 reg)        = LengthPush   (inlineAll env e0) reg
+inlineAll env (Power e0 e1 e2 reg)       = Power        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (While e0 e1 e2 reg)       = While        (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (WhileSeq e0 e1 e2 reg)    = WhileSeq     (inlineAll env e0) (inlineAll env e1) (inlineAll env e2) reg
 inlineAll env (GeneratePull e0 e1 reg)   = GeneratePull (inlineAll env e0) (inlineAll env e1) reg

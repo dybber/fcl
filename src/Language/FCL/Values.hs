@@ -26,11 +26,6 @@ baseType (ArrPush _ _ bty _)      = bty
 createPull :: ILName -> Type -> ILExp -> Array Value
 createPull name ty n = ArrPull n ty (\i -> tagExp ty (name ! i))
 
--- type ProgramThread a = (ILKernel a)
--- type ProgramWarp a  = ILKernel a
--- type ProgramBlock a  = ILKernel a
--- type ProgramGrid a = (ILKernel a, ILHost a, [TopLevel])
-
 data Value = TagInt ILExp
            | TagBool ILExp
            | TagDouble ILExp

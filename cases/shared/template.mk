@@ -15,3 +15,5 @@ run: build
 clean:
 	rm -f $(BENCHNAME) $(BENCHNAME).c $(BENCHNAME).cl
 
+fcl:
+	make -C ../../..

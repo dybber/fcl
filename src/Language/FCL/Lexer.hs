@@ -24,7 +24,6 @@ reservedNames =
    "then",
    "else",
    "thread",
-   "warp",
    "block",
    "grid",
    "config",

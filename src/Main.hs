@@ -181,18 +181,8 @@ evalAndPrint ast =
      liftIO (print v)
 
 compileAndWrite :: [Definition Type] -> CLI ()
-compileAndWrite ast =
-  do logInfo "Inlining."
-     let inlined = inline ast
-
-     logInfo "Simplifying."
-     let simpl = simplify defaultCompileConfig inlined
-
-     logInfo "Typechecking again."
-     typed_ast <- liftEither TypeError (typeinfer [simpl])
-     mapM_ (logInfo . (" " ++) . showType) typed_ast
-
-     onCommand DumpASTSimplified (dumpAST typed_ast)
+compileAndWrite typed_ast =
+  do 
      
      logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
@@ -276,5 +266,19 @@ dispatch filenames opts =
      onCommand DumpAST     (dumpAST typed_ast)
      onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
-     onCommand Eval        (evalAndPrint typed_ast)
-     onCommand Compile     (compileAndWrite typed_ast)
+
+     do logInfo "Inlining."
+     let inlined = inline typed_ast
+
+     logInfo "Simplifying."
+     let simpl = simplify defaultCompileConfig inlined
+
+     onCommand DumpASTSimplified (dumpAST [simpl])
+     
+     logInfo "Typechecking again."
+     typed_ast2 <- liftEither TypeError (typeinfer [simpl])
+     mapM_ (logInfo . (" " ++) . showType) typed_ast2
+
+     onCommand Eval        (evalAndPrint typed_ast2)
+     onCommand Compile     (compileAndWrite typed_ast2)
+     

@@ -48,6 +48,7 @@ simplifyExp cfg (Proj2E e0 reg)            = Proj2E       (simplifyExp cfg e0) r
 simplifyExp cfg (Index e0 e1 reg)          = Index        (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (LengthPull e0 reg)        = LengthPull   (simplifyExp cfg e0) reg
 simplifyExp cfg (LengthPush e0 reg)        = LengthPush   (simplifyExp cfg e0) reg
+simplifyExp cfg (Power e0 e1 e2 reg)       = Power        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
 simplifyExp cfg (While e0 e1 e2 reg)       = While        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
 simplifyExp cfg (WhileSeq e0 e1 e2 reg)    = WhileSeq     (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
 simplifyExp cfg (GeneratePull e0 e1 reg)   = GeneratePull (simplifyExp cfg e0) (simplifyExp cfg e1) reg

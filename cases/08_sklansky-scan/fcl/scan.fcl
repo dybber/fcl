@@ -1,0 +1,77 @@
+-----------
+-- Overview:
+--   - First split array in blocks. Perform scan on each block in individual work-groups
+--   - Create array of block sums (last element of each block-scan array)
+--   - Scan that array
+--   - For each block, add the sum of all the previous blocks to each element
+--------------------
+
+-- What kind of code de we want to generate?
+------ Look at GPU Gems
+------ Find OpenCL to benchmark against
+
+
+------------------------
+-- Obsidian seems to only do block-level scans, not grid-level
+-- scans. This is because they do not support multikernel operations
+-- or kernels with multiple outputs.
+------------------
+
+sig pushM : <lvl> -> Program <lvl> ['a] -> Program <lvl> ['a]<lvl>
+fun pushM <lvl> m =
+  do { arr <- m
+     ; return <lvl> (push <lvl> arr)
+     }
+
+sig appendPull : ['a] -> ['a] -> ['a]
+fun appendPull a1 a2 =
+  let n1 = lengthPull a1 in
+  let n2 = lengthPull a2
+  in generatePull (n1+n2)
+       (fn ix => if lti ix n1
+                 then index a1 ix
+                 else index a2 (ix - n1))
+
+sig fan : ('a -> 'a -> 'a) -> ['a] -> Program <thread> ['a]<thread>
+fun fan op arr =
+  let x = halve arr in
+  let a1 = fst x in
+  let a2 = snd x in
+  let c = index a1 (lengthPull a1 - 1)
+  in return <thread> (push <thread> (appendPull a1 (mapPull (op c) a2)))
+
+
+sig delFan : [int] -> Program <thread> [int]<thread>
+fun delFan ds =
+  let head = index ds 0
+  in return <thread> (push <thread> (generatePull (lengthPull ds) (fn i => head)))
+
+
+-- assumes fanin == fanout
+sig binsplit1 : int
+             -> (['a] -> Program <thread> ['b]<thread>)
+             -> int
+             -> ['a]
+             -> Program <block> ['b]<block>
+fun binsplit1 n f iteration arr =
+  let k = shiftLi 1 (subi n iteration) in -- number of blocks
+  let m = divi (lengthPull arr) k -- size of each block
+  in concat m (mapPull f (splitUp m arr))
+
+-- block-level scan
+sig sklansky : int -> ('a -> 'a -> 'a) -> ['a] -> Program <block> ['a]<block>
+fun sklansky n op arr =
+  do { a <- power n (binsplit1 (subi n 1) (fan op)) (return <block> (push <block> arr))
+     ; return <block> (push <block> a)
+     }
+
+sig scanChunks : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
+fun scanChunks op arr =
+ let workPerBlock = 32
+ in concatMap workPerBlock (sklansky 5 op) (splitUp workPerBlock arr)
+
+sig main : Program <grid> [int]
+fun main =
+  do { arr <- scanChunks addi (generatePull 32 (fn i => i))
+     ; forceAndPrint 32 arr
+     }

@@ -2,7 +2,6 @@ module Language.FCL.Syntax (
   -- Types
   Level(..),
   threadLevel,
-  warpLevel,
   blockLevel,
   gridLevel,
   LvlVar(..),
@@ -39,10 +38,9 @@ import Language.FCL.SourceRegion
 data LvlVar = LvlVar Int (Maybe String)
   deriving (Eq, Show, Ord)
 
-threadLevel, warpLevel, blockLevel, gridLevel :: Level
+threadLevel, blockLevel, gridLevel :: Level
 threadLevel = Zero
-warpLevel   = Step threadLevel
-blockLevel  = Step warpLevel
+blockLevel  = Step threadLevel
 gridLevel   = Step blockLevel
 
 data Level = Zero | Step Level | VarL LvlVar
@@ -119,6 +117,7 @@ data Exp ty =
   | LengthPush (Exp ty) Region
 
 -- Combinators
+  | Power (Exp ty) (Exp ty) (Exp ty) Region -- APL-style power-operator
   | While (Exp ty) (Exp ty) (Exp ty) Region -- APL-style, representing tail-recursive functions
   | WhileSeq (Exp ty) (Exp ty) (Exp ty) Region
   | GeneratePull (Exp ty) (Exp ty) Region
@@ -164,6 +163,7 @@ equals (Index e0 e1 _) (Index e0' e1' _) = equals e0 e0' && equals e1 e1'
 equals (LengthPull e0 _) (LengthPull e0' _) = equals e0 e0'
 equals (LengthPush e0 _) (LengthPush e0' _) = equals e0 e0'
 
+equals (Power e0 e1 e2 _) (Power e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
 equals (While e0 e1 e2 _) (While e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
 equals (WhileSeq e0 e1 e2 _) (WhileSeq e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
 equals (GeneratePull e0 e1 _) (GeneratePull e0' e1' _) = equals e0 e0' && equals e1 e1'
@@ -340,6 +340,7 @@ freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
 freeIn x (Interleave e1 e2 e3 _)  = all (freeIn x) [e1, e2, e3]
+freeIn x (Power e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
 freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
@@ -378,6 +379,7 @@ freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
 freeVars (Interleave e1 e2 e3 _)  = Set.unions (map freeVars [e1, e2, e3])
+freeVars (Power e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
@@ -472,6 +474,11 @@ subst s x e =
     LengthPush e1 r ->
        do e1' <- subst s x e1
           return (LengthPush e1' r)
+    Power e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (Power e1' e2' e3' r)
     While e1 e2 e3 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

@@ -18,6 +18,7 @@ data ILExp =
   | EIndex ILName ILExp
   | EUnaryOp UnaryOp ILExp
   | EBinOp BinOp ILExp ILExp
+  | EIf ILExp ILExp ILExp
 
   -- | EAlloc ILType ILExp
   -- | EReadIntCSV ILExp
@@ -29,6 +30,7 @@ data ILExp =
 data BinOp = AddI | SubI | MulI | DivI | ModI
            | LtI | LteI | GtI | GteI | EqI | NeqI
            | MinI | MaxI
+           | Sll | Srl
   deriving Show
 
 data UnaryOp = SignI | AbsI | AbsD
@@ -42,7 +44,7 @@ data Stmt =
   | Synchronize
   | Assign ILName ILExp
   | AssignSub ILName ILExp ILExp
-  | Cond ILExp [Stmt] [Stmt]
+  | If ILExp [Stmt] [Stmt]
   | While ILExp [Stmt]
   | ReadIntCSV ILName ILName ILExp
   | PrintIntArray ILExp ILExp
@@ -57,6 +59,7 @@ liveInExp e =
     -- Recursive
     EUnaryOp _ e0       -> liveInExp e0
     EBinOp _ e0 e1      -> liveInExp e0 `Set.union` liveInExp e1
+    EIf e0 e1 e2        -> liveInExp e0 `Set.union` liveInExp e1 `Set.union` liveInExp e2
     EIndex name e0      -> Set.insert name (liveInExp e0)
     -- Scalars and constants
     EInt _              -> Set.empty
@@ -94,7 +97,7 @@ freeVars stmts =
     fv bound (Synchronize : ss) = fv bound ss
     fv bound (Assign x e : ss) = (insert x (liveInExp e) `difference` bound) `union` fv bound ss
     fv bound (AssignSub x e0 e1 : ss) = ((insert x (liveInExp e0) `union` liveInExp e1) `difference` bound) `union` fv bound ss
-    fv bound (Cond e ss0 ss1 : ss) =
+    fv bound (If e ss0 ss1 : ss) =
       freeInExp bound e
       `union` fv bound ss0
       `union` fv bound ss1

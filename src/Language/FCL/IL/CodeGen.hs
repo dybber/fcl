@@ -173,6 +173,16 @@ compExp env (EBinOp op e0 e1) =
   let v0 = compExp env e0
       v1 = compExp env e1
   in binop op v0 v1
+compExp env (EIf e0 e1 e2) =
+  let v0 = compExp env e0
+      v1 = compExp env e1
+      v2 = compExp env e2
+  in case (v1, v2) of
+       (VInt c1, VInt c2) -> VInt (if_ (unBool v0) c1 c2)
+       (VBool c1, VBool c2) -> VBool (if_ (unBool v0) c1 c2)
+       (VDouble c1, VDouble c2) -> VDouble (if_ (unBool v0) c1 c2)
+       (VString c1, VString c2) -> VString (if_ (unBool v0) c1 c2)
+       (_, _) -> error "cond"
 
 unop :: UnaryOp -> Value -> Value
 unop AbsI (VInt i0) = VInt (absi i0)
@@ -186,8 +196,11 @@ binop SubI (VInt i1) (VInt i2) = VInt (subi i1 i2)
 binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
 binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
 binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
-binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
 binop ModI (VInt i1) (VInt i2) = VInt (modi i1 i2)
+binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
+binop LtI (VInt i1) (VInt i2) = VBool (lti i1 i2)
+binop Sll (VInt i1) (VInt i2) = VInt (sll i1 i2)
+binop Srl (VInt i1) (VInt i2) = VInt (srl i1 i2)
 binop op _ _ = error ("binary operation not implemented yet: " ++ show op)
 
 assignVar :: VarEnv -> ILName -> Value -> CGen a ()
@@ -245,13 +258,18 @@ compKernelBody cfg env stmts =
       do let v = compExp env stopCond
          whileLoop (unBool v) (compKernelBody cfg env body)
          compKernelBody cfg env ss
-    (Cond cond then_ else_ : ss) ->
+    (If cond then_ else_ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
              (compKernelBody cfg env then_
              ,compKernelBody cfg env else_)
          compKernelBody cfg env ss
-    (Distribute _ _ _ _ : _) -> error "Not possible at block level"
+    (Distribute _ loopVar loopBound body : ss) ->
+      do let ub = compExp env loopBound
+         forAllBlock cfg (unInt ub)
+                (\i -> do i' <- lett "ub" (VInt i)
+                          compKernelBody cfg (Map.insert loopVar i' env) body)
+         compKernelBody cfg env ss
     (ReadIntCSV _ _ _ : _)     -> error "reading input-data: not possible at block level"
     (PrintIntArray _ _ : _)  -> error "printing not possible at block level"
 
@@ -271,7 +289,7 @@ distrParBlock cfg ub' f =
                  j <- let_ "j" int32_t ((workgroupID `muli` q) `addi` i)
                  f j)
        iff (workgroupID `lti` (ub `modi` workgroups))
-           (do j <- let_ "j" int32_t ((workgroups `muli` q) `addi` workgroupID)
+           (do j <- let_ "wid" int32_t ((workgroups `muli` q) `addi` workgroupID)
                f j
            , return ())
 
@@ -286,7 +304,7 @@ forAllBlock cfg n f =
        for q (\i -> do j <- let_ "j" int32_t ((i `muli` blockSize) `addi` localID)
                        f j)
        iff (localID `lti` (ub `modi` blockSize))
-         (do j <- let_ "j" int32_t ((q `muli` blockSize) `addi` localID)
+         (do j <- let_ "tid" int32_t ((q `muli` blockSize) `addi` localID)
              f j
          , return ())
        syncLocal
@@ -346,7 +364,7 @@ compHost cfg ctx p env stmts =
       do let v = compExp env stopCond
          whileLoop (unBool v) (compHost cfg ctx p env body)
          compHost cfg ctx p env ss
-    (Cond cond then_ else_ : ss) ->
+    (If cond then_ else_ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
              (compHost cfg ctx p env then_

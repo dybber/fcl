@@ -139,9 +139,8 @@ ppLvlVar (LvlVar _ (Just name)) =
 -- Pretty print levels
 ppLevel :: Level -> PP Doc
 ppLevel Zero = return (text "thread")
-ppLevel (Step Zero) = return (text "warp")
-ppLevel (Step (Step Zero)) = return (text "block")
-ppLevel (Step (Step (Step Zero))) = return (text "grid")
+ppLevel (Step Zero) = return (text "block")
+ppLevel (Step (Step Zero)) = return (text "grid")
 ppLevel (Step lvl) = do
   prettylvl <- ppLevel lvl
   return (parens (text "1+" <> prettylvl))
@@ -222,6 +221,7 @@ pp (Proj2E e1 _)             = ppUnop "snd" e1
 pp (Index e1 e2 _)           = ppBinop "index" e1 e2
 pp (LengthPull e1 _)         = ppUnop "lengthPull" e1
 pp (LengthPush e1 _)         = ppUnop "lengthPush" e1
+pp (Power e1 e2 e3 _)        = ppTriop "power" e1 e2 e3
 pp (While e1 e2 e3 _)        = ppTriop "while" e1 e2 e3
 pp (WhileSeq e1 e2 e3 _)     = ppTriop "whileSeq" e1 e2 e3
 pp (GeneratePull e1 e2 _)    = ppBinop "generate" e1 e2

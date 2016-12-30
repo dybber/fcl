@@ -52,15 +52,17 @@ data Value ty = LamV (Env ty) Name (Exp ty)
               | DoubleV Double
               | PairV (Value ty) (Value ty)
               | BoolV Bool
+              | StringV String
               | ArrayV (FCLArray (Value ty))
    deriving Eq
 
 instance Show (Value ty) where
-  show (LamV _ _ _) = "<fun>"
+  show (LamV _ _ _) = "<function>"
   show (IntV i) = show i
   show (DoubleV d) = show d
   show (PairV v1 v2) = concat ["(", show v1, ", ", show v2, ")"]
   show (BoolV b) = show b
+  show (StringV str) = show str
   show (ArrayV arr) = show arr
 
 ------------------------------
@@ -84,6 +86,7 @@ evalExp :: Show ty => Env ty -> Exp ty -> Eval (Value ty)
 evalExp _ (IntScalar i _) = return (IntV i)
 evalExp _ (DoubleScalar d _) = return (DoubleV d)
 evalExp _ (BoolScalar b _) = return (BoolV b)
+evalExp _ (String str _) = return (StringV str)
 evalExp env (Var x _ reg) =
   case lookupVar x env of
     Just v -> return v
@@ -126,7 +129,7 @@ evalExp env (BinOp op e1 e2 r) = do
   case op of
     -- Arithmetic
     AddI    -> IntV <$> liftM2 (+) (unInt r "addi" v1) (unInt r "addi" v2)
-    SubI    -> IntV <$> liftM2 (-) (unInt r "subi" v1) (unInt r "subi" v2)
+    SubI    -> IntV <$> liftM2 (-) (unInt r "first argument of subi" v1) (unInt r "second argument of subi" v2)
     MulI    -> IntV <$> liftM2 (*) (unInt r "muli" v1) (unInt r "muli" v2)
     DivI    -> IntV <$> liftM2 div (unInt r "divi" v1) (unInt r "divi" v2)
     ModI    -> IntV <$> liftM2 mod (unInt r "modi" v1) (unInt r "modi" v2)
@@ -185,6 +188,10 @@ evalExp env (LengthPush e0 reg) = do
     (ArrayV arr) -> return (IntV (sizeOf arr))
     _ -> evalError (Just reg) "expecting array as argument to Length"
 evalExp env (Force e0 _) = evalExp env e0
+evalExp env (ForceAndPrint e0 e1 reg) =
+  do v0 <- evalExp env e0
+     v1 <- evalExp env e1
+     return v1
 evalExp env (Push _ e0 _) = evalExp env e0
 evalExp env (Vec ls _ _) = do
   vs <- mapM (evalExp env) ls
@@ -209,6 +216,19 @@ evalExp env (Concat en e0 reg) = do
          return (ArrayV (fromList (concat (map toList vs'))))
     (_,_) -> evalError (Just reg) ("concat expects integer and array as arguments.")
 evalExp env (Interleave en ixf e0 reg) = interleave_ env en ixf e0 reg
+evalExp env (Power e0 e1 e2 reg) = do
+  v0 <- evalExp env e0
+  v1 <- evalExp env e1
+  v2 <- evalExp env e2
+  let step = case v1 of
+               LamV env1 var1 body1 ->
+                 (\i x -> do v1' <- evalExp (insertVar var1 i env1) body1
+                             case v1' of
+                               LamV env2 var2 body2 -> evalExp (insertVar var2 x env2) body2
+                               _ -> evalError (Just reg) "Second argument while evaluating 'power'")
+               -- _ -> evalError (Just reg) "First argument while evaluating 'power'"
+  power reg 0 v0 step v2
+    
 evalExp env (While e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -220,7 +240,7 @@ evalExp env (While e0 e1 e2 reg) = do
         (\x -> evalExp (insertVar var0 x env0) cond)
         (\x -> evalExp (insertVar var1 x env1) step)
         v2
-    _ -> evalError (Just reg) "Argument while evaluating while"
+    _ -> evalError (Just reg) "Argument while evaluating 'while'"
 evalExp env (WhileSeq e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -242,12 +262,12 @@ evalExp env (Scanl ef e es reg) = do
     (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
     _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (BlockSize reg) = evalError (Just reg) "blockSize not implemented"
-evalExp env (Bind e1 e2 _) = do
-  v2 <- evalExp env e2
+evalExp env (Bind e1 e2 r) = do
   v1 <- evalExp env e1
-  case v1 of
-    LamV env' x e -> evalExp (insertVar x v2 env') e
-    _ -> evalError Nothing "Using non-function value as a function"
+  v2 <- evalExp env e2
+  case v2 of
+    LamV env' x e -> evalExp (insertVar x v1 env') e
+    _ -> evalError (Just r) "Bind: Using non-function value as a function"
 evalExp env (Return _ e0 _) = evalExp env e0
 
 ---------------------
@@ -325,7 +345,20 @@ while reg cond step x = do
       do x' <- step x
          while reg cond step x'
     BoolV False -> return x
-    _ -> evalError (Just reg) "Second argument to while should return Bool"
+    _ -> evalError (Just reg) "First argument to while should return Bool"
+
+power :: Region
+      -> Int
+      -> Value ty
+      -> (Value ty -> Value ty -> Eval (Value ty))
+      -> Value ty
+      -> Eval (Value ty)
+power _ _ (IntV 0) _ x = return x
+power reg i (IntV n) step x = 
+  do x' <- step (IntV i) x
+     power reg (i+1) (IntV (n-1)) step x'
+power reg _ _ _ _ = evalError (Just reg) "First argument to power should be an integer"
+
 
 unInt ::  Region -> String -> Value ty -> Eval Int
 unInt reg str v =
