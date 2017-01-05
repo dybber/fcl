@@ -117,6 +117,7 @@ data Exp ty =
   | LengthPush (Exp ty) Region
 
 -- Combinators
+  | For (Exp ty) (Exp ty) (Exp ty) Region -- Sequential for loop at thread-level
   | Power (Exp ty) (Exp ty) (Exp ty) Region -- APL-style power-operator
   | While (Exp ty) (Exp ty) (Exp ty) Region -- APL-style, representing tail-recursive functions
   | WhileSeq (Exp ty) (Exp ty) (Exp ty) Region
@@ -241,6 +242,14 @@ typeOf (Index e0 _ _) =
     _ -> error "typeOf: Argument to Index not of push-array type"
 typeOf (LengthPull _ _) = IntT
 typeOf (LengthPush _ _) = IntT
+typeOf (Power _ _ e2 _) =
+  case typeOf e2 of
+    (ProgramT lvl (PushArrayT _ ty)) -> ProgramT lvl (PullArrayT ty)
+    _ -> error "typeOf: Argument to Power not of Program lvl push-array type."
+typeOf (For _ _ e2 _) =
+  case typeOf e2 of
+    ((_ :> ty) :> _) -> ty
+    _ -> error "typeOf: Argument to For not of correct type."
 typeOf (While _ _ e2 _) = typeOf e2
 typeOf (WhileSeq _ _ e2 _) = typeOf e2
 typeOf (GeneratePull _ f _) =
@@ -340,6 +349,7 @@ freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
 freeIn x (Interleave e1 e2 e3 _)  = all (freeIn x) [e1, e2, e3]
+freeIn x (For e1 e2 e3 _)         = all (freeIn x) [e1, e2, e3]
 freeIn x (Power e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
@@ -379,6 +389,7 @@ freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
 freeVars (Interleave e1 e2 e3 _)  = Set.unions (map freeVars [e1, e2, e3])
+freeVars (For e1 e2 e3 _)         = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Power e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
@@ -474,6 +485,11 @@ subst s x e =
     LengthPush e1 r ->
        do e1' <- subst s x e1
           return (LengthPush e1' r)
+    For e1 e2 e3 r ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (For e1' e2' e3' r)
     Power e1 e2 e3 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2

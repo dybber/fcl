@@ -242,6 +242,12 @@ compKernelBody cfg env stmts =
                 (\i -> do i' <- lett "ub" (VInt i)
                           compKernelBody cfg (Map.insert loopVar i' env) body)
          compKernelBody cfg env ss
+    (SeqFor loopVar loopBound body : ss) ->
+      do let ub = compExp env loopBound
+         for (unInt ub)
+             (\i -> do i' <- lett "ub" (VInt i)
+                       compKernelBody cfg (Map.insert loopVar i' env) body)
+         compKernelBody cfg env ss
     (Synchronize : ss) ->
       do syncLocal
          compKernelBody cfg env ss
@@ -338,6 +344,7 @@ compHost cfg ctx p env stmts =
       do distribute cfg ctx p env x e stmts'
          compHost cfg ctx p env ss
     (ParFor _ _ _ _ : _) -> error "parfor<grid>: Not supported yet"
+    (SeqFor _ _ _ : _) -> error "seqfor: Only available at thread-level"
     (Synchronize : ss) ->
       do finish ctx
          compHost cfg ctx p env ss
@@ -455,8 +462,12 @@ copyToDevice ctx elemty n hostptr =
 printArray :: ClContext -> Value -> Value -> ILHost ()
 printArray ctx n (VHostBuffer elemty buf) =
   do hostptr <- mmapToHost ctx buf (convertType elemty) (unInt n)
-     for (unInt n) (\i ->
-       exec void_t "printf" [string "%i: %i\\n", i, index hostptr i])
+     exec void_t "printf" [string "["]
+     let lastElem = subi (unInt n) (constant (1 :: Int))
+     for lastElem (\i ->
+       exec void_t "printf" [string "%i,", index hostptr i])
+     exec void_t "printf" [string "%i", index hostptr lastElem]
+     exec void_t "printf" [string "]\\n"]
      unmmap ctx buf hostptr
 printArray _ _ _ = error "Print array expects array"
 
@@ -465,7 +476,7 @@ printArray _ _ _ = error "Print array expects array"
 ---------------------
 compProgram :: CompileConfig -> [Stmt] -> ILHost ()
 compProgram cfg program =
-  do ctx <- initializeContext 2
+  do ctx <- initializeContext (configVerbosity cfg)
      p <- buildProgram ctx (configKernelsFilename cfg)
      compHost cfg ctx p Map.empty program
      releaseAllDeviceArrays

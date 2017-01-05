@@ -182,15 +182,15 @@ evalAndPrint ast =
 
 compileAndWrite :: [Definition Type] -> CLI ()
 compileAndWrite typed_ast =
-  do 
-     
-     logInfo "Compiling."
+  do logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
+     verbosity <- asks fclVerbosity
      outputFile <- asks fclOutputFile
      let cfile = outputFile ++ ".c"
          kernelsFile = outputFile ++ ".cl"
          cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
                                     , configOptimizeIterations = optIter
+                                    , configVerbosity = verbosity
                                     }
          (main_, kernels) = compile cfg typed_ast
      liftIO (writeFile cfile main_)

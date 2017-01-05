@@ -398,6 +398,7 @@ builtin_ops curried "generatePull" = binop curried GeneratePull
 builtin_ops curried "mapPull"    = binop curried MapPull
 builtin_ops curried "mapPush"    = binop curried MapPush
 builtin_ops curried "power"      = triop curried Power
+builtin_ops curried "seqfor"      = triop curried For
 builtin_ops curried "while"      = triop curried While
 builtin_ops curried "whileSeq"   = triop curried WhileSeq
 builtin_ops curried "interleave" = triop curried Interleave

@@ -5,39 +5,47 @@ import Language.FCL.IL.Cons
 
 type Writer a = a -> ILExp -> Program ()
 
-data Array a = ArrPull ILExp Type (ILExp -> a)
-             | ArrPush ILExp Level Type (Writer a -> Program ())
+data Array = ArrPull ILExp Type (ILExp -> Value)
+           | ArrPush ILExp Level Type (Writer Value -> Program ())
+           | ArrPushThread ILExp ILExp Type ((ILExp -> Value) -> ILExp -> (ILExp,Value)) (Maybe (Value -> Value))
 
-mapArray :: (a -> b) -> Type -> Array a -> Array b
+mapArray :: (Value -> Value) -> Type -> Array -> Array
 mapArray f outType (ArrPull len _ g) =
   ArrPull len outType (f . g)
 mapArray f outType (ArrPush len lvl _ g) =
   ArrPush len lvl outType (\w -> g (\e ix -> w (f e) ix))
+mapArray f outType (ArrPushThread size' iterations _ g Nothing) =
+  ArrPushThread size' iterations outType g (Just f)
+mapArray f outType (ArrPushThread len iterations _ g (Just h)) =
+  ArrPushThread len iterations outType g (Just (f . h))
 
-size :: Array a -> ILExp
+size :: Array -> ILExp
 size (ArrPull len _ _)       = len
 size (ArrPush len _ _ _)       = len
+size (ArrPushThread len _ _ _ _) = len
 
-baseType :: Array a -> Type
-baseType (ArrPull _ (PullArrayT bty) _) = bty
+baseType :: Array -> Type
+baseType (ArrPull _ (PullArrayT bty) _) = bty -- TODO: this doesn't seem right.. recurse.
 baseType (ArrPull _ bty _)              = bty
 baseType (ArrPush _ _ bty _)      = bty
-
-createPull :: ILName -> Type -> ILExp -> Array Value
+baseType (ArrPushThread _ _ bty _ _) = bty
+  
+createPull :: ILName -> Type -> ILExp -> Array
 createPull name ty n = ArrPull n ty (\i -> tagExp ty (name ! i))
 
 data Value = TagInt ILExp
            | TagBool ILExp
            | TagDouble ILExp
            | TagString ILExp
-           | TagArray (Array Value)
+           | TagArray Array
            | TagFn (Value -> Value)
            | TagPair Value Value
            | TagProgram (Program Value)
 
-instance Show (Array a) where
+instance Show Array where
   show (ArrPull _ ty _) = show ty
   show (ArrPush _ _ ty _) = show ty
+  show (ArrPushThread _ _ ty _ _) = show ty
 
 instance Show Value where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"
@@ -59,6 +67,14 @@ unInt :: Value -> ILExp
 unInt (TagInt i) = i
 unInt _          = error "expected int"
 
+app1 :: Value -> Value -> Value
+app1 (TagFn f) x = f x
+app1 _ _         = error "Unexpected value at function position in application"
+
+app2 :: Value -> Value -> Value -> Value
+app2 (TagFn f) x y = app1 (f x) y
+app2 _ _ _         = error "expected function"
+
 unBool :: Value -> ILExp
 unBool (TagBool e) = e
 unBool _           = error "expected bool"
@@ -67,13 +83,9 @@ unString :: Value -> ILExp
 unString (TagString e) = e
 unString _           = error "expected string"
 
-unArray :: Value -> Array Value
+unArray :: Value -> Array
 unArray (TagArray e) = e
 unArray _            = error "expected array"
-
-forceTo :: Writer Value -> Array Value -> Program ()
-forceTo writer (ArrPush _ _ _ m) = m writer
-forceTo _ _ = error "err"
 
 convertType :: Type -> ILType
 convertType IntT              = ILInt

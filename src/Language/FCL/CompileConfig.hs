@@ -8,6 +8,7 @@ data CompileConfig =
     , configWarpSize  :: Int
     , configOptimizeIterations :: Int
     , configKernelsFilename :: FilePath
+    , configVerbosity :: Int
     }
   deriving (Show, Eq)
 
@@ -20,4 +21,5 @@ defaultCompileConfig =
     , configSharedMemory = 2048 -- bytes
     , configOptimizeIterations = 20
     , configKernelsFilename = "kernels.cl"
+    , configVerbosity = 0
     }

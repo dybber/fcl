@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts, AllowAmbiguousTypes #-}
 -- Simple array library using delay-arrays for FCL-interpreter
 module Language.FCL.Eval.ArrayLib
  (FCLArray,

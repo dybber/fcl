@@ -26,7 +26,7 @@ module Language.FCL.IL.Cons (
  
  -- Statements
  allocate,
- distribute, parFor, while, iff,
+ distribute, parFor, seqFor, while, iff,
  assign, (<==), assignArray,
  printIntArray, readIntCSV,
 
@@ -96,6 +96,15 @@ parFor lvl ub f = do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
     addStmt (ParFor lvl i upperbound body))
+
+seqFor :: ILExp -> (ILExp -> Program ()) -> Program ()
+seqFor ub f = do
+  i <- newVar ILInt "i"
+  let_ "ub" ILInt ub >>= (\upperbound -> do
+    body <- run (f (EVar i))
+                               -- TODO: Var count should be passed on!
+    addStmt (SeqFor i upperbound body))
+
 
 -- whileLoop :: CExp -> CGen u () -> CGen u ()
 -- whileLoop f body = whileUnroll 0 f body
@@ -225,10 +234,12 @@ neqi e0 e1 = (EBinOp NeqI e0 e1)
 -- neqd e0 e1 = (EBinOp NeqD e0 e1)
 
 -- -- Bitwise operations
--- land, lor, xor, sll, srl :: ILExp -> ILExp -> ILExp
+-- land, lor, xor :: ILExp -> ILExp -> ILExp
 -- land e0 e1 = (EBinOp Land e0 e1)
 -- lor  e0 e1 = (EBinOp Lor e0 e1)
 -- xor  e0 e1 = (EBinOp Xor e0 e1)
+
+sll, srl :: ILExp -> ILExp -> ILExp
 sll  e0 e1 = (EBinOp Sll e0 e1)
 srl  e0 e1 = (EBinOp Srl e0 e1)
 

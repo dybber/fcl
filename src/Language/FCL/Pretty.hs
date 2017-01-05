@@ -221,6 +221,7 @@ pp (Proj2E e1 _)             = ppUnop "snd" e1
 pp (Index e1 e2 _)           = ppBinop "index" e1 e2
 pp (LengthPull e1 _)         = ppUnop "lengthPull" e1
 pp (LengthPush e1 _)         = ppUnop "lengthPush" e1
+pp (For e1 e2 e3 _)          = ppTriop "seqFor" e1 e2 e3
 pp (Power e1 e2 e3 _)        = ppTriop "power" e1 e2 e3
 pp (While e1 e2 e3 _)        = ppTriop "while" e1 e2 e3
 pp (WhileSeq e1 e2 e3 _)     = ppTriop "whileSeq" e1 e2 e3

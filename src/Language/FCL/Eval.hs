@@ -216,6 +216,18 @@ evalExp env (Concat en e0 reg) = do
          return (ArrayV (fromList (concat (map toList vs'))))
     (_,_) -> evalError (Just reg) ("concat expects integer and array as arguments.")
 evalExp env (Interleave en ixf e0 reg) = interleave_ env en ixf e0 reg
+evalExp env (For e0 e1 e2 reg) = do
+  v0 <- evalExp env e0
+  v1 <- evalExp env e1
+  v2 <- evalExp env e2
+  let step = case v2 of
+               LamV env1 var1 body1 ->
+                 (\i x -> do v2' <- evalExp (insertVar var1 i env1) body1
+                             case v2' of
+                               LamV env2 var2 body2 -> evalExp (insertVar var2 x env2) body2
+                               _ -> evalError (Just reg) "Second argument while evaluating 'power'")
+               -- _ -> evalError (Just reg) "First argument while evaluating 'power'"
+  for reg v0 v1 step
 evalExp env (Power e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -227,8 +239,7 @@ evalExp env (Power e0 e1 e2 reg) = do
                                LamV env2 var2 body2 -> evalExp (insertVar var2 x env2) body2
                                _ -> evalError (Just reg) "Second argument while evaluating 'power'")
                -- _ -> evalError (Just reg) "First argument while evaluating 'power'"
-  power reg 0 v0 step v2
-    
+  power reg 0 v0 step v2    
 evalExp env (While e0 e1 e2 reg) = do
   v0 <- evalExp env e0
   v1 <- evalExp env e1
@@ -346,6 +357,15 @@ while reg cond step x = do
          while reg cond step x'
     BoolV False -> return x
     _ -> evalError (Just reg) "First argument to while should return Bool"
+
+for :: Region
+    -> Value ty
+    -> Value ty
+    -> (Value ty -> Value ty -> Eval (Value ty))
+    -> Eval (Value ty)
+for reg (IntV size) (IntV iterations) step = undefined
+for reg _ _ _ = evalError (Just reg) "First argument to power should be an integer"
+
 
 power :: Region
       -> Int

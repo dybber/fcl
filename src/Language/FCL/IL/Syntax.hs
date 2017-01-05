@@ -46,6 +46,7 @@ data Stmt =
   | AssignSub ILName ILExp ILExp
   | If ILExp [Stmt] [Stmt]
   | While ILExp [Stmt]
+  | SeqFor ILName ILExp [Stmt]
   | ReadIntCSV ILName ILName ILExp
   | PrintIntArray ILExp ILExp
   -- | Benchmark ILName [Stmt]
@@ -73,7 +74,6 @@ freeVars stmts =
     freeInExp :: Set ILName -> ILExp -> Set ILName
     freeInExp bound e = liveInExp e `difference` bound
 
-    
     fv :: Set ILName -> [Stmt] -> Set ILName
     fv _ [] = Set.empty
     -- binding forms
@@ -92,6 +92,10 @@ freeVars stmts =
     fv bound (While e body : ss) =
         freeInExp bound e
          `union` fv bound body
+         `union` fv bound ss
+    fv bound (SeqFor x e body : ss) =
+        freeInExp bound e
+         `union` fv (insert x bound) body
          `union` fv bound ss
     -- other
     fv bound (Synchronize : ss) = fv bound ss
