@@ -6,9 +6,7 @@ import Control.Monad (liftM)
 import Language.FCL.Values
 import Language.FCL.SourceRegion
 import Language.FCL.Syntax
-
 import Language.FCL.CompileConfig
-
 import Language.FCL.IL.Cons
 import Language.FCL.IL.Program (runProgram)
 import Language.FCL.IL.CodeGen (codeGen)
@@ -74,14 +72,17 @@ compBody env (GeneratePull e0 e1 reg) =
       _ -> error (show reg ++ ": generate expects integer expression as first argument and function as second argument")
 compBody env (MapPull e0 e1 reg) = map_ env e0 e1 reg
 compBody env (MapPush e0 e1 reg) = map_ env e0 e1 reg
-compBody env (LengthPull e0 reg) = length_ env e0 reg
-compBody env (LengthPush e0 reg) = length_ env e0 reg
+compBody env (LengthPull e0 reg) = length_ (compBody env e0) reg
+compBody env (LengthPush e0 reg) = length_ (compBody env e0) reg
 compBody env (Index e0 e1 reg) =
   case (compBody env e0, compBody env e1) of
     (TagArray (ArrPull _ _ idx), TagInt i) -> idx i
     _ -> error (show reg ++ ": Index expects array and integer argument")
 compBody env (Force e0 _) = force (compBody env e0)
-compBody env (Push lvl e0 _) = push lvl (compBody env e0)
+compBody env (Push lvl e0 _) =
+  case compBody env e0 of
+    TagArray arr -> TagArray (ArrPush lvl arr)
+    _ -> error "Not array argument to push"
 compBody env (For e0 e1 e2 _)        =
   let size' = unInt (compBody env e0)
       iterations = unInt (compBody env e1)
@@ -119,11 +120,9 @@ readIntCSV_ file =
     do (name, len) <- readIntCSV (unString file)
        return (TagArray (createPull name IntT len))
                                        
-length_ :: VarEnv -> Exp Type -> Region -> Value
-length_ env e0 reg = do
-  case compBody env e0 of
-    TagArray arr -> TagInt (size arr)
-    e -> error (show reg ++ ": Length expects array as argument got " ++ show e)
+length_ :: Value -> Region -> Value
+length_ (TagArray arr) _ = TagInt (size arr)
+length_ _ reg = error (show reg ++ ": Length expects array as argument.")
 
 map_ :: VarEnv -> Exp Type -> Exp Type -> Region -> Value
 map_ env e0 e1 reg =
@@ -138,38 +137,10 @@ map_ env e0 e1 reg =
                            "\nand\n    ",
                            show e])
 
-forceAndPrint :: Value -> Value -> Value
-forceAndPrint n (TagArray(arr@(ArrPush _ _ _ _))) = TagProgram $ do
-  let len = size arr                     -- calculate size of complete nested array structure
-  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
-  forceTo name arr                   -- recursively generate loops for each layer
-  printIntArray (unInt n) (var name)
-  return (TagArray (createPull name (baseType arr) len))
-forceAndPrint _ (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
-                                                    "Needs iteration scheme before it can be forced.")
-forceAndPrint _ (TagArray (ArrPushThread _ _ _ _ _)) = error ("force: cannot force thread-level push array on grid-level.")
-forceAndPrint _ _ = error ("force expects array as argument")
-
-forceTo :: ILName -> Array -> Program ()
-forceTo name (ArrPush _ _ _ m) =
-    let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
-          case v of
-            TagInt v' -> assignArray name v' i
-            e -> error (show e)
-    in m writer
-forceTo name (arr@(ArrPushThread _ iterations _ step post)) =
-  do temp <- allocate (convertType (baseType arr)) (size arr)
-     seqFor iterations
-       (\i -> let (j, v) = step (TagInt . index name) i -- TODO tag using type info
-              in assignArray temp (unInt v) j) -- TODO untag using type info
-     seqFor (size arr)
-       (\i -> case post of
-                Nothing ->
-                  assignArray name (index temp i) i
-                Just postprocess ->
-                  let v = postprocess (TagInt (index temp i)) -- TODO tag using type info
-                  in assignArray name (unInt v) i)  -- TODO untag using type info
-forceTo _ _ = error "err"
+interleave :: Value -> Value -> Value -> Value
+interleave (TagInt rn) (TagFn ixf) (TagArray (arr@(ArrPull _ (ProgramT lvl _) _))) =
+  TagProgram (return (TagArray (ArrInterleave lvl rn ixf arr)))
+interleave _ _ _ = error "unexpected arguments to interleave"
 
 force :: Value -> Value
 force (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
@@ -177,35 +148,60 @@ force (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should ra
 force (TagArray arr) = TagProgram $ do
   let len = size arr                     -- calculate size of complete nested array structure
   name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
-  forceTo name arr                   -- recursively generate loops for each layer
+  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+        case v of
+          TagInt v' -> assignArray name v' i
+          e -> error (show e)
+  forceTo writer arr                   -- recursively generate loops for each layer
   return (TagArray (createPull name (baseType arr) len))
 force _ = error ("force expects array as argument")
 
-push :: Level -> Value -> Value
-push Zero (TagArray (ArrPull len bty idx)) =
-  TagArray (ArrPush len Zero bty
-                    (\wf -> seqFor len (\i -> wf (idx i) i)))
-push lvl (TagArray (ArrPull len bty idx)) =
-  TagArray (ArrPush len lvl bty
-                    (\wf -> parFor (convertLevel lvl) len (\i -> wf (idx i) i)))
-push _ _ = error "force: push can only be applied to pull-arrays, how did this force appear?"
+forceAndPrint :: Value -> Value -> Value
+forceAndPrint (TagInt n) (TagArray arr) = TagProgram $ do
+  let len = size arr                     -- calculate size of complete nested array structure
+  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+        case v of
+          TagInt v' -> assignArray name v' i
+          e -> error (show e)
+  forceTo writer arr                   -- recursively generate loops for each layer
+  printIntArray n (var name)
+  return (TagArray (createPull name (baseType arr) len))
+-- forceAndPrint _ (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
+--                                                     "Needs iteration scheme before it can be forced.")
+-- forceAndPrint _ (TagArray (ArrPushThread _ _ _ _ _)) = error ("force: cannot force thread-level push array on grid-level.")
+-- forceAndPrint _ (TagArray (ArrPush lvl _)) = error ("forceAndPrint grid-level array as argument, got " ++ show lvl)
+forceAndPrint _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
 
-interleave :: Value -> Value -> Value -> Value
-interleave (TagInt n) (TagFn f) (TagArray (ArrPull len (ProgramT lvl (PushArrayT _ bty)) idx)) =
-  TagProgram (return (
-     TagArray (ArrPush (len `muli` n) (Step lvl) bty (\wf -> 
-              distribute (convertLevel lvl) len $ \bix -> do
-                let arrp = idx bix
-                let writer' a ix = wf a (unInt (f (TagPair (TagInt bix) (TagInt ix))))
-                case arrp of
-                  TagProgram m ->
-                    do arrp' <- m
-                       case arrp' of
-                         TagArray (ArrPush _ _ _ m') -> m' writer'
-                         TagArray (ArrPushThread _ _ _ _ _) -> undefined -- TODO
-                         _ -> error "expected pull-array of programs of push-arrays as argument to Concat"
-                  _ -> error "Interleave should be applied to an array of arrays!"))))
-interleave _ _ t = error ("interleave only accepts pull-arrays of push-arrays. Got: " ++ show t)
+forceTo :: Writer Value -> Array -> Program ()
+forceTo writer (ArrPush Zero (ArrPull len _ idx)) =
+  seqFor len
+         (\i -> writer (idx i) i)
+forceTo writer (ArrPush lvl (ArrPull len _ idx)) =
+  parFor (convertLevel lvl)
+         len
+         (\i -> writer (idx i) i)
+forceTo writer (arr@(ArrPushThread _ iterations ty step post)) =
+  do temp <- allocate (convertType (baseType arr)) (size arr)
+     seqFor iterations
+       (\i -> let (j, v) = step (tagScalar ty . index temp) i
+              in assignArray temp (untagScalar ty v) j)
+     seqFor (size arr)
+       (\i -> case post of
+                Nothing ->
+                  writer (TagInt (index temp i)) i
+                Just postprocess ->
+                  let v = postprocess (TagInt (index temp i)) -- TODO tag using type info
+                  in writer v i)
+forceTo _ (ArrPush _ _) = error "Push can only be applied to pull arrays."
+forceTo _ (ArrPull _ _ _) = error "Pull arrays can not be forced."
+forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) =
+  distribute (convertLevel lvl) n $ \bix -> do
+    let p = idx bix
+    let writer' a ix = writer a (unInt (f (TagPair (TagInt bix) (TagInt ix))))
+    arr <- unProgram "forceTo" p
+    forceTo writer' (unArray "forceTo" arr)
+forceTo _ _ = error "force: interleave applied to non-pull-array."
 
 lets :: String -> Value -> Program Value
 lets name s =
@@ -222,9 +218,10 @@ lets name s =
     TagArray (ArrPull len bty idx) ->
       do (n',_) <- letsVar "len" (TagInt len)
          return (TagArray (ArrPull (var n') bty idx))
-    TagArray (ArrPush len lvl bty wf) ->
+    TagArray (ArrPush lvl (ArrPull len bty idx)) ->
       do (n',_) <- letsVar "len" (TagInt len)
-         return (TagArray (ArrPush (var n') lvl bty wf))
+         return (TagArray (ArrPush lvl (ArrPull (var n') bty idx)))
+    TagArray _ -> error "lets TagArray" -- TODO
 
 letsVar :: String -> Value -> Program (ILName, Value)
 letsVar name s =
@@ -250,7 +247,13 @@ power (TagInt n) (TagFn step) (TagProgram p) =
        len <- lets "len" (TagInt (size arr))
        var_array <- allocate (convertType (baseType arr)) (unInt len)
        (var_len,_) <- letsVar "arraySize" len
-       forceTo var_array arr
+
+       let writer tv i =
+             case tv of
+               TagInt v -> assignArray var_array v i
+               e -> error (show e)
+
+       forceTo writer arr
 
        let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
 
@@ -261,38 +264,41 @@ power (TagInt n) (TagFn step) (TagProgram p) =
                      TagFn step' -> step' vararr
                      _ -> error "expected step function to take two arguments"
             arr' <- p'
-            len' <- lets "len" (TagInt (size (unArray arr')))
-            let arr'' = case unArray arr' of
-                          ArrPush _ lvl ty wf -> ArrPush (unInt len') lvl ty wf
+            len' <- lets "len" (TagInt (size (unArray "power" arr')))
+            let arr'' = case unArray "power" arr' of
+                          ArrPush lvl (ArrPull _ ty ix) -> ArrPush lvl (ArrPull (unInt len') ty ix)
                           _ -> error "step-function in while loop didn't return a pull array"
-            forceTo var_array arr''
+            forceTo writer arr''
             assign var_len (unInt len')
             assign i (addi (var i) (int 1))
        return vararr
 power _ _ _ = error "first two arguments to while should be integer and step function, respectively"
 
-
-
 whileArray :: Value -> Value -> Value -> Value
-whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _ _ _)) =
+whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
   TagProgram $
     do -- Declare array
        len <- lets "len" (TagInt (size arr))
        var_array <- allocate (convertType (baseType arr)) (unInt len)
        (var_len,_) <- letsVar "arraySize" len
 
-       forceTo var_array arr
+       let writer tv i =
+             case tv of
+               TagInt v -> assignArray var_array v i
+               e -> error (show e)
+
+       forceTo writer arr
 
        let vararr = TagArray (createPull var_array (baseType arr) (var var_len))
 
        (var_cond,_) <- letsVar "cond" (cond vararr) -- stop condition
        while (var var_cond) $
          do let arr' = step vararr
-            len' <- lets "len" (TagInt (size (unArray arr')))
-            let arr'' = case unArray arr' of
-                          ArrPush _ lvl ty wf -> ArrPush (unInt len') lvl ty wf
+            len' <- lets "len" (TagInt (size (unArray "whileArray" arr')))
+            let arr'' = case unArray "whileArray" arr' of
+                          ArrPush lvl (ArrPull _ ty ix) -> ArrPush lvl (ArrPull (unInt len') ty ix)
                           _ -> error "step-function in while loop didn't return a pull array"
-            forceTo var_array arr''
+            forceTo writer arr''
             assign var_len (unInt len')
             assign var_cond (unBool (cond (TagArray arr'')))
        return vararr
