@@ -1,15 +1,9 @@
 -- TODO IL
--- o reading CSV file size (reintroduce array sizes?)
--- o Deallocating in kernels?
-
--- TODO Compiling FCL
---  o Program-monad for IL
---  o FCL to IL compilation
---  o Extend IL with necessary constructs
-
--- TODO nice-to-have
--- o IL parser
--- o IL type checker
+--- allocation on host: array of pairs -> pair of arrays
+--- conditional expression on pairs of values
+--- move optimization to IL from CGen
+--- typechecker
+--- parser
 
 module Language.FCL.IL.CodeGen where
 

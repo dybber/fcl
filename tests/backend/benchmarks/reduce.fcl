@@ -1,0 +1,35 @@
+-- red1: evenOdds
+-- TODO: implement reduce that does not require commutativity
+
+sig evenOdds : ['a] -> (['a], ['a])
+fun evenOdds arr =
+  let n = lengthPull arr in
+  let n2 = divi n 2
+  in (generatePull (n-n2) (fn ix => index arr (2*ix)),
+      generatePull n2     (fn ix => index arr (2*ix + 1)))
+
+-- red2: halve
+sig reduceBlock : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
+fun reduceBlock <lvl> f arr =
+  let cond = fn arr => 1 != lengthPull arr in
+  let step = fn arr => let x = halve arr
+                       in push <lvl> (zipWith f (fst x) (snd x))
+  in do { a <- while cond step (step arr)
+        ; return <lvl> (push <lvl> a)
+        }
+
+sig reducePart : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
+fun reducePart f arr =
+ let workPerBlock = 2 * #BlockSize
+ in concatMap 1 (reduceBlock <block> f) (splitUp workPerBlock arr)
+
+sig main : Program <grid> [int]
+fun main =
+  do { arr <- reducePart addi (generatePull (2048*2048) (fn i => i))
+     ; forceAndPrint 4 arr
+     }
+
+-- Current problems:
+---- splitUp requires the array to evenly divide by the split size
+      -- > how do we support reduction of arbitrary arrays?
+      -- > no conditionals on host-level to help us

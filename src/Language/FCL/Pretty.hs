@@ -233,10 +233,8 @@ pp (Push lvl e1 _)      =
   do e1' <- pp e1
      lvl' <- ppLevel lvl
      return (parens (text "push" <> parens (angles lvl' <> comma <> e1')))
-pp (Concat e1 e2 _)          = ppBinop "concat" e1 e2
 pp (Interleave e1 e2 e3 _)   = ppTriop "interleave" e1 e2 e3
 pp (BlockSize _)             = return (text "#BlockSize")
-pp (Scanl e1 e2 e3 _)        = ppTriop "scanl" e1 e2 e3
 pp (Return lvl e1 _)            =
   do e1' <- pp e1
      lvl' <- ppLevel lvl

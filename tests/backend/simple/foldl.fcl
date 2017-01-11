@@ -1,0 +1,18 @@
+sig runtestBlock : [int] -> Program <block> [int]<block>
+fun runtestBlock arr =
+  splitUp 32 arr
+   |> mapPull (foldl addi 0)
+   |> mapPull (return <thread>)
+   |> concat 1
+
+sig runtest : int -> Program <grid> [int]<grid>
+fun runtest n =
+  splitUp n (iota n)
+   |> mapPull runtestBlock
+   |> concat 10
+
+sig main : Program <grid> [int]
+fun main =
+ do { a <- runtest (10*32)
+    ; forceAndPrint 10 a
+    }

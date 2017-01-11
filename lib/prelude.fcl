@@ -55,14 +55,6 @@ fun coalesce n arr =
   in generatePull s (fn i =>
        generatePull n (fn j => index arr (addi i (muli s j))))
 
-sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
-fun seqReduce f b array =
-  let n = lengthPull array in
-  let cond = fn x => neqi (fst x) n in
-  let step  = fn x => (addi (fst x) 1,
-                       f (index array (fst x)) (snd x))
-  in snd (whileSeq cond step (0,b))
-
 sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
@@ -71,3 +63,31 @@ fun bit i = shiftLi 1 i
 
 sig testBit : int -> int -> bool
 fun testBit x i = neqi (andi x (bit i)) 0
+
+
+--fun test = if true then ... else ...
+
+sig foldl : ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
+fun foldl f b array =
+  seqfor 1 (lengthPull array)
+    (fn read => fn i =>
+       (0, if eqi i 0
+           then b
+           else f (read 0) (index array i)))
+
+sig scanl1 : ('a -> 'a -> 'a) -> ['a] -> ['a]<thread>
+fun scanl1 op array =
+ let n = lengthPull array
+ in seqfor n n
+      (fn read => fn i =>
+          (i, if eqi i 0
+              then index array i
+              else op (read (subi i 1)) (index array i)))
+
+sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
+fun seqReduce f b array =
+  let n = lengthPull array in
+  let cond = fn x => neqi (fst x) n in
+  let step  = fn x => (addi (fst x) 1,
+                       f (index array (fst x)) (snd x))
+  in snd (whileSeq cond step (0,b))

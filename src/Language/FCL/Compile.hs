@@ -31,40 +31,35 @@ emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
 compBody :: VarEnv -> Exp Type -> Value
-compBody _ (IntScalar i _)    = TagInt (int i)
-compBody _ (DoubleScalar d _) = TagDouble (double d)
-compBody _ (BoolScalar b _)   = TagBool (bool b)
-compBody _ (String s _)       = TagString (string s)
-compBody env (App e0 e1) = (compBody env e0) `app1` (compBody env e1)
-compBody env (Pair e0 e1 _) =
-  TagPair (compBody env e0) (compBody env e1)
-compBody env (Proj1E e reg) =
-  case compBody env e of
-    TagPair v0 _ -> v0
-    _ -> error (show reg ++ ": fst expects a pair as argument")
-compBody env (Proj2E e reg) =
-  case compBody env e of
-    TagPair _ v1 -> v1
-    _ -> error (show reg ++ ": snd expects a pair as argument")
+compBody _ (IntScalar i _)        = TagInt (int i)
+compBody _ (DoubleScalar d _)     = TagDouble (double d)
+compBody _ (BoolScalar b _)       = TagBool (bool b)
+compBody _ (String s _)           = TagString (string s)
+compBody env (App e0 e1)          = (compBody env e0) `app1` (compBody env e1)
+compBody env (Lamb x _ e _ _)     = TagFn (\v -> compBody (Map.insert x v env) e)
+compBody env (LambLvl _ e _ _)    = compBody env e
+compBody env (AppLvl e _)         = compBody env e
+compBody env (Let x e0 e1 _ _)    = compBody (Map.insert x (compBody env e0) env) e1
+compBody env (UnOp op e0 reg)     = compileUnOp op (compBody env e0) reg
+compBody env (BinOp op e0 e1 reg) = compileBinOp op (compBody env e0) (compBody env e1) reg
+compBody env (Pair e0 e1 _)       = TagPair (compBody env e0) (compBody env e1)
+compBody env (Proj1E e reg)       = fst (unPair "fst" reg (compBody env e))
+compBody env (Proj2E e reg)       = snd (unPair "snd" reg (compBody env e))
 compBody env (Var x _ reg) =
   case Map.lookup x env of
     Just v -> v
     Nothing -> error (show reg ++ ": Variable not defined: " ++ x)
-compBody env (Lamb x _ e _ _)      = TagFn (\v -> compBody (Map.insert x v env) e)
-compBody env (LambLvl _ e _ _)     = compBody env e
-compBody env (AppLvl e _)          = compBody env e
-compBody env (Let x e0 e1 _ _)     = compBody (Map.insert x (compBody env e0) env) e1
-compBody env (UnOp op e0 reg)      = compileUnOp op (compBody env e0) reg
-compBody env (BinOp op e0 e1 reg)  = compileBinOp op (compBody env e0) (compBody env e1) reg
 compBody env (Cond e0 e1 e2 _ reg) =
   let b0 = unBool (compBody env e0)
   in case (compBody env e1, compBody env e2) of
        (TagInt i1, TagInt i2) -> TagInt (if_ b0 i1 i2)
+       (TagDouble d1, TagDouble d2) -> TagBool (if_ b0 d1 d2)
        (TagBool b1, TagBool b2) -> TagBool (if_ b0 b1 b2)
        (TagString s1, TagString s2) -> TagString (if_ b0 s1 s2)
-       (TagArray _, TagArray _) -> error (show reg ++ ": TODO: not possible yet")
-       (TagFn _, TagFn _) -> error (show reg ++ ": TODO: yet to be implemented")
-       (_,_) -> error (show reg ++ ": branches are differing")
+       (TagArray _, TagArray _) -> error (show reg ++ ": compilation of conditional on arrays not possible yet.")
+       (TagFn _, TagFn _) -> error (show reg ++ ": compilation of conditionals on function not possible yet.")
+       (TagProgram _, TagProgram _) -> error (show reg ++ ": compilation of conditionals on programs not possible yet.")
+       (_,_) -> error (show reg ++ ": compilation of conditionals: branches are differing")
 compBody env (GeneratePull e0 e1 reg) =
   let (_ :> ty1) = typeOf e1
   in case (compBody env e0, compBody env e1) of
@@ -78,7 +73,6 @@ compBody env (Index e0 e1 reg) =
   case (compBody env e0, compBody env e1) of
     (TagArray (ArrPull _ _ idx), TagInt i) -> idx i
     _ -> error (show reg ++ ": Index expects array and integer argument")
-compBody env (Force e0 _) = force (compBody env e0)
 compBody env (Push lvl e0 _) =
   case compBody env e0 of
     TagArray arr -> TagArray (ArrPush lvl arr)
@@ -94,10 +88,11 @@ compBody env (For e0 e1 e2 _)        =
         let ixf' = TagFn (ixf . unInt)
             i' = TagInt i
         in case app2 (compBody env e2) ixf' i' of
-             TagPair (TagInt e) v -> (e,v) -- TODO create function of type ((ILExp -> Value) -> ILExp -> (ILExp,Value))
+             TagPair (TagInt e) v -> (e,v)
              _ -> error "expected pair from step-function in seqfor"
   in 
    TagArray (ArrPushThread size' iterations bty step Nothing)
+compBody env (Force e0 _)            = force (compBody env e0)
 compBody env (Power e0 e1 e2 _)      = power (compBody env e0) (compBody env e1) (compBody env e2)
 compBody env (While e0 e1 e2 _)      = whileArray (compBody env e0) (compBody env e1) (compBody env e2)
 compBody env (WhileSeq e0 e1 e2 _)   = whileSeq (compBody env e0) (compBody env e1) (compBody env e2)
@@ -109,8 +104,8 @@ compBody env (Bind e0 e1 _)   =
       TagProgram (do m0 <- v0
                      case f m0 of
                        TagProgram m1 -> m1
-                       _ -> error "TODO")
-    _ -> error "TODO"
+                       _ -> error "expected Program as result of second argument to Bind")
+    _ -> error "program and function returning program as arguments to bind"
 compBody env (ForceAndPrint e0 e1 _) = forceAndPrint (compBody env e0) (compBody env e1)
 compBody env (ReadIntCSV e0 _) = readIntCSV_ (compBody env e0)
 

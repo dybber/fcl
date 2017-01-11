@@ -126,7 +126,6 @@ data Exp ty =
   | MapPush (Exp ty) (Exp ty) Region
   | Force (Exp ty) Region
   | Push Level (Exp ty) Region
-  | Concat (Exp ty) (Exp ty) Region
   | Interleave (Exp ty) (Exp ty) (Exp ty) Region
   | Bind (Exp ty) (Exp ty) Region
   | Return Level (Exp ty) Region
@@ -137,9 +136,6 @@ data Exp ty =
   -- | ReadDoubleCSV (Exp ty)
   | ForceAndPrint (Exp ty) (Exp ty) Region
   -- | PrintDoubleArray (Exp ty) (Exp ty)
-
-  -- Sequential scan, I don't really want this!
-  | Scanl (Exp ty) (Exp ty) (Exp ty) Region
   deriving (Show)
 
 equals :: Exp ty -> Exp ty -> Bool
@@ -172,12 +168,10 @@ equals (MapPull e0 e1 _) (MapPull e0' e1' _) = equals e0 e0' && equals e1 e1'
 equals (MapPush e0 e1 _) (MapPush e0' e1' _) = equals e0 e0' && equals e1 e1'
 equals (Force e0 _) (Force e0' _) = equals e0 e0'
 equals (Push lvl0 e0 _) (Push lvl0' e0' _) = lvl0 == lvl0' && equals e0 e0'
-equals (Concat e0 e1 _) (Concat e0' e1' _) = equals e0 e0' && equals e1 e1'
 equals (Interleave e0 e1 e2 _) (Interleave e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
 equals (Return lvl0 e0 _) (Return lvl0' e0' _) = lvl0 == lvl0' && equals e0 e0'
 equals (Bind e0 e1 _) (Bind e0' e1' _) = equals e0 e0' && equals e1 e1'
 equals (BlockSize _) (BlockSize _) = True
-equals (Scanl e0 e1 e2 _) (Scanl e0' e1' e2' _) = equals e0 e0' && equals e1 e1' && equals e2 e2'
 equals _ _ = False
 
 instance Eq (Exp ty) where
@@ -272,10 +266,6 @@ typeOf (Force e0 _) =
   case (typeOf e0) of
     (PushArrayT _ ty0) -> PullArrayT ty0
     _ -> error "typeOf: Force"
-typeOf (Concat _ e0 _) =
-  case typeOf e0 of
-    PullArrayT (PushArrayT lvl t) -> PushArrayT (Step lvl) t
-    _ -> error "typeOf: Concat given non-push-array as third argument"
 typeOf (Interleave _ _ e0 _) =
   case typeOf e0 of
     PullArrayT (PushArrayT lvl t) -> PushArrayT (Step lvl) t
@@ -287,10 +277,6 @@ typeOf (Vec es _ _) =
        then PullArrayT t
        else error "All elements in vector literal should be typed identically"
 typeOf (BlockSize _) = IntT
-typeOf (Scanl _ e1 e2 _) =
-  case typeOf e2 of
-    PullArrayT _ -> PushArrayT threadLevel (typeOf e1)
-    _ -> error "typeOf: Scanl"
 typeOf (Return lvl e0 _) =
   ProgramT lvl (typeOf e0)
 typeOf (Bind _ e1 _) =
@@ -347,13 +333,11 @@ freeIn x (Index e1 e2 _)          = freeIn x e1 && freeIn x e2
 freeIn x (GeneratePull e1 e2 _)   = freeIn x e1 && freeIn x e2
 freeIn x (MapPull e1 e2 _)        = freeIn x e1 && freeIn x e2
 freeIn x (MapPush e1 e2 _)        = freeIn x e1 && freeIn x e2
-freeIn x (Concat e1 e2 _)         = freeIn x e1 && freeIn x e2
 freeIn x (Interleave e1 e2 e3 _)  = all (freeIn x) [e1, e2, e3]
 freeIn x (For e1 e2 e3 _)         = all (freeIn x) [e1, e2, e3]
 freeIn x (Power e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (While e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn x (WhileSeq e1 e2 e3 _)    = all (freeIn x) [e1, e2, e3]
-freeIn x (Scanl e1 e2 e3 _)       = all (freeIn x) [e1, e2, e3]
 freeIn _ (BlockSize _)            = True
 freeIn x (Return _ e _)           = freeIn x e
 freeIn x (Bind e1 e2 _)           = freeIn x e1 && freeIn x e2
@@ -387,13 +371,11 @@ freeVars (Index e1 e2 _)          = Set.union (freeVars e1) (freeVars e2)
 freeVars (GeneratePull e1 e2 _)   = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPull e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
 freeVars (MapPush e1 e2 _)        = Set.union (freeVars e1) (freeVars e2)
-freeVars (Concat e1 e2 _)         = Set.union (freeVars e1) (freeVars e2)
 freeVars (Interleave e1 e2 e3 _)  = Set.unions (map freeVars [e1, e2, e3])
 freeVars (For e1 e2 e3 _)         = Set.unions (map freeVars [e1, e2, e3])
 freeVars (Power e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (While e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (WhileSeq e1 e2 e3 _)    = Set.unions (map freeVars [e1, e2, e3])
-freeVars (Scanl e1 e2 e3 _)       = Set.unions (map freeVars [e1, e2, e3])
 freeVars (BlockSize _)            = Set.empty
 freeVars (Return _ e _)           = freeVars e
 freeVars (Bind e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
@@ -523,21 +505,12 @@ subst s x e =
     Push lvl e1 r ->
        do e1' <- subst s x e1
           return (Push lvl e1' r)
-    Concat e1 e2 r ->
-       do e1' <- subst s x e1
-          e2' <- subst s x e2
-          return (Concat e1' e2' r)
     Interleave e1 e2 e3 r ->
        do e1' <- subst s x e1
           e2' <- subst s x e2
           e3' <- subst s x e3
           return (Interleave e1' e2' e3' r)
     BlockSize _ -> return e
-    Scanl e1 e2 e3 r ->
-       do e1' <- subst s x e1
-          e2' <- subst s x e2
-          e3' <- subst s x e3
-          return (Scanl e1' e2' e3' r)
     Return lvl e1 r ->
       do e1' <- subst s x e1
          return (Return lvl e1' r)

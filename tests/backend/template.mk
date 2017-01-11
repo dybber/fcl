@@ -1,11 +1,15 @@
-TESTS=00_iota 01_map
-
+OUTPUTDIRS=build results
 FCLFILES=$(TESTS:%=%.fcl)
 CFILES= $(TESTS:%=build/%.c)
 RESFILES= $(TESTS:%=results/%.res)
 
 .PHONY: all
-all: $(CFILES) test
+all: directories $(CFILES) test
+
+directories: $(OUTPUTDIRS)
+
+$(OUTPUTDIRS):
+	mkdir -p $(OUTPUTDIRS)
 
 .PHONY: test
 test: $(RESFILES)
@@ -21,7 +25,7 @@ build/%.c:
 	fcl -o build/$* $*.fcl 
 
 build/%.exe: build/%.c
-	gcc -Wall -O2 -D_DEBUG -I../../microcl/ -I../../include/ -I/usr/local/cuda/include/ -L../../microcl/ -o $@ $< -lmcl -lOpenCL
+	gcc -Wall -O2 -D_DEBUG -I../../../microcl/ -I../../../include/ -I/usr/local/cuda/include/ -L../../../microcl/ -o $@ $< -lmcl -lOpenCL
 
 results/%.out: build/%.exe
 	$< > $@
@@ -39,4 +43,4 @@ results/%.res: results/%.out
          ; fi)
 
 clean:
-	rm -rf build/* results/*.out
+	rm -rf build/* results/*.out results/*.res

@@ -2,6 +2,7 @@ module Language.FCL.Values where
 
 import Language.FCL.Syntax
 import Language.FCL.IL.Cons
+import Language.FCL.SourceRegion
 
 type Writer a = a -> ILExp -> Program ()
 
@@ -112,6 +113,9 @@ unProgram :: String -> Value -> Program Value
 unProgram _ (TagProgram p) = p
 unProgram loc v            = error ("expected Program in " ++ loc ++ " got " ++ show v)
 
+unPair :: String -> Region -> Value -> (Value, Value)
+unPair _ _ (TagPair v1 v2) = (v1, v2)
+unPair loc reg v           = error ("expected pair in " ++ loc ++ " at " ++ show reg ++ " got " ++ show v)
 
 convertType :: Type -> ILType
 convertType IntT              = ILInt

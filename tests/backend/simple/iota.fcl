@@ -1,11 +1,23 @@
 sig liftP : <lvl> -> [int] -> Program <lvl> [int]<lvl>
 fun liftP <lvl> arr = return <lvl> (push <lvl> arr)
 
+-- sig pushGrid : ['a] -> Program <grid> ['a]<grid>
+-- fun pushGrid arr =
+--   splitUp (lengthPull arr) arr
+--    |> mapPull (fn a => return <block> (push <block> a))
+--    |> concat 1
+
 sig runtest : int -> Program <grid> [int]<grid>
 fun runtest n =
   splitUp 32 (iota n)
    |> mapPull (liftP <block>) -- (fn a => return <block> (push <block> a))
    |> concat 32
+
+-- sig runtest : int -> Program <grid> [int]<grid>
+-- fun runtest n =
+--   pushGrid (iota n)
+
+--force : ['a]<lvl> -> Program <lvl> ['a]
 
 sig main : Program <grid> [int]
 fun main =

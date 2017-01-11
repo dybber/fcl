@@ -206,15 +206,6 @@ evalExp env (UnOp op e0 reg) = do
     I2D     -> liftM (DoubleV . fromIntegral) (unInt reg "i2d" v0)
     B2I     -> liftM (IntV . fromBool) (unBool reg "b2i" v0)
     CLZ     -> liftM (IntV . countLeadingZeros) (unInt reg "clz" v0)
-evalExp env (Concat en e0 reg) = do
-  n <- evalExp env en
-  v0 <- evalExp env e0
-  case (n, v0) of
-    (IntV _, ArrayV arr) ->
-      do let vs = toList arr
-         vs' <- mapM (unArray reg "concat") vs
-         return (ArrayV (fromList (concat (map toList vs'))))
-    (_,_) -> evalError (Just reg) ("concat expects integer and array as arguments.")
 evalExp env (Interleave en ixf e0 reg) = interleave_ env en ixf e0 reg
 evalExp env (For e0 e1 e2 reg) = do
   v0 <- evalExp env e0
@@ -264,14 +255,6 @@ evalExp env (WhileSeq e0 e1 e2 reg) = do
         (\x -> evalExp (insertVar var1 x env1) body)
         v2
     _ -> evalError (Just reg) "Argument while evaluating while"
-evalExp env (Scanl ef e es reg) = do
-  vf <- evalExp env ef
-  v <- evalExp env e
-  vs <- evalExp env es
-  case (vf, vs) of
-    (LamV env' x ebody, ArrayV arr) -> scanl_ env' x ebody v arr reg
-    (LamV _ _ _, _) -> evalError (Just reg) "third argument to map not an array"
-    _               -> evalError (Just reg) "first argument to map: not a function"
 evalExp _ (BlockSize reg) = evalError (Just reg) "blockSize not implemented"
 evalExp env (Bind e1 e2 r) = do
   v1 <- evalExp env e1
@@ -308,23 +291,6 @@ map_ env' var ebody arr = do
   let arr' = mapA (\x -> evalExp (insertVar var x env') ebody) arr
   arr'' <- materializeM arr'
   return (ArrayV arr'')
-
-scanM :: Monad m => (a -> b -> m a) -> a -> [b] -> m [a]
-scanM _ v []     = return [v]
-scanM f v (u:us) =
-  do v' <- f v u
-     rest <- scanM f v' us
-     return (v : rest)
-
-scanl_ :: Show ty => Env ty -> Name -> Exp ty -> Value ty -> FCLArray (Value ty) -> Region -> Eval (Value ty)
-scanl_ env' x ebody v arr reg = do
-  let vs = toList arr
-  let f v1 v2 = do fv1 <- evalExp (insertVar x v1 env') ebody
-                   case fv1 of
-                     LamV env'' y ebody' -> evalExp (insertVar y v2 env'') ebody'
-                     _ -> evalError (Just reg) "scanl_: first argument should be a function"
-  vs' <- scanM f v vs
-  return (ArrayV (fromList vs'))
 
 interleave_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> Region -> Eval (Value ty)
 interleave_ env e0 e1 e2 reg =

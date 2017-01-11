@@ -26,5 +26,6 @@ playground/
 examples/*.cl
 fcl-paper/
 notes-and-snippets
-tests/backend/results
-tests/backend/build
+tests/backend/*/results
+tests/backend/*/build
+

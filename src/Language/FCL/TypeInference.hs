@@ -123,10 +123,8 @@ tvsubExp s (MapPull e1 e2 reg) = MapPull (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (MapPush e1 e2 reg) = MapPush (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Force e1 reg) = Force (tvsubExp s e1) reg
 tvsubExp s (Push lvl e1 reg) = Push (lvlVarSub s lvl) (tvsubExp s e1) reg
-tvsubExp s (Concat e1 e2 reg) = Concat (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Interleave e1 e2 e3 reg) = Interleave (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp _ (BlockSize reg) = BlockSize reg
-tvsubExp s (Scanl e1 e2 e3 reg) = Scanl (tvsubExp s e1) (tvsubExp s e2) (tvsubExp s e3) reg
 tvsubExp s (Return lvl e1 reg) = Return (lvlVarSub s lvl) (tvsubExp s e1) reg
 tvsubExp s (Bind e1 e2 reg) = Bind (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (ReadIntCSV e1 reg) = ReadIntCSV (tvsubExp s e1) reg
@@ -306,7 +304,7 @@ infer env (For e1 e2 e3 reg) = do
   tv <- newtv
   unify reg t1 IntT
   unify reg t2 IntT
-  unify reg t3 ((IntT :> tv) :> IntT :> (IntT :*: tv))
+  unify reg t3 ((IntT :> tv) :> (IntT :> (IntT :*: tv)))
   return (PushArrayT Zero tv, For e1' e2' e3' reg)
 infer env (Power e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
@@ -372,14 +370,6 @@ infer env (ForceAndPrint e1 e2 reg) = do
   unify reg te1 IntT
   unify reg te2 (PushArrayT gridLevel IntT)
   return (ProgramT gridLevel (PullArrayT IntT), ForceAndPrint e1' e2' reg)
-infer env (Concat e1 e2 reg) = do
-  (t1, e1') <- infer env e1
-  (t2, e2') <- infer env e2
-  unify reg t1 IntT
-  tv <- newtv
-  lvlVar <- newLvlVar
-  unify reg t2 (PullArrayT (PushArrayT (VarL lvlVar) tv))
-  return (PushArrayT (Step (VarL lvlVar)) tv, Concat e1' e2' reg)
 infer env (Interleave e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
@@ -404,14 +394,6 @@ infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
   t <- unifyAll reg (map fst tes)
   return (ProgramT gridLevel (PullArrayT t), Vec (map snd tes) t reg)
-infer env (Scanl e1 e2 e3 reg) = do
-  (tf, e1') <- infer env e1
-  (ta, e2') <- infer env e2
-  (tbs, e3') <- infer env e3
-  tb <- newtv
-  unify reg tf (ta :> (tb :> ta))
-  unify reg tbs (PullArrayT tb)
-  return (PushArrayT threadLevel ta, Scanl e1' e2' e3' reg)
 infer env (Push lvl e1 reg) = do
   (te, e1') <- infer env e1
   telem <- newtv
