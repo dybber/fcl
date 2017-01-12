@@ -10,8 +10,9 @@ fun simpleReverse splitSize arr =
    |> reverse
    |> concat splitSize
 
-sig main : Program <grid> [int]
+sig main : Program <grid> unit
 fun main =
   do { arr <- simpleReverse #BlockSize (generatePull (2048 * 2048) (fn i => i))
      ; forceAndPrint 10 arr
+     ; benchmark 10 arr
      }

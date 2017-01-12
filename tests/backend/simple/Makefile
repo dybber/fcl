@@ -1,2 +1,2 @@
-TESTS=iota map copy foldl scanl matvecmul
+TESTS=iota map foldl scanl
 include ../template.mk

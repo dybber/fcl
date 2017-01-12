@@ -1,2 +1,2 @@
-TESTS=reverse transpose reduce scan2
+TESTS=copy reverse transpose reduce matvecmul scan2 
 include ../template.mk
