@@ -1,0 +1,24 @@
+sig reduceBlock : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
+fun reduceBlock <lvl> f arr =
+  let cond = fn arr => 1 != lengthPull arr in
+  let step = fn arr => let x = halve arr
+                       in push <lvl> (zipWith f (fst x) (snd x))
+  in do { a <- while cond step (step arr)
+        ; return <lvl> (push <lvl> a)
+        }
+
+sig dotp : [int] -> [int] -> Program <block> [int]<block>
+fun dotp vec1 vec2 =
+  reduceBlock <block> addi (zipWith muli vec1 vec2)
+
+sig matVecMul : [int] -> [int] -> int -> Program <grid> [int]<grid>
+fun matVecMul mat vec cols =
+  splitUp cols mat -- split in rows
+   |> mapPull (dotp vec)
+   |> concat 1 -- concatenate results
+
+sig main : Program <grid> [int]
+fun main =
+ do { a <- matVecMul (iota (32*32)) (iota 32) 32
+    ; forceAndPrint 32 a
+    }

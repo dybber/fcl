@@ -1,6 +1,4 @@
 -- TODO IL
---- allocation on host: array of pairs -> pair of arrays
---- conditional expression on pairs of values
 --- move optimization to IL from CGen
 --- typechecker
 --- parser
@@ -192,6 +190,7 @@ binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
 binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
 binop ModI (VInt i1) (VInt i2) = VInt (modi i1 i2)
 binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
+binop EqI (VInt i1) (VInt i2) = VBool (eqi i1 i2)
 binop LtI (VInt i1) (VInt i2) = VBool (lti i1 i2)
 binop Sll (VInt i1) (VInt i2) = VInt (sll i1 i2)
 binop Srl (VInt i1) (VInt i2) = VInt (srl i1 i2)
@@ -212,6 +211,59 @@ assignSub env x ix v =
     _ -> error "TODO assignsub"
 
 ------------------------
+-- Thread-level compilation --
+------------------------
+compThread :: CompileConfig -> VarEnv -> [Stmt] -> ILKernel ()
+compThread cfg env stmts =
+  case stmts of
+    [] -> return ()
+    (Declare (x,ty) e : ss) ->
+      do let v = compExp env e
+         v' <- lett x v
+         compThread cfg (Map.insert (x,ty) v' env) ss
+    (Alloc (x,ty) elemty e : ss) ->
+       do let size = compExp env e
+          sizeVar <- letVar "size" int32_t (constant (configBlockSize cfg)) --(muli (unInt size) (constant (configBlockSize cfg)))
+          let cty = convertType elemty
+          ptr <- allocateKernel cty (var sizeVar)
+          let offset = addi (var ptr) (muli localID (unInt size))
+          ptr' <- letVar "threadLocal" (snd ptr) offset
+          v <- lett "arr" (VKernelArray elemty ptr')
+          compThread cfg (Map.insert (x,ty) v env) ss
+    (SeqFor loopVar loopBound body : ss) ->
+      do let ub = compExp env loopBound
+         for (unInt ub)
+             (\i -> do i' <- lett "ub" (VInt i)
+                       compThread cfg (Map.insert loopVar i' env) body)
+         compThread cfg env ss
+    (Synchronize : ss) ->
+       -- synchronization is a no-op on thread-level
+       compThread cfg env ss
+    (Assign x e : ss) ->
+      do let e' = compExp env e
+         assignVar env x e'
+         compThread cfg env ss
+    (AssignSub x ix e : ss) ->
+      do let ix' = compExp env ix
+         let e' = compExp env e
+         assignSub env x ix' e'
+         compThread cfg env ss
+    (While stopCond body : ss) ->
+      do let v = compExp env stopCond
+         whileLoop (unBool v) (compThread cfg env body)
+         compThread cfg env ss
+    (If cond then_ else_ : ss) ->
+      do let cond' = compExp env cond
+         iff (unBool cond')
+             (compThread cfg env then_
+             ,compThread cfg env else_)
+         compThread cfg env ss
+    (ParFor _ _ _ _ : _)     -> error "Cannot use parallel constructs on thread-level."
+    (Distribute _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
+    (ReadIntCSV _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
+    (PrintIntArray _ _ : _)  -> error "Printing not possible at thread level."
+
+------------------------
 -- Kernel compilation --
 ------------------------
 compKernelBody :: CompileConfig -> VarEnv -> [Stmt] -> ILKernel ()
@@ -222,6 +274,8 @@ compKernelBody cfg env stmts =
       do let v = compExp env e
          v' <- lett x v
          compKernelBody cfg (Map.insert (x,ty) v' env) ss
+
+    -- allocate shared memory
     (Alloc (x,ty) elemty e : ss) ->
        do let size = compExp env e
           sizeVar <- letVar "size" int32_t (unInt size)
@@ -229,18 +283,20 @@ compKernelBody cfg env stmts =
           ptr <- allocateKernel cty (var sizeVar)
           v <- lett "arr" (VKernelArray elemty ptr)
           compKernelBody cfg (Map.insert (x,ty) v env) ss
-          -- TODO: deallocate?
+
+    -- lift a thread-level computation to block level
     (ParFor _ loopVar loopBound body : ss) ->
       do let ub = compExp env loopBound
          forAllBlock cfg (unInt ub)
                 (\i -> do i' <- lett "ub" (VInt i)
-                          compKernelBody cfg (Map.insert loopVar i' env) body)
+                          compThread cfg (Map.insert loopVar i' env) body)
          compKernelBody cfg env ss
-    (SeqFor loopVar loopBound body : ss) ->
+    -- lift a thread-level computation to block-level (on this level identical to ParFor)
+    (Distribute _ loopVar loopBound body : ss) ->
       do let ub = compExp env loopBound
-         for (unInt ub)
-             (\i -> do i' <- lett "ub" (VInt i)
-                       compKernelBody cfg (Map.insert loopVar i' env) body)
+         forAllBlock cfg (unInt ub)
+                (\i -> do i' <- lett "ub" (VInt i)
+                          compThread cfg (Map.insert loopVar i' env) body)
          compKernelBody cfg env ss
     (Synchronize : ss) ->
       do syncLocal
@@ -264,14 +320,9 @@ compKernelBody cfg env stmts =
              (compKernelBody cfg env then_
              ,compKernelBody cfg env else_)
          compKernelBody cfg env ss
-    (Distribute _ loopVar loopBound body : ss) ->
-      do let ub = compExp env loopBound
-         forAllBlock cfg (unInt ub)
-                (\i -> do i' <- lett "ub" (VInt i)
-                          compKernelBody cfg (Map.insert loopVar i' env) body)
-         compKernelBody cfg env ss
-    (ReadIntCSV _ _ _ : _)     -> error "reading input-data: not possible at block level"
-    (PrintIntArray _ _ : _)  -> error "printing not possible at block level"
+    (SeqFor _ _ _ : _)      -> error "seqfor: Only available at thread-level"
+    (ReadIntCSV _ _ _ : _)  -> error "Reading input-data is not possible at block level"
+    (PrintIntArray _ _ : _) -> error "Printing not possible at block level"
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILKernel ()
 mkKernelBody cfg env loopVar loopBound body =
@@ -338,7 +389,6 @@ compHost cfg ctx p env stmts =
       do distribute cfg ctx p env x e stmts'
          compHost cfg ctx p env ss
     (ParFor _ _ _ _ : _) -> error "parfor<grid>: Not supported yet"
-    (SeqFor _ _ _ : _) -> error "seqfor: Only available at thread-level"
     (Synchronize : ss) ->
       do finish ctx
          compHost cfg ctx p env ss
@@ -371,6 +421,7 @@ compHost cfg ctx p env stmts =
              (compHost cfg ctx p env then_
              ,compHost cfg ctx p env else_)
          compHost cfg ctx p env ss
+    (SeqFor _ _ _ : _) -> error "seqfor: Only available at thread-level"
 
 distribute :: CompileConfig -> ClContext -> ClProgram -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILHost ()
 distribute cfg ctx p env loopVar loopBound stmts =

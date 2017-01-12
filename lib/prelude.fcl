@@ -69,11 +69,11 @@ fun testBit x i = neqi (andi x (bit i)) 0
 
 sig foldl : ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun foldl f b array =
-  seqfor 1 (lengthPull array)
+  seqfor 1 (1 + (lengthPull array))
     (fn read => fn i =>
        (0, if eqi i 0
            then b
-           else f (read 0) (index array i)))
+           else f (read 0) (index array (subi i 1))))
 
 sig scanl1 : ('a -> 'a -> 'a) -> ['a] -> ['a]<thread>
 fun scanl1 op array =
@@ -83,6 +83,16 @@ fun scanl1 op array =
           (i, if eqi i 0
               then index array i
               else op (read (subi i 1)) (index array i)))
+
+sig scanl : ('a -> 'a -> 'a) -> 'a -> ['a] -> ['a]<thread>
+fun scanl op b array =
+ let n = lengthPull array
+ in seqfor (1 + n) (1 + n)
+      (fn read => fn i =>
+          (i, if eqi i 0
+              then b
+              else op (read (subi i 1)) (index array (subi i 1))))
+
 
 sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
 fun seqReduce f b array =

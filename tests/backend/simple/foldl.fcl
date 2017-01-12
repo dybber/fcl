@@ -9,10 +9,10 @@ sig runtest : int -> Program <grid> [int]<grid>
 fun runtest n =
   splitUp n (iota n)
    |> mapPull runtestBlock
-   |> concat 10
+   |> concat 32
 
 sig main : Program <grid> [int]
 fun main =
- do { a <- runtest (10*32)
-    ; forceAndPrint 10 a
+ do { a <- runtest (32*32)
+    ; forceAndPrint 32 a
     }
