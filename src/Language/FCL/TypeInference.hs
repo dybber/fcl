@@ -325,10 +325,11 @@ infer env (While e1 e2 e3 reg) = do
   (t3, e3') <- infer env e3
   tv <- newtv
   lvlVar <- newLvlVar
+  let lvl = VarL lvlVar
   unify reg t1 (PullArrayT tv :> BoolT)
-  unify reg t2 (PullArrayT tv :> PushArrayT (VarL lvlVar) tv)
-  unify reg t3 (PushArrayT (VarL lvlVar) tv)
-  return (ProgramT (VarL lvlVar) (PullArrayT tv), While e1' e2' e3' reg)
+  unify reg t2 (PullArrayT tv :> ProgramT lvl (PushArrayT lvl tv))
+  unify reg t3 (ProgramT lvl (PushArrayT lvl tv))
+  return (ProgramT lvl (PullArrayT tv), While e1' e2' e3' reg)
 infer env (WhileSeq e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2

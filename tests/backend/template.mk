@@ -21,7 +21,7 @@ test: $(RESFILES)
 
 .PRECIOUS: results/%.out build/%.exe
 
-build/%.c:
+build/%.c: %.fcl
 	fcl -o build/$* $*.fcl 
 
 build/%.exe: build/%.c

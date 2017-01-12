@@ -385,12 +385,7 @@ compHost cfg ctx p env stmts =
          compHost cfg ctx p env ss
     (Benchmark iterations ss0 : ss) ->
       do let n = compExp env iterations
-         t0 <- now "t0"
-         for (unInt n)
-           (\_ -> do compHost cfg ctx p env ss0
-                     finish ctx)
-         t1 <- now "t1"
-         printIntStdErr "Benchmark (ms)" (VInt (subi t1 t0))
+         benchmark n (compHost cfg ctx p env ss0 >> finish ctx)
          compHost cfg ctx p env ss
     (Declare (x,ty) e : ss) ->
       do let v = compExp env e
@@ -532,12 +527,16 @@ now x =
   do v <- eval x int32_t "now" []
      return (var v)
 
-printIntStdErr :: String -> Value -> ILHost ()
-printIntStdErr s (VInt i) =
-  let formatString = s ++ ": %i\\n"
-      stderr = (definedConst "stderr" (CCustom "File" Nothing))
-  in exec void_t "fprintf" [stderr, string formatString, i]
-printIntStdErr _ _ = error "PrintInt expects int"
+benchmark :: Value -> ILHost () -> ILHost ()
+benchmark (VInt n) body =
+  do t0 <- now "t0"
+     for n (\_ -> body)
+     t1 <- now "t1"
+     let formatString = "Benchmark (%i repetitions): %f ms per run\\n"
+         stderr = (definedConst "stderr" (CCustom "File" Nothing))
+         milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
+     exec void_t "fprintf" [stderr, string formatString, n, milliseconds_per_iter]
+benchmark _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
 -- Compile program --

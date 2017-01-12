@@ -223,6 +223,7 @@ lets name s =
     TagString x -> liftM TagString (let_ name ILString x)
     TagFn _ -> return s
     TagProgram _ -> return s
+    TagUnit -> return s
     TagPair x y -> do x' <- lets name x
                       y' <- lets name y
                       return (TagPair x' y')
@@ -233,6 +234,7 @@ lets name s =
       do (n',_) <- letsVar "len" (TagInt len)
          return (TagArray (ArrPush lvl (ArrPull (var n') bty idx)))
     TagArray _ -> error "lets TagArray" -- TODO
+
 
 letsVar :: String -> Value -> Program (ILName, Value)
 letsVar name s =
@@ -245,6 +247,7 @@ letsVar name s =
                       return (var0, TagDouble (var var0))
     TagString x -> do var0 <- letVar name ILString x
                       return (var0, TagString (var var0))
+    TagUnit -> error "letsVar TagUnit"
     TagFn _ -> error "letsVar TagFn" -- TODO, Impossible - what to do? Just err?
     TagPair _ _ -> error "letsVar TagPair" -- TODO
     TagArray _ -> error "letsVar TagArray" -- TODO
@@ -286,9 +289,10 @@ power (TagInt n) (TagFn step) (TagProgram p) =
 power _ _ _ = error "first two arguments to while should be integer and step function, respectively"
 
 whileArray :: Value -> Value -> Value -> Value
-whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
+whileArray (TagFn cond) (TagFn step) (TagProgram p) =
   TagProgram $
     do -- Declare array
+       TagArray arr <- p
        len <- lets "len" (TagInt (size arr))
        var_array <- allocate (convertType (baseType arr)) (unInt len)
        (var_len,_) <- letsVar "arraySize" len
@@ -304,7 +308,8 @@ whileArray (TagFn cond) (TagFn step) (TagArray arr@(ArrPush _ _)) =
 
        (var_cond,_) <- letsVar "cond" (cond vararr) -- stop condition
        while (var var_cond) $
-         do let arr' = step vararr
+         do let TagProgram p' = step vararr
+            arr' <- p'
             len' <- lets "len" (TagInt (size (unArray "whileArray" arr')))
             let arr'' = case unArray "whileArray" arr' of
                           ArrPush lvl (ArrPull _ ty ix) -> ArrPush lvl (ArrPull (unInt len') ty ix)

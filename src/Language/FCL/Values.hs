@@ -22,7 +22,6 @@ mapArray f outType (ArrPushThread len iterations _ g (Just h)) =
   ArrPushThread len iterations outType g (Just (f . h))
 mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
 
-
 size :: Array -> ILExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)       = size arr
@@ -72,7 +71,7 @@ instance Show Value where
   show (TagFn _) = "TagFn"
   show (TagPair e0 e1) = "TagPair(" ++ show e0 ++ ", " ++ show e1 ++ ")"
   show (TagProgram _) = "TagProgram"
-
+  show TagUnit = "TagUnit"
 
 untagScalar :: Type -> Value -> ILExp
 untagScalar IntT (TagInt e) = e
@@ -131,7 +130,6 @@ convertType (_ :*: _)         = error "convertType: tuples not yet support in ar
 convertType (VarT _)          = error "convertType: All type variables should have been resolved by now"
 convertType (ProgramT _ _)    = error "convertType: cannot convert Program type"
 convertType UnitT             = error "convertType: cannot convert unit type"
-
 
 convertLevel :: Level -> ILLevel
 convertLevel Zero               = Thread

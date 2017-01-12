@@ -9,13 +9,13 @@
 
 struct timeval tv_init;
 
-static void initializeTimer() {
+void initializeTimer() {
   gettimeofday(&tv_init, NULL);
   return;
 }
 
 // return time since process start in milliseconds
-static int now () {
+int now () {
   struct timeval tv_check;
   gettimeofday(&tv_check, NULL);
   long int usec = tv_check.tv_usec - tv_init.tv_usec;
