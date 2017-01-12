@@ -52,6 +52,7 @@ data Value = TagInt ILExp
            | TagDouble ILExp
            | TagString ILExp
            | TagArray Array
+           | TagUnit
            | TagFn (Value -> Value)
            | TagPair Value Value
            | TagProgram (Program Value)

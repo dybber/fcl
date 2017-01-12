@@ -135,6 +135,7 @@ data Exp ty =
   | ReadIntCSV (Exp ty) Region
   -- | ReadDoubleCSV (Exp ty)
   | ForceAndPrint (Exp ty) (Exp ty) Region
+  | Benchmark (Exp ty) (Exp ty) Region
   -- | PrintDoubleArray (Exp ty) (Exp ty)
   deriving (Show)
 
@@ -285,6 +286,7 @@ typeOf (Bind _ e1 _) =
     _ -> error "typeOf: bind"
 typeOf (ReadIntCSV _ _) = ProgramT gridLevel (PullArrayT StringT)
 typeOf (ForceAndPrint _ _ _) = ProgramT gridLevel UnitT
+typeOf (Benchmark _ _ _) = ProgramT gridLevel UnitT
 
 ------------------------
 -- Syntax of programs --
@@ -342,6 +344,7 @@ freeIn _ (BlockSize _)            = True
 freeIn x (Return _ e _)           = freeIn x e
 freeIn x (Bind e1 e2 _)           = freeIn x e1 && freeIn x e2
 freeIn x (ForceAndPrint e1 e2 _)  = freeIn x e1 && freeIn x e2
+freeIn x (Benchmark e1 e2 _)  = freeIn x e1 && freeIn x e2
 freeIn x (ReadIntCSV e1 _)        = freeIn x e1
 
 freeVars :: Exp ty -> Set.Set Name
@@ -380,6 +383,7 @@ freeVars (BlockSize _)            = Set.empty
 freeVars (Return _ e _)           = freeVars e
 freeVars (Bind e1 e2 _)           = Set.union (freeVars e1) (freeVars e2)
 freeVars (ForceAndPrint e1 e2 _)  = Set.union (freeVars e1) (freeVars e2)
+freeVars (Benchmark e1 e2 _)  = Set.union (freeVars e1) (freeVars e2)
 freeVars (ReadIntCSV e1 _)        = freeVars e1
 
 freshVar :: State [Name] Name
@@ -522,6 +526,10 @@ subst s x e =
       do e1' <- subst s x e1
          e2' <- subst s x e2
          return (ForceAndPrint e1' e2' r)
+    Benchmark e1 e2 r ->
+      do e1' <- subst s x e1
+         e2' <- subst s x e2
+         return (Benchmark e1' e2' r)
     ReadIntCSV e1 r ->
       do e1' <- subst s x e1
          return (ReadIntCSV e1' r)

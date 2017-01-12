@@ -242,6 +242,7 @@ pp (Return lvl e1 _)            =
 pp (Bind e1 e2 _)          = ppBinop "bind" e1 e2
 pp (ReadIntCSV e _)        = ppUnop "readIntCSV" e
 pp (ForceAndPrint e1 e2 _) = ppBinop "forceAndPrint" e1 e2
+pp (Benchmark e1 e2 _) = ppBinop "benchmark" e1 e2
 
 
 ppUnOp :: UnOp -> Exp a -> PP Doc

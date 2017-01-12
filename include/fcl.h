@@ -2,9 +2,28 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
 
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
+
+struct timeval tv_init;
+
+static void initializeTimer() {
+  gettimeofday(&tv_init, NULL);
+  return;
+}
+
+// return time since process start in milliseconds
+static int now () {
+  struct timeval tv_check;
+  gettimeofday(&tv_check, NULL);
+  long int usec = tv_check.tv_usec - tv_init.tv_usec;
+  long int sec = tv_check.tv_sec - tv_init.tv_sec;
+  long int msec = usec / 1000;
+  return (int)(sec*1000+msec);
+}
+
 
 /* Buffer size in number of bytes */
 #define INIT_BUFFER_SIZE (4*1024)

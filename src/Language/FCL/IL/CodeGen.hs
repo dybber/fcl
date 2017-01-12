@@ -18,7 +18,7 @@ import Language.FCL.IL.Syntax
 
 data Kernel =
   Kernel
-    [ILName]    -- parameters, bound in host-code
+    [ILName]  -- parameters, bound in host-code
     TopLevel  -- kernel declaration
     ClKernel  -- kernel handle in hostcode
 
@@ -262,6 +262,7 @@ compThread cfg env stmts =
     (Distribute _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
     (ReadIntCSV _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
     (PrintIntArray _ _ : _)  -> error "Printing not possible at thread level."
+    (Benchmark _ _ : _)  -> error "Benchmarking not possible at thread level."
 
 ------------------------
 -- Kernel compilation --
@@ -323,6 +324,7 @@ compKernelBody cfg env stmts =
     (SeqFor _ _ _ : _)      -> error "seqfor: Only available at thread-level"
     (ReadIntCSV _ _ _ : _)  -> error "Reading input-data is not possible at block level"
     (PrintIntArray _ _ : _) -> error "Printing not possible at block level"
+    (Benchmark _ _ : _) -> error "Benchmarking not possible at block level"
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILKernel ()
 mkKernelBody cfg env loopVar loopBound body =
@@ -380,6 +382,15 @@ compHost cfg ctx p env stmts =
          let arr' = compExp env arr
          finish ctx
          printArray ctx n arr'
+         compHost cfg ctx p env ss
+    (Benchmark iterations ss0 : ss) ->
+      do let n = compExp env iterations
+         t0 <- now "t0"
+         for (unInt n)
+           (\_ -> do compHost cfg ctx p env ss0
+                     finish ctx)
+         t1 <- now "t1"
+         printIntStdErr "Benchmark (ms)" (VInt (subi t1 t0))
          compHost cfg ctx p env ss
     (Declare (x,ty) e : ss) ->
       do let v = compExp env e
@@ -516,16 +527,29 @@ printArray ctx n (VHostBuffer elemty buf) =
      unmmap ctx buf hostptr
 printArray _ _ _ = error "Print array expects array"
 
+now :: String -> ILHost CExp
+now x =
+  do v <- eval x int32_t "now" []
+     return (var v)
+
+printIntStdErr :: String -> Value -> ILHost ()
+printIntStdErr s (VInt i) =
+  let formatString = s ++ ": %i\\n"
+      stderr = (definedConst "stderr" (CCustom "File" Nothing))
+  in exec void_t "fprintf" [stderr, string formatString, i]
+printIntStdErr _ _ = error "PrintInt expects int"
+
 ---------------------
 -- Compile program --
 ---------------------
 compProgram :: CompileConfig -> [Stmt] -> ILHost ()
 compProgram cfg program =
   do ctx <- initializeContext (configVerbosity cfg)
+     exec void_t "initializeTimer" []
      p <- buildProgram ctx (configKernelsFilename cfg)
      compHost cfg ctx p Map.empty program
      releaseAllDeviceArrays
-     releaseAllKernels
+--     releaseAllKernels
      releaseProgram p
      releaseContext ctx
 

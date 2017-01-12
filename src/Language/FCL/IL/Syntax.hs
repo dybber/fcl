@@ -49,8 +49,9 @@ data Stmt =
   | SeqFor ILName ILExp [Stmt]
   | ReadIntCSV ILName ILName ILExp
   | PrintIntArray ILExp ILExp
-  -- | Benchmark ILName [Stmt]
+  | Benchmark ILExp [Stmt]
  deriving Show
+
 type ILProgram = [Stmt]
 
 liveInExp :: ILExp -> Set ILName
@@ -106,6 +107,10 @@ freeVars stmts =
       `union` fv bound ss0
       `union` fv bound ss1
       `union` fv bound ss
-    fv bound (PrintIntArray e0 e1 : ss) = freeInExp bound e0 `union` freeInExp bound e1 `union` fv bound ss      
+    fv bound (PrintIntArray e0 e1 : ss) = freeInExp bound e0 `union` freeInExp bound e1 `union` fv bound ss
+    fv bound (Benchmark e ss0 : ss) =
+      freeInExp bound e
+       `union` fv bound ss0
+       `union` fv bound ss
     
   in fv Set.empty stmts

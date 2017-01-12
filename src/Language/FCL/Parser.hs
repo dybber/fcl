@@ -403,6 +403,7 @@ builtin_ops curried "while"      = triop curried While
 builtin_ops curried "whileSeq"   = triop curried WhileSeq
 builtin_ops curried "interleave" = triop curried Interleave
 builtin_ops curried "forceAndPrint" = binop curried ForceAndPrint
+builtin_ops curried "benchmark" = binop curried Benchmark
 builtin_ops curried "readIntCSV" = unop curried ReadIntCSV
 builtin_ops False n            = return (Var ('#':n) Untyped)
 builtin_ops True n            = return (Var n Untyped)

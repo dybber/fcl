@@ -65,3 +65,4 @@ inlineAll env (Return lvl e0 reg)        = Return       lvl (inlineAll env e0) r
 inlineAll env (Bind e0 e1 reg)           = Bind         (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (ReadIntCSV e0 reg)        = ReadIntCSV (inlineAll env e0) reg
 inlineAll env (ForceAndPrint e0 e1 reg)  = ForceAndPrint (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (Benchmark e0 e1 reg)      = Benchmark (inlineAll env e0) (inlineAll env e1) reg

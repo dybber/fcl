@@ -23,10 +23,11 @@ fun reducePart f arr =
  let workPerBlock = 2 * #BlockSize
  in concatMap 1 (reduceBlock <block> f) (splitUp workPerBlock arr)
 
-sig main : Program <grid> [int]
+sig main : Program <grid> unit
 fun main =
   do { arr <- reducePart addi (generatePull (2048*2048) (fn i => i))
      ; forceAndPrint 4 arr
+     ; benchmark 100 arr
      }
 
 -- Current problems:

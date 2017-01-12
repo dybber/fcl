@@ -64,6 +64,7 @@ simplifyExp cfg (Return lvl e0 reg)        = Return         lvl (simplifyExp cfg
 simplifyExp cfg (Bind e0 e1 reg)           = Bind         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 simplifyExp cfg (ReadIntCSV e0 reg)        = ReadIntCSV (simplifyExp cfg e0) reg
 simplifyExp cfg (ForceAndPrint e0 e1 reg)  = ForceAndPrint (simplifyExp cfg e0) (simplifyExp cfg e1) reg
+simplifyExp cfg (Benchmark e0 e1 reg)      = Benchmark (simplifyExp cfg e0) (simplifyExp cfg e1) reg
 
 simplifyUnOp :: UnOp -> Exp ty -> Region -> Exp ty
 simplifyUnOp op e r = UnOp op e r

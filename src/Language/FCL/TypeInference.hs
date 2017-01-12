@@ -129,6 +129,7 @@ tvsubExp s (Return lvl e1 reg) = Return (lvlVarSub s lvl) (tvsubExp s e1) reg
 tvsubExp s (Bind e1 e2 reg) = Bind (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (ReadIntCSV e1 reg) = ReadIntCSV (tvsubExp s e1) reg
 tvsubExp s (ForceAndPrint e1 e2 reg) = ForceAndPrint (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp s (Benchmark e1 e2 reg) = Benchmark (tvsubExp s e1) (tvsubExp s e2) reg
 
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
@@ -153,6 +154,7 @@ unify' reg t1 t2 =
     (IntT, IntT) -> return ()
     (BoolT, BoolT) -> return ()
     (DoubleT, DoubleT) -> return ()
+    (UnitT, UnitT) -> return ()
     (t1a :> t1r, t2a :> t2r) ->
         do unify reg t1r t2r
            unify reg t1a t2a
@@ -370,6 +372,12 @@ infer env (ForceAndPrint e1 e2 reg) = do
   unify reg te1 IntT
   unify reg te2 (PushArrayT gridLevel IntT)
   return (ProgramT gridLevel (PullArrayT IntT), ForceAndPrint e1' e2' reg)
+infer env (Benchmark e1 e2 reg) = do
+  (te1, e1') <- infer env e1
+  (te2, e2') <- infer env e2
+  unify reg te1 IntT
+  unify reg te2 (PushArrayT gridLevel IntT)
+  return (ProgramT gridLevel UnitT, Benchmark e1' e2' reg)
 infer env (Interleave e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2

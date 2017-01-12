@@ -107,6 +107,7 @@ compBody env (Bind e0 e1 _)   =
                        _ -> error "expected Program as result of second argument to Bind")
     _ -> error "program and function returning program as arguments to bind"
 compBody env (ForceAndPrint e0 e1 _) = forceAndPrint (compBody env e0) (compBody env e1)
+compBody env (Benchmark e0 e1 _) = benchmark_ (compBody env e0) (compBody env e1)
 compBody env (ReadIntCSV e0 _) = readIntCSV_ (compBody env e0)
 
 readIntCSV_ :: Value -> Value
@@ -167,6 +168,21 @@ forceAndPrint (TagInt n) (TagArray arr) = TagProgram $ do
 -- forceAndPrint _ (TagArray (ArrPushThread _ _ _ _ _)) = error ("force: cannot force thread-level push array on grid-level.")
 -- forceAndPrint _ (TagArray (ArrPush lvl _)) = error ("forceAndPrint grid-level array as argument, got " ++ show lvl)
 forceAndPrint _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
+
+benchmark_ :: Value -> Value -> Value
+benchmark_ (TagInt n) (TagArray arr) = TagProgram $ do
+  let len = size arr                     -- calculate size of complete nested array structure
+  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+        case v of
+          TagInt v' -> assignArray name v' i
+          e -> error (show e)
+
+
+  benchmark n (forceTo writer arr)
+  return TagUnit
+benchmark_ _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
+
 
 forceTo :: Writer Value -> Array -> Program ()
 forceTo writer (ArrPush Zero (ArrPull len _ idx)) =

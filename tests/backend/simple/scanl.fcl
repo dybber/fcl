@@ -1,20 +1,18 @@
-sig runtestBlock : [int] -> Program <block> [int]<block>
-fun runtestBlock arr =
+sig scanBlock : [int] -> Program <block> [int]<block>
+fun scanBlock arr =
   splitUp 32 arr
    |> mapPull (scanl addi 0)
    |> mapPull (return <thread>)
    |> concat 33
 
-sig runtest : int -> int -> Program <grid> [int]<grid>
-fun runtest insize outsize =
-  generatePull 1 (fn i => iota insize)
-   |> mapPull runtestBlock
-   |> concat outsize
+sig runtest : Program <grid> [int]<grid>
+fun runtest =
+  generatePull 1 (fn i => iota (32*32))
+   |> mapPull scanBlock
+   |> concat (33*32)
 
 sig main : Program <grid> [int]
 fun main =
-  let insize = 32*32 in
-  let outsize = 33*32 in
-   do { a <- runtest insize outsize
-      ; forceAndPrint outsize a
-      }
+  do { a <- runtest
+     ; forceAndPrint (33*32) a
+     }

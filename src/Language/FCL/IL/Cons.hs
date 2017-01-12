@@ -28,7 +28,7 @@ module Language.FCL.IL.Cons (
  allocate,
  distribute, parFor, seqFor, while, iff,
  assign, (<==), assignArray,
- printIntArray, readIntCSV,
+ printIntArray, readIntCSV, benchmark,
 
  -- Monad
  ILName,
@@ -141,6 +141,10 @@ readIntCSV file =
      addStmt (ReadIntCSV arr len file)
      return (arr, var len)
 
+benchmark :: ILExp -> Program () -> Program ()
+benchmark iterations prog =
+  do p' <- run prog
+     addStmt (Benchmark iterations p')
 
 -----------------
 -- Expressions --
