@@ -1,4 +1,7 @@
 install:
+	cabal install
+
+all:
 	$(MAKE) -C ../cgen/ install
 	$(MAKE) -C microcl all
 	cabal install

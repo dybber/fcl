@@ -20,7 +20,7 @@ data Kernel =
   Kernel
     [ILName]  -- parameters, bound in host-code
     TopLevel  -- kernel declaration
-    ClKernel  -- kernel handle in hostcode
+--    ClKernel  -- kernel handle in hostcode
 
 data Value =
     VInt CExp
@@ -29,6 +29,7 @@ data Value =
   | VString CExp
   | VKernelArray ILType VarName -- size, elem type and ptr
   | VHostBuffer ILType ClDeviceBuffer -- size, elem type and opencl memobject
+ deriving Show
 
 data Var =
     VarInt VarName
@@ -37,6 +38,7 @@ data Var =
   | VarString VarName
   | VarKernelArray ILType VarName
   | VarHostBuffer ILType ClDeviceBuffer
+ deriving Show
 
 type VarEnv = Map.Map ILName Var
 
@@ -187,13 +189,19 @@ binop AddI (VInt i1) (VInt i2) = VInt (addi i1 i2)
 binop SubI (VInt i1) (VInt i2) = VInt (subi i1 i2)
 binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
 binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
-binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
 binop ModI (VInt i1) (VInt i2) = VInt (modi i1 i2)
+binop AddD (VInt i1) (VInt i2) = VInt (addd i1 i2)
+binop SubD (VInt i1) (VInt i2) = VInt (subd i1 i2)
+binop MulD (VInt i1) (VInt i2) = VInt (muld i1 i2)
+binop DivD (VInt i1) (VInt i2) = VInt (divd i1 i2)
+binop LtI (VInt i1) (VInt i2) = VBool (lti i1 i2)
+binop LteI (VInt i1) (VInt i2) = VBool (ltei i1 i2)
 binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
 binop EqI (VInt i1) (VInt i2) = VBool (eqi i1 i2)
-binop LtI (VInt i1) (VInt i2) = VBool (lti i1 i2)
 binop Sll (VInt i1) (VInt i2) = VInt (sll i1 i2)
 binop Srl (VInt i1) (VInt i2) = VInt (srl i1 i2)
+binop Xor (VInt i1) (VInt i2) = VInt (xor i1 i2)
+binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
 binop op _ _ = error ("binary operation not implemented yet: " ++ show op)
 
 assignVar :: VarEnv -> ILName -> Value -> CGen a ()
@@ -201,7 +209,9 @@ assignVar env x v =
   case (Map.lookup x env, v) of
     (Just (VarInt x'), VInt v') -> assign x' v'
     (Just (VarBool x'), VBool v') -> assign x' v'
-    _ -> error "TODO assignvar"
+    (Just (VarString x'), VString v') -> assign x' v'
+    (Nothing, _) -> error ("Variable " ++ show x ++ " not defined.")
+    (Just x', v') -> error ("TODO assignvar: " ++ show x' ++ " := " ++ show v')
 
 assignSub :: VarEnv -> ILName -> Value -> Value -> CGen a ()
 assignSub env x ix v =
@@ -373,8 +383,8 @@ lett _ (VHostBuffer ty buf) = return (VarHostBuffer ty buf)
 ---------------------
 -- Host compilation
 ---------------------
-compHost :: CompileConfig -> ClContext -> ClProgram -> VarEnv -> [Stmt] -> ILHost ()
-compHost cfg ctx p env stmts =
+compHost :: CompileConfig -> ClContext -> VarEnv -> [Stmt] -> ILHost ()
+compHost cfg ctx env stmts =
   case stmts of
     [] -> return ()
     (PrintIntArray size arr : ss) ->
@@ -382,55 +392,54 @@ compHost cfg ctx p env stmts =
          let arr' = compExp env arr
          finish ctx
          printArray ctx n arr'
-         compHost cfg ctx p env ss
+         compHost cfg ctx env ss
     (Benchmark iterations ss0 : ss) ->
       do let n = compExp env iterations
-         benchmark n (compHost cfg ctx p env ss0 >> finish ctx)
-         compHost cfg ctx p env ss
+         benchmark n (compHost cfg ctx env ss0 >> finish ctx)
+         compHost cfg ctx env ss
     (Declare (x,ty) e : ss) ->
       do let v = compExp env e
          v' <- lett x v
-         compHost cfg ctx p (Map.insert (x,ty) v' env) ss
+         compHost cfg ctx (Map.insert (x,ty) v' env) ss
     (Distribute _ x e stmts' : ss) -> -- use level for something? Only for type check?
-      do distribute cfg ctx p env x e stmts'
-         compHost cfg ctx p env ss
+      do distribute cfg ctx env x e stmts'
+         compHost cfg ctx env ss
     (ParFor _ _ _ _ : _) -> error "parfor<grid>: Not supported yet"
     (Synchronize : ss) ->
       do finish ctx
-         compHost cfg ctx p env ss
+         compHost cfg ctx env ss
     (ReadIntCSV (x,ty) xlen e : ss) ->
       do let filename = compExp env e
          (valuesRead, hostPtr) <- readCSVFile int32_t filename
-         assignVar env xlen (VInt (var valuesRead))
          v <- copyToDevice ctx ILInt (var valuesRead) (var hostPtr)
-         compHost cfg ctx p (Map.insert (x,ty) v env) ss
+         compHost cfg ctx (Map.insert xlen (VarInt valuesRead) (Map.insert (x,ty) v env)) ss
     (Alloc (x,ty) elemty e : ss) ->
       do let size = compExp env e
          v <- allocate ctx elemty size
-         compHost cfg ctx p (Map.insert (x,ty) v env) ss
+         compHost cfg ctx (Map.insert (x,ty) v env) ss
     (Assign x e : ss) ->
       do let e' = compExp env e
          assignVar env x e'
-         compHost cfg ctx p env ss
+         compHost cfg ctx env ss
     (AssignSub x ix e : ss) ->
       do let ix' = compExp env ix
              e' = compExp env e
          assignSub env x ix' e'
-         compHost cfg ctx p env ss
+         compHost cfg ctx env ss
     (While stopCond body : ss) ->
       do let v = compExp env stopCond
-         whileLoop (unBool v) (compHost cfg ctx p env body)
-         compHost cfg ctx p env ss
+         whileLoop (unBool v) (compHost cfg ctx env body)
+         compHost cfg ctx env ss
     (If cond then_ else_ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
-             (compHost cfg ctx p env then_
-             ,compHost cfg ctx p env else_)
-         compHost cfg ctx p env ss
+             (compHost cfg ctx env then_
+             ,compHost cfg ctx env else_)
+         compHost cfg ctx env ss
     (SeqFor _ _ _ : _) -> error "seqfor: Only available at thread-level"
 
-distribute :: CompileConfig -> ClContext -> ClProgram -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILHost ()
-distribute cfg ctx p env loopVar loopBound stmts =
+distribute :: CompileConfig -> ClContext -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILHost ()
+distribute cfg ctx env loopVar loopBound stmts =
   let
     createArgument :: ILName -> ILHost KernelArg
     createArgument (x, ty) =
@@ -443,19 +452,20 @@ distribute cfg ctx p env loopVar loopBound stmts =
            Just (VarString _) -> error "Can not use strings inside kernels"
            Nothing -> error "variable not found"
 
-    callKernel :: Kernel -> ILHost ()
-    callKernel (Kernel params _ kernelHandle) =
+    callKernel :: String -> Kernel -> ILHost ()
+    callKernel kernelName (Kernel params _) =
       do -- set shared memoryp
          let smarg = ArgSharedMemory (constant (configSharedMemory cfg))
          -- set input parameters: map over kernel list, lookup allocations in environment
          args <- mapM createArgument params
+         let kernelHandle = ClKernel (kernelName, kernelCType)
          invokeKernel ctx kernelHandle (smarg : args)
                                        (muli (constant (configBlockSize cfg)) (constant (configNumWorkGroups cfg)))
                                        (constant (configBlockSize cfg))
   in do kernelName <- newName "kernel"
-        k <- mkKernel cfg env kernelName p loopVar loopBound stmts
+        k <- mkKernel cfg env kernelName loopVar loopBound stmts
         addKernel kernelName k -- save in monad state, to be able to free it in the end
-        callKernel k
+        callKernel kernelName k
 
 -- create parameter list (newVar)
 -- create VarEnv mapping free variables to the parameter names
@@ -465,19 +475,18 @@ distribute cfg ctx p env loopVar loopBound stmts =
 -- create kernel definition (using distrParBlock)
 -- create/build kernel on host
 -- call the kernel using the same order of arguments, as in the parameter list.
-mkKernel :: CompileConfig -> VarEnv -> String -> ClProgram -> ILName -> ILExp -> [Stmt] -> ILHost Kernel
-mkKernel cfg env kernelName p loopVar loopBound stmts =
+mkKernel :: CompileConfig -> VarEnv -> String -> ILName -> ILExp -> [Stmt] -> ILHost Kernel
+mkKernel cfg env kernelName loopVar loopBound stmts =
   let params = Set.toList (Set.delete loopVar (freeVars stmts `Set.union` liveInExp loopBound))
       mkArgumentList :: [ILName] -> ILHost [Var]
       mkArgumentList = mapM (hostVarToKernelVar env)
       
   in do args <- mkArgumentList params
-        kernelHandle <- createKernel p kernelName
         let kernelEnv = Map.fromList (zip params args)
         (kernelBody, _, _) <- embed (mkKernelBody cfg kernelEnv loopVar loopBound stmts) initKernelState
         
         let fndef = kernel kernelName (sharedMemPtrName : map getVarName args) kernelBody
-        return (Kernel params fndef kernelHandle)
+        return (Kernel params fndef)
 
 allocate :: ClContext -> ILType -> Value -> ILHost Var
 allocate ctx elemty size =
@@ -530,7 +539,14 @@ now x =
 benchmark :: Value -> ILHost () -> ILHost ()
 benchmark (VInt n) body =
   do t0 <- now "t0"
-     for n (\_ -> body)
+     allocs <- getsState deviceAllocations
+     -- detect the allocations done in the kernel
+     modifyState (\s -> s { deviceAllocations = Map.empty })
+     for n (\_ ->
+             do body
+                -- deallocate everything before exiting the loop
+                releaseAllDeviceArrays)
+     modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
      let formatString = "Benchmark (%i repetitions): %f ms per run\\n"
          stderr = (definedConst "stderr" (CCustom "File" Nothing))
@@ -541,29 +557,55 @@ benchmark _ _ = error "Benchmark expects int as first argument (number of iterat
 ---------------------
 -- Compile program --
 ---------------------
-compProgram :: CompileConfig -> [Stmt] -> ILHost ()
+compProgram :: CompileConfig -> [Stmt] -> CGen () KernelMap
 compProgram cfg program =
-  do ctx <- initializeContext (configVerbosity cfg)
-     exec void_t "initializeTimer" []
-     p <- buildProgram ctx (configKernelsFilename cfg)
-     compHost cfg ctx p Map.empty program
-     releaseAllDeviceArrays
---     releaseAllKernels
-     releaseProgram p
-     releaseContext ctx
+  -- compile body
+  let ctxVar = ClContext ("ctx", contextCType)
+      pVar = ClProgram ("program", programCType)
+      body = compHost cfg ctxVar Map.empty program
+      (stmts, _, _, finalState) = runCGen initHostState body
+      -- collect the generated kernels
+      kernels' = kernels finalState
+      allocs = deviceAllocations finalState
+  in
+    do initializeContext ctxVar (configVerbosity cfg)
+       exec void_t "initializeTimer" []
+       buildProgram ctxVar pVar (configKernelsFilename cfg)
+       kernelHandles <- mapM (createKernel pVar) (Map.keys kernels')
+       addStmts stmts
+       mapM_ releaseDeviceData (Map.keys allocs)
+       mapM_ releaseKernel kernelHandles
+       releaseProgram pVar
+       releaseContext ctxVar
+       return kernels'
+  -- create ctx and program variables and store in state-monad
+  -- compile host-code
+  -- run monad
+  -- final monad state contains kernel-names and statements
+  -- prepend initialization and kernel compilation statements
+  -- append release statements
+  
+--   do ctx <- initializeContext (configVerbosity cfg)
+--      exec void_t "initializeTimer" []
+--      p <- buildProgram ctx (configKernelsFilename cfg)
+--      compHost cfg ctx p Map.empty program
+-- --     releaseAllDeviceArrays
+-- --     releaseAllKernels
+--      releaseProgram p
+--      releaseContext ctx
 
 releaseAllDeviceArrays :: ILHost ()
 releaseAllDeviceArrays =
   do allocs <- getsState deviceAllocations
      mapM_ releaseDeviceData (Map.keys allocs)
 
-releaseAllKernels :: ILHost ()
-releaseAllKernels =
-  do kernelMap <- getsState kernels
-     mapM_ releaseKernel (Map.map (\(Kernel _ _ handle) -> handle) kernelMap)
+-- releaseAllKernels :: ILHost ()
+-- releaseAllKernels =
+--   do kernelMap <- getsState kernels
+--      mapM_ releaseKernel (Map.map (\(Kernel _ _ handle) -> handle) kernelMap)
 
 prettyKernels :: KernelMap -> String
-prettyKernels kernelMap = pretty (map (\(Kernel _ s _) -> s) (Map.elems kernelMap))
+prettyKernels kernelMap = pretty (map (\(Kernel _ s) -> s) (Map.elems kernelMap))
 
 createMain :: Statements -> String
 createMain body = pretty (includes ++ [function int32_t [] "main" body])
@@ -576,10 +618,9 @@ includes = [includeSys "stdio.h",
                   
 codeGen :: CompileConfig -> ILProgram -> (String, String)
 codeGen cfg program =
- let (mainBody, _, _, finalState) =
-       runCGen initHostState (compProgram cfg program)
+ let (mainBody, _, kernels') = evalCGen () (compProgram cfg program)
  in (createMain mainBody,
-     prettyKernels (kernels finalState))
+     prettyKernels kernels')
 
 compileAndOutput :: CompileConfig -> ILProgram -> FilePath -> IO ()
 compileAndOutput cfg program path =
@@ -588,4 +629,3 @@ compileAndOutput cfg program path =
       kernelPath = path ++ "/kernels.cl"
   in do writeFile mainPath main
         writeFile kernelPath kernelsfile
-

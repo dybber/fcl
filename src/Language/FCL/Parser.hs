@@ -193,6 +193,7 @@ term =
    <|> try bool
    <|> try floating
    <|> try integer
+   <|> try stringLiteral
    <|> try op
    <|> array
    <|> let'
@@ -222,6 +223,12 @@ bool =
     (reserved "true" >> return (BoolScalar True))
     <|> (reserved "false" >> return (BoolScalar False))
 
+stringLiteral :: ParserFCL (Exp Untyped)
+stringLiteral =
+  withRegion $ do
+    str <- stringlit
+    return (String str)
+
 if' :: ParserFCL (Exp Untyped)
 if' =
   withRegion $ do
@@ -244,7 +251,7 @@ do' = reserved "do" >> braces dobody
    bindignore =
      withRegion $
        do e <- expr
-          symbol ";"
+          reservedOp ";"
           rest <- dobody
           return (Bind e (Lamb "$ignored" Untyped rest Untyped Missing))
 
@@ -252,9 +259,9 @@ do' = reserved "do" >> braces dobody
    bind =
      withRegion $
        do v <- identifier
-          symbol "<-"
+          reservedOp "<-"
           e <- expr
-          symbol ";"
+          reservedOp ";"
           rest <- dobody
           return (Bind e (Lamb v Untyped rest Untyped Missing))
 

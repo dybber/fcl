@@ -18,8 +18,8 @@ module Language.FCL.IL.Cons (
  -- addd, subd, muld, divd,
  -- addPtr,
  lti, ltei, gti, gtei, eqi, neqi,
- -- ltd, lted, gtd, gted, eqd, neqd,
- -- land, lor, xor,
+ ltd, lted, gtd, gted, eqd, neqd,
+ land, lor, xor,
  sll, srl,
  -- (&&*), (||*),
  mini, maxi,
@@ -228,20 +228,20 @@ gtei e0 e1 = (EBinOp GteI e0 e1)
 eqi  e0 e1 = (EBinOp EqI e0 e1)
 neqi e0 e1 = (EBinOp NeqI e0 e1)
 
--- -- Comparisons (Double)
--- ltd, lted, gtd, gted, eqd, neqd  :: ILExp -> ILExp -> ILExp
--- ltd  e0 e1 = (EBinOp LtD e0 e1)
--- lted e0 e1 = (EBinOp LteD e0 e1)
--- gtd  e0 e1 = (EBinOp GtD e0 e1)
--- gted e0 e1 = (EBinOp GteD e0 e1)
--- eqd  e0 e1 = (EBinOp EqD e0 e1)
--- neqd e0 e1 = (EBinOp NeqD e0 e1)
+-- Comparisons (Double)
+ltd, lted, gtd, gted, eqd, neqd  :: ILExp -> ILExp -> ILExp
+ltd  e0 e1 = (EBinOp LtD e0 e1)
+lted e0 e1 = (EBinOp LteD e0 e1)
+gtd  e0 e1 = (EBinOp GtD e0 e1)
+gted e0 e1 = (EBinOp GteD e0 e1)
+eqd  e0 e1 = (EBinOp EqD e0 e1)
+neqd e0 e1 = (EBinOp NeqD e0 e1)
 
--- -- Bitwise operations
--- land, lor, xor :: ILExp -> ILExp -> ILExp
--- land e0 e1 = (EBinOp Land e0 e1)
--- lor  e0 e1 = (EBinOp Lor e0 e1)
--- xor  e0 e1 = (EBinOp Xor e0 e1)
+-- Bitwise operations
+land, lor, xor :: ILExp -> ILExp -> ILExp
+land e0 e1 = (EBinOp Land e0 e1)
+lor  e0 e1 = (EBinOp Lor e0 e1)
+xor  e0 e1 = (EBinOp Xor e0 e1)
 
 sll, srl :: ILExp -> ILExp -> ILExp
 sll  e0 e1 = (EBinOp Sll e0 e1)

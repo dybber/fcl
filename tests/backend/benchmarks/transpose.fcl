@@ -82,9 +82,13 @@ fun transposeChunked16 = transposeChunked 16
 sig make_NxN_Matrix : int -> [int]
 fun make_NxN_Matrix n = generatePull (n / n) (fn i => i)
 
+
+sig example : Program <grid> [int]<grid>
+fun example = transposeChunked 16 2048 2048 (make_NxN_Matrix 2048)
+
 sig main : Program <grid> unit
 fun main =
-  do { arr <- transposeChunked 16 2048 2048 (make_NxN_Matrix 2048)
+  do { arr <- example
      ; forceAndPrint 2048 arr
-     ; benchmark 10 arr
+     ; benchmark 10 (bind example force)
      }

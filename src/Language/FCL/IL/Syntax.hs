@@ -27,11 +27,15 @@ data ILExp =
   -- | RandomDoubleVector VarILName ILExp
   deriving Show
 
-data BinOp = AddI | SubI | MulI | DivI | ModI
-           | LtI | LteI | GtI | GteI | EqI | NeqI
-           | MinI | MaxI
-           | Sll | Srl
-  deriving Show
+data BinOp =
+    AddI | SubI | MulI | DivI | ModI |
+    AddD | SubD | MulD | DivD |
+    LtI | LteI | GtI | GteI | EqI | NeqI | 
+    LtD | LteD | GtD | GteD | EqD | NeqD |
+    And | Or |
+    Land | Lor | Xor | Sll | Srl | -- bitwise ops
+    MinI | MaxI
+  deriving (Eq, Show, Ord)
 
 data UnaryOp = SignI | AbsI | AbsD
   deriving Show

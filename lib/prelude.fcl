@@ -58,6 +58,8 @@ fun coalesce n arr =
 sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
+fun take n arr = generatePull n (fn ix => index arr n)
+
 sig bit : int -> int
 fun bit i = shiftLi 1 i
 
@@ -93,7 +95,6 @@ fun scanl op b array =
               then b
               else op (read (subi i 1)) (index array (subi i 1))))
 
-
 sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
 fun seqReduce f b array =
   let n = lengthPull array in
@@ -101,3 +102,16 @@ fun seqReduce f b array =
   let step  = fn x => (addi (fst x) 1,
                        f (index array (fst x)) (snd x))
   in snd (whileSeq cond step (0,b))
+
+
+
+-- Pad array with a neutral element
+sig pad : int -> 'a -> ['a] -> ['a]
+fun pad divisor neutralElement arr =
+  let n = lengthPull arr in
+  let extension = subi divisor (modi n divisor) in
+  let newlength = n + extension
+  in generatePull newlength
+       (fn i => if lti i n
+                then index arr i
+                else neutralElement)

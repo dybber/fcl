@@ -25,17 +25,6 @@ fun reduceBlock <lvl> f arr =
         ; return <lvl> (push <lvl> a)
         }
 
--- Pad array with a neutral element
-sig pad : int -> 'a -> ['a] -> ['a]
-fun pad divisor neutralElement arr =
-  let n = lengthPull arr in
-  let extension = subi divisor (modi n divisor) in
-  let newlength = n + extension
-  in generatePull newlength
-       (fn i => if lti i n
-                then index arr i
-                else neutralElement)
-
 -- Reduce array partially by one kernel invocation
 sig reducePart : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]<grid>
 fun reducePart f neutralElement arr =
@@ -43,13 +32,8 @@ fun reducePart f neutralElement arr =
  let paddedArray = pad workPerBlock neutralElement arr     
  in concatMap 1 (reduceBlock <block> f) (splitUp workPerBlock paddedArray)
 
-sig main : Program <grid> unit
-fun main = 
- do { arr <- reducePart addi 0 (generatePull (2048*2048) (fn i => i))
-    ; forceAndPrint 100 arr
-    ; benchmark 10 arr
-    }
-
+sig example1 : Program <grid> [int]<grid>
+fun example1 = reducePart addi 0 (generatePull (2048*2048) (fn i => i))
 
 -- Full reduction
 
@@ -59,12 +43,25 @@ fun main =
 ---- while does not support interleaving. Between each iteration
 ---- the size of the array can shrink. How do we shrink a push-array
 ---- with an interleave around?
-sig reduce : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]
+sig reduce : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> 'a
 fun reduce f neutralElement arr =
   let cond = fn arr => 1 != lengthPull arr
   in do { a <- while cond (reducePart f neutralElement) (reducePart f neutralElement arr)
-        ; return <grid> a
+        ; return <grid> (index a 0)
         }
 
-sig main2 : Program <grid> [int]
-fun main2 = reduce addi 0 (generatePull (2048*2048) (fn i => i))
+--while : (['a] -> bool) -> (['a] -> Program <lvl> ['a]<lvl>) -> ['a]<lvl> -> Program <lvl> ['a]
+--while : ('a -> bool) -> ('a -> Program <lvl> 'a) -> 'a -> Program <lvl> 'a
+
+sig example2 : Program <grid> int
+fun example2 = reduce addi 0 (generatePull (4096*4096) (fn i => 1))
+
+sig main : Program <grid> unit
+fun main =
+  do { arr1 <- example1
+     ; forceAndPrint 100 arr1
+     ;  i <- example2
+--     ; printInt i
+     ; benchmark 10 (bind example1 force)
+     ; benchmark 10 example2
+     }

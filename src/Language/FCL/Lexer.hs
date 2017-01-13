@@ -39,7 +39,8 @@ reservedOps = ["|>",
                "!=",
                "==",
                "<<",
-               ">>"]
+               ">>",
+               "<-"]
 
 fclDef :: Token.GenLanguageDef String u Identity
 fclDef = Token.LanguageDef {
@@ -48,7 +49,7 @@ fclDef = Token.LanguageDef {
               , Token.commentLine      = "--"
               , Token.nestedComments   = True
               , Token.identStart       = letter <|> char '#'
-              , Token.identLetter      = alphaNum <|> char '_' <|> char '#'
+              , Token.identLetter      = alphaNum <|> char '_' <|> char '#' <|> char '\''
               , Token.opStart          = oneOf ""
               , Token.opLetter         = oneOf ""
               , Token.reservedOpNames  = reservedOps

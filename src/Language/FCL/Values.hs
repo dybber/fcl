@@ -7,7 +7,7 @@ import Language.FCL.SourceRegion
 type Writer a = a -> ILExp -> Program ()
 
 data Array = ArrPull ILExp Type (ILExp -> Value)
-           | ArrPush Level Array -- (Writer Value -> Program ())
+           | ArrPush Level Array
            | ArrPushThread ILExp ILExp Type ((ILExp -> Value) -> ILExp -> (ILExp,Value)) (Maybe (Value -> Value))
            | ArrInterleave Level ILExp (Value -> Value) Array
 

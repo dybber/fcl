@@ -17,9 +17,14 @@ fun matVecMul mat vec cols =
    |> mapPull (dotp vec)
    |> concat 1 -- concatenate results
 
+
+
+sig example : Program <grid> [int]<grid>
+fun example = matVecMul (iota (32*32)) (iota 32) 32
+
 sig main : Program <grid> unit
 fun main =
- do { a <- matVecMul (iota (32*32)) (iota 32) 32
-    ; forceAndPrint 32 a
-    ; benchmark 10 a
-    }
+  do { arr <- example
+     ; forceAndPrint 32 arr
+     ; benchmark 10 (bind example force)
+     }

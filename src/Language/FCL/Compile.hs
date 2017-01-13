@@ -170,16 +170,18 @@ forceAndPrint (TagInt n) (TagArray arr) = TagProgram $ do
 forceAndPrint _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
 
 benchmark_ :: Value -> Value -> Value
-benchmark_ (TagInt n) (TagArray arr) = TagProgram $ do
-  let len = size arr                     -- calculate size of complete nested array structure
-  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
-  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
-        case v of
-          TagInt v' -> assignArray name v' i
-          e -> error (show e)
+benchmark_ (TagInt n) (TagProgram p) = TagProgram $ do
+  benchmark n (p >> return ())
+  return TagUnit
+  -- let len = size arr                     -- calculate size of complete nested array structure
+  -- name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+  -- let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+  --       case v of
+  --         TagInt v' -> assignArray name v' i
+  --         e -> error (show e)
 
 
-  benchmark n (forceTo writer arr)
+
   return TagUnit
 benchmark_ _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
 
@@ -277,16 +279,13 @@ power (TagInt n) (TagFn step) (TagProgram p) =
                    case step (TagInt (var i)) of
                      TagFn step' -> step' vararr
                      _ -> error "expected step function to take two arguments"
-            arr' <- p'
-            len' <- lets "len" (TagInt (size (unArray "power" arr')))
-            let arr'' = case unArray "power" arr' of
-                          ArrPush lvl (ArrPull _ ty ix) -> ArrPush lvl (ArrPull (unInt len') ty ix)
-                          _ -> error "step-function in while loop didn't return a pull array"
-            forceTo writer arr''
+            arr' <- (unArray "power") `fmap` p'
+            len' <- lets "len" (TagInt (size arr'))
+            forceTo writer arr'
             assign var_len (unInt len')
             assign i (addi (var i) (int 1))
        return vararr
-power _ _ _ = error "first two arguments to while should be integer and step function, respectively"
+power _ _ _ = error "first two arguments to power should be integer and step function, respectively"
 
 whileArray :: Value -> Value -> Value -> Value
 whileArray (TagFn cond) (TagFn step) (TagProgram p) =
@@ -309,14 +308,11 @@ whileArray (TagFn cond) (TagFn step) (TagProgram p) =
        (var_cond,_) <- letsVar "cond" (cond vararr) -- stop condition
        while (var var_cond) $
          do let TagProgram p' = step vararr
-            arr' <- p'
-            len' <- lets "len" (TagInt (size (unArray "whileArray" arr')))
-            let arr'' = case unArray "whileArray" arr' of
-                          ArrPush lvl (ArrPull _ ty ix) -> ArrPush lvl (ArrPull (unInt len') ty ix)
-                          _ -> error "step-function in while loop didn't return a pull array"
-            forceTo writer arr''
+            TagArray arr' <- p'
+            len' <- lets "len" (TagInt (size arr'))
+            forceTo writer arr'
             assign var_len (unInt len')
-            assign var_cond (unBool (cond (TagArray arr'')))
+            assign var_cond (unBool (cond vararr))
        return vararr
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
 whileArray _ _ _ = error "first two arguments to while should be conditional and step function, respectively"
@@ -346,6 +342,7 @@ compileBinOp MinI (TagInt i0) (TagInt i1) _ = TagInt (mini i0 i1)
 compileBinOp EqI  (TagInt i0) (TagInt i1) _ = TagBool (eqi i0 i1)
 compileBinOp NeqI (TagInt i0) (TagInt i1) _ = TagBool (neqi i0 i1)
 compileBinOp LtI  (TagInt i0) (TagInt i1) _ = TagBool (lti i0 i1)
+compileBinOp XorI (TagInt i0) (TagInt i1) _ = TagBool (xor i0 i1)
 compileBinOp ShiftLI (TagInt i0) (TagInt i1) _ = TagInt (sll i0 i1)
 compileBinOp ShiftRI (TagInt i0) (TagInt i1) _ = TagInt (srl i0 i1)
 compileBinOp op _ _ reg =

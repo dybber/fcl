@@ -154,6 +154,7 @@ unify' reg t1 t2 =
     (IntT, IntT) -> return ()
     (BoolT, BoolT) -> return ()
     (DoubleT, DoubleT) -> return ()
+    (StringT, StringT) -> return ()
     (UnitT, UnitT) -> return ()
     (t1a :> t1r, t2a :> t2r) ->
         do unify reg t1r t2r
@@ -376,8 +377,9 @@ infer env (ForceAndPrint e1 e2 reg) = do
 infer env (Benchmark e1 e2 reg) = do
   (te1, e1') <- infer env e1
   (te2, e2') <- infer env e2
+  tv <- newtv
   unify reg te1 IntT
-  unify reg te2 (PushArrayT gridLevel IntT)
+  unify reg te2 (ProgramT gridLevel tv)
   return (ProgramT gridLevel UnitT, Benchmark e1' e2' reg)
 infer env (Interleave e1 e2 e3 reg) = do
   (t1, e1') <- infer env e1
