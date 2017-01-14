@@ -3,7 +3,7 @@
 --- typechecker
 --- parser
 
-module Language.FCL.IL.CodeGen where
+module FCL.IL.CodeGen where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -13,8 +13,8 @@ import Data.Map (Map)
 import CGen hiding (freeVars)
 import CGen.OpenCL.HostCode
 
-import Language.FCL.CompileConfig
-import Language.FCL.IL.Syntax
+import FCL.Compile.Config
+import FCL.IL.Syntax
 
 data Kernel =
   Kernel

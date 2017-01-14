@@ -1,8 +1,9 @@
-module Language.FCL.Values where
+module FCL.Compile.Values where
 
-import Language.FCL.Syntax
-import Language.FCL.IL.Cons
-import Language.FCL.SourceRegion
+import FCL.Core.SourceRegion
+import FCL.Core.Syntax
+import FCL.IL.Cons
+
 
 type Writer a = a -> ILExp -> Program ()
 

@@ -1,11 +1,12 @@
 -- | A few simple simplification: beta-reduction, eta-conversion
 -- and a few peep-hole optimizations.
-module Language.FCL.Simplify (simplify, simplifyExp) where
+module FCL.Simplify (simplify, simplifyExp) where
 
-import Language.FCL.CompileConfig
-import Language.FCL.Syntax
-import Language.FCL.Substitution (apply, freeIn)
-import Language.FCL.SourceRegion
+import FCL.Core.SourceRegion
+import FCL.Core.Syntax
+import FCL.Compile.Config
+import FCL.Substitution (apply, freeIn)
+
 
 -- Right now, types are not maintained correctly by the simplifier
 simplify :: CompileConfig -> Definition ty -> Definition ty

@@ -1,5 +1,5 @@
 -- This module containts the FCL AST
-module Language.FCL.Syntax (
+module FCL.Core.Syntax (
   -- Levels
   Level(..), threadLevel, blockLevel, gridLevel, LvlVar(..),
   
@@ -21,8 +21,8 @@ module Language.FCL.Syntax (
   mapBody
 ) where
 
-import Language.FCL.Identifier
-import Language.FCL.SourceRegion
+import FCL.Core.Identifier
+import FCL.Core.SourceRegion
 
 ---------------------
 -- Syntax of types --

@@ -1,4 +1,4 @@
-module Language.FCL.IL.Syntax where
+module FCL.IL.Syntax where
 
 import Data.Set as Set
 

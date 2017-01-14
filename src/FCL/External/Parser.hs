@@ -2,7 +2,7 @@
 -- | Parse FCL programs. After parsing, all type variables and level
 -- variables needs to be numbered. This is not done here to seperate
 -- concerns.
-module Language.FCL.Parser
+module FCL.External.Parser
   (parseTopLevel, ParseError)
 where
 
@@ -11,10 +11,10 @@ import qualified Data.Map as Map
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Expr
 
-import Language.FCL.Identifier
-import Language.FCL.SourceRegion
-import Language.FCL.Syntax
-import Language.FCL.Lexer
+import FCL.Core.Identifier
+import FCL.Core.SourceRegion
+import FCL.Core.Syntax
+import FCL.External.Lexer
 
 -----------
 -- Monad --

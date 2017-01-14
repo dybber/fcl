@@ -1,11 +1,11 @@
-module Language.FCL.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
+module FCL.External.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
 
 import Control.Monad.Trans.State
 import qualified Data.Map as Map
 import Text.PrettyPrint
 
-import Language.FCL.Identifier
-import Language.FCL.Syntax
+import FCL.Core.Identifier
+import FCL.Core.Syntax
 
 
 angles :: Doc -> Doc

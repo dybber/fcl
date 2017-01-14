@@ -1,4 +1,4 @@
-module Language.FCL.CompileConfig where
+module FCL.Compile.Config where
 
 data CompileConfig =
   CompileConfig

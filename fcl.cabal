@@ -19,26 +19,31 @@ Library
 
   HS-source-dirs: src
 
-  exposed-modules: Language.FCL
-                   Language.FCL.Identifier
-                   Language.FCL.SourceRegion
-                   Language.FCL.Syntax
-                   Language.FCL.Substitution
-                   Language.FCL.Lexer
-                   Language.FCL.Parser
-                   Language.FCL.Pretty
-                   Language.FCL.TypeInference
-                   Language.FCL.Inline
-                   Language.FCL.CompileConfig
-                   Language.FCL.Simplify
-                   Language.FCL.Eval
-                   Language.FCL.Eval.ArrayLib
-                   Language.FCL.Values
-                   Language.FCL.Compile
-                   Language.FCL.IL.Syntax
-                   Language.FCL.IL.CodeGen
-                   Language.FCL.IL.Program
-                   Language.FCL.IL.Cons
+  exposed-modules: FCL
+                   FCL.Core.Identifier
+                   FCL.Core.SourceRegion
+                   FCL.Core.Syntax
+
+                   FCL.External.Lexer
+                   FCL.External.Parser
+                   FCL.External.Pretty
+
+                   FCL.TypeInference
+                   FCL.Inline
+                   FCL.Simplify
+                   FCL.Substitution
+
+                   FCL.Compile
+                   FCL.Compile.Config
+                   FCL.Compile.Values
+                   
+                   FCL.Eval
+                   FCL.Eval.ArrayLib
+                   
+                   FCL.IL.Syntax
+                   FCL.IL.CodeGen
+                   FCL.IL.Program
+                   FCL.IL.Cons
 
   Default-Language: Haskell2010
   GHC-Options: -Wall
@@ -49,7 +54,7 @@ Executable fcl
                  transformers >= 0.4.2 && < 0.5,
                  fcl
 
-  Main-is: src/Main.hs
+  Main-is: cli/Main.hs
 
   Default-Language:   Haskell2010
   Ghc-Options:        -Wall

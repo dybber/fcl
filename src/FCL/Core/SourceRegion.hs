@@ -1,5 +1,5 @@
 -- | Source code locations, used in error reporting
-module Language.FCL.SourceRegion where
+module FCL.Core.SourceRegion where
 
 import Text.Parsec
 

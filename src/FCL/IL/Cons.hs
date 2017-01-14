@@ -1,5 +1,5 @@
 -- | Untyped constructors for building CGen-kernels
-module Language.FCL.IL.Cons (
+module FCL.IL.Cons (
   
  -- Expressions
  let_, letVar, index, (!), if_,
@@ -42,8 +42,8 @@ where
 import Prelude hiding (not, floor, exp)
 --import Data.Word (Word32, Word8)
 
-import Language.FCL.IL.Syntax as AST
-import Language.FCL.IL.Program
+import FCL.IL.Syntax as AST
+import FCL.IL.Program
 
 ----------------------
 -- Variable binding --

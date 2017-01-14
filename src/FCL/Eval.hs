@@ -1,4 +1,4 @@
-module Language.FCL.Eval (eval) where
+module FCL.Eval (eval) where
 
 import qualified Data.Map as Map
 import Data.Bits ((.&.), (.|.), xor, shiftL, shiftR, testBit)
@@ -8,10 +8,10 @@ import Data.Ord (comparing)
 import Control.Monad.Trans.Except
 import Control.Monad (liftM, liftM2)
 
-import Language.FCL.SourceRegion
-import Language.FCL.Identifier
-import Language.FCL.Syntax
-import Language.FCL.Eval.ArrayLib
+import FCL.Core.SourceRegion
+import FCL.Core.Identifier
+import FCL.Core.Syntax
+import FCL.Eval.ArrayLib
 
 ----------------
 -- Eval Monad --

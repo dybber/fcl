@@ -1,19 +1,19 @@
-module Language.FCL.Compile (compile) where
+module FCL.Compile (compile) where
 
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
 
-import Language.FCL.SourceRegion
-import Language.FCL.Identifier
-import Language.FCL.Syntax
+import FCL.Core.SourceRegion
+import FCL.Core.Identifier
+import FCL.Core.Syntax
 
-import Language.FCL.Values
-import Language.FCL.CompileConfig
+import FCL.Compile.Values
+import FCL.Compile.Config
 
-import Language.FCL.IL.Cons
-import Language.FCL.IL.Program (runProgram)
-import Language.FCL.IL.CodeGen (codeGen)
+import FCL.IL.Cons
+import FCL.IL.Program (runProgram)
+import FCL.IL.CodeGen (codeGen)
 
 compile :: CompileConfig -> [Definition Type] -> (String, String)
 compile compileConfig defs =

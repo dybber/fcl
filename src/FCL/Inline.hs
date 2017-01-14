@@ -2,13 +2,13 @@
 -- generated. Only keeps those where OpenCL-kernels should be emitted.
 -- The result is a list of definitions without references to any other
 -- top-level definition.
-module Language.FCL.Inline (inline) where
+module FCL.Inline (inline) where
 
 import qualified Data.Map as Map
 
-import Language.FCL.SourceRegion
-import Language.FCL.Identifier
-import Language.FCL.Syntax
+import FCL.Core.SourceRegion
+import FCL.Core.Identifier
+import FCL.Core.Syntax
 
 type Env = Map.Map Identifier (TypeScheme Type, Exp Type)
 

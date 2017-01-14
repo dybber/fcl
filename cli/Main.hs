@@ -15,7 +15,7 @@ import Control.Monad.Trans.Reader
 
 import Paths_fcl
 
-import Language.FCL
+import FCL
 
 ---------------
 ---- Monad ----

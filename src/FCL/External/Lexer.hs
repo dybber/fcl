@@ -1,5 +1,5 @@
 -- | Lexical elements of FCL
-module Language.FCL.Lexer where
+module FCL.External.Lexer where
 
 import Text.Parsec
 

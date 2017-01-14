@@ -1,6 +1,6 @@
 -- | FCL type inference
 -- Inspired by http://okmij.org/ftp/Computation/FLOLAC/lecture.pdf
-module Language.FCL.TypeInference (typeinfer, TypeError(..)) where
+module FCL.TypeInference (typeinfer, TypeError(..)) where
 
 import Data.List (nub)
 import qualified Data.Map as Map
@@ -9,9 +9,9 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
 
-import Language.FCL.SourceRegion
-import Language.FCL.Identifier
-import Language.FCL.Syntax
+import FCL.Core.SourceRegion
+import FCL.Core.Identifier
+import FCL.Core.Syntax
 
 type TyEnv = Map.Map Identifier (TypeScheme Type)
 

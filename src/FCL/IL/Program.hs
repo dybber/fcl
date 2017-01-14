@@ -1,5 +1,5 @@
 -- | Program construction monad
-module Language.FCL.IL.Program
+module FCL.IL.Program
   (Program, runProgram, runProg, run, evalCGen, evalProg,
    newILName, newVar, addStmt)
 where
@@ -8,7 +8,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
 
-import Language.FCL.IL.Syntax as AST
+import FCL.IL.Syntax as AST
 
 data MState =
   MState { varCount :: Int }
