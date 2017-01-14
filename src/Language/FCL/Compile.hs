@@ -3,10 +3,14 @@ module Language.FCL.Compile (compile) where
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
-import Language.FCL.Values
+
 import Language.FCL.SourceRegion
+import Language.FCL.Identifier
 import Language.FCL.Syntax
+
+import Language.FCL.Values
 import Language.FCL.CompileConfig
+
 import Language.FCL.IL.Cons
 import Language.FCL.IL.Program (runProgram)
 import Language.FCL.IL.CodeGen (codeGen)
@@ -15,7 +19,7 @@ compile :: CompileConfig -> [Definition Type] -> (String, String)
 compile compileConfig defs =
   let findMain [] = error "No 'main'-function defined"
       findMain (d:ds) =
-          if defVar d == "main"
+          if identToString (defVar d) == "main"
           then d
           else findMain ds
       main = findMain defs
@@ -25,30 +29,31 @@ compile compileConfig defs =
          in codeGen compileConfig stmts
        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
-type VarEnv = Map.Map String Value
+type VarEnv = Map.Map Identifier Value
 
 emptyEnv :: VarEnv
 emptyEnv = Map.empty
 
 compBody :: VarEnv -> Exp Type -> Value
-compBody _ (IntScalar i _)        = TagInt (int i)
-compBody _ (DoubleScalar d _)     = TagDouble (double d)
-compBody _ (BoolScalar b _)       = TagBool (bool b)
-compBody _ (String s _)           = TagString (string s)
+compBody _ (Literal (LiteralInt i) _)        = TagInt (int i)
+compBody _ (Literal (LiteralDouble d) _)     = TagDouble (double d)
+compBody _ (Literal (LiteralBool b) _)       = TagBool (bool b)
+compBody _ (Literal (LiteralString s) _)     = TagString (string s)
+compBody _ (Literal Unit _)                  = TagUnit
 compBody env (App e0 e1)          = (compBody env e0) `app1` (compBody env e1)
 compBody env (Lamb x _ e _ _)     = TagFn (\v -> compBody (Map.insert x v env) e)
 compBody env (LambLvl _ e _ _)    = compBody env e
 compBody env (AppLvl e _)         = compBody env e
 compBody env (Let x e0 e1 _ _)    = compBody (Map.insert x (compBody env e0) env) e1
-compBody env (UnOp op e0 reg)     = compileUnOp op (compBody env e0) reg
-compBody env (BinOp op e0 e1 reg) = compileBinOp op (compBody env e0) (compBody env e1) reg
+compBody env (UnaryOp op e0 reg)     = compileUnOp op (compBody env e0) reg
+compBody env (BinaryOp op e0 e1 reg) = compileBinOp op (compBody env e0) (compBody env e1) reg
 compBody env (Pair e0 e1 _)       = TagPair (compBody env e0) (compBody env e1)
 compBody env (Proj1E e reg)       = fst (unPair "fst" reg (compBody env e))
 compBody env (Proj2E e reg)       = snd (unPair "snd" reg (compBody env e))
 compBody env (Var x _ reg) =
   case Map.lookup x env of
     Just v -> v
-    Nothing -> error (show reg ++ ": Variable not defined: " ++ x)
+    Nothing -> error (show reg ++ ": Variable not defined: " ++ (identToString x))
 compBody env (Cond e0 e1 e2 _ reg) =
   let b0 = unBool (compBody env e0)
   in case (compBody env e1, compBody env e2) of
@@ -116,11 +121,11 @@ readIntCSV_ file =
     do (name, len) <- readIntCSV (unString file)
        return (TagArray (createPull name IntT len))
                                        
-length_ :: Value -> Region -> Value
+length_ :: Value -> SourceRegion -> Value
 length_ (TagArray arr) _ = TagInt (size arr)
 length_ _ reg = error (show reg ++ ": Length expects array as argument.")
 
-map_ :: VarEnv -> Exp Type -> Exp Type -> Region -> Value
+map_ :: VarEnv -> Exp Type -> Exp Type -> SourceRegion -> Value
 map_ env e0 e1 reg =
   let (_ :> outType) = typeOf e0
   in case (compBody env e0, compBody env e1) of
@@ -179,10 +184,6 @@ benchmark_ (TagInt n) (TagProgram p) = TagProgram $ do
   --       case v of
   --         TagInt v' -> assignArray name v' i
   --         e -> error (show e)
-
-
-
-  return TagUnit
 benchmark_ _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
 
 
@@ -332,7 +333,7 @@ whileSeq (TagFn cond) (TagFn step) v =
        return v
 whileSeq _ _ _ = error "incompatible arguments for whileSeq"
 
-compileBinOp :: BinOp -> Value -> Value -> Region -> Value
+compileBinOp :: BinaryOperator -> Value -> Value -> SourceRegion -> Value
 compileBinOp AddI (TagInt i0) (TagInt i1) _ = TagInt (addi i0 i1)
 compileBinOp SubI (TagInt i0) (TagInt i1) _ = TagInt (subi i0 i1)
 compileBinOp MulI (TagInt i0) (TagInt i1) _ = TagInt (muli i0 i1)
@@ -352,7 +353,7 @@ compileBinOp op _ _ reg =
                  show op,
                  ", expecting integer expression."])
 
-compileUnOp :: UnOp -> Value -> Region -> Value
+compileUnOp :: UnaryOperator -> Value -> SourceRegion -> Value
 compileUnOp AbsI  (TagInt i0) _ = TagInt (absi i0)
 compileUnOp SignI (TagInt i0) _ = TagInt (signi i0)
 compileUnOp op _ reg =

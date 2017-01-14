@@ -7,9 +7,10 @@ module Language.FCL.Inline (inline) where
 import qualified Data.Map as Map
 
 import Language.FCL.SourceRegion
+import Language.FCL.Identifier
 import Language.FCL.Syntax
 
-type Env = Map.Map Name (TypeScheme Type, Exp Type)
+type Env = Map.Map Identifier (TypeScheme Type, Exp Type)
 
 emptyEnv :: Env
 emptyEnv = Map.empty
@@ -22,22 +23,19 @@ inlineFuncs _ [] = error "No main function found"
 inlineFuncs env (d : ds) =
   let e' = inlineAll env (defBody d)
   in 
-    if defVar d == "main"
+    if identToString (defVar d) == "main"
     then d { defBody = e'}
     else inlineFuncs (Map.insert (defVar d) (defTypeScheme d,e') env) ds
   
 inlineAll :: Env -> Exp Type -> Exp Type
-inlineAll _ e@(IntScalar _ _) = e
-inlineAll _ e@(DoubleScalar _ _) = e
-inlineAll _ e@(BoolScalar _ _) = e
-inlineAll _ e@(String _ _) = e
+inlineAll _ e@(Literal _ _) = e
 inlineAll _ e@(BlockSize _) = e
 inlineAll env (Var v ty _) =
   case Map.lookup v env of
     Just (_, e) -> inlineAll env e  -- TODO fix up types (currently we perform a re-run of the typechecker after inlining)
     Nothing -> Var v ty Missing
-inlineAll env (UnOp op e0 reg)           = UnOp op      (inlineAll env e0) reg
-inlineAll env (BinOp op e0 e1 reg)       = BinOp op     (inlineAll env e0) (inlineAll env e1) reg
+inlineAll env (UnaryOp op e0 reg)        = UnaryOp op   (inlineAll env e0) reg
+inlineAll env (BinaryOp op e0 e1 reg)    = BinaryOp op  (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (Vec es ety reg)           = Vec          (map (inlineAll env) es) ety reg
 inlineAll env (Lamb v ty0 ebody ty1 reg) = Lamb v ty0   (inlineAll (Map.delete v env) ebody) ty1 reg
 inlineAll env (LambLvl lvlvar ebody ty reg) = LambLvl lvlvar (inlineAll env ebody) ty reg

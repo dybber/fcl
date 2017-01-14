@@ -8,8 +8,8 @@ data Position = Position { fileName :: FilePath
                          , column :: Int }
                 deriving (Eq, Ord)
 
-data Region = Region Position Position
-            | Missing
+data SourceRegion = SourceRegion Position Position
+                  | Missing
   deriving (Eq, Ord)
 
 ---------------------
@@ -22,8 +22,8 @@ printXY p = show (line p) ++ "." ++ show (column p)
 instance Show Position where
   show p = show (fileName p) ++ ":" ++ printXY p
 
-instance Show Region where
-  show (Region p1 p2)
+instance Show SourceRegion where
+  show (SourceRegion p1 p2)
     | p1 == p2  = show p1
     | otherwise = show p1 ++ "-" ++ show p2
   show Missing = "<missing>"
@@ -40,12 +40,12 @@ fromSourcePos pos = Position { fileName = sourceName pos
 
 
 -- | Convert two Parsec `SourcePos` positions to a `Region`
-newRegion :: SourcePos -> SourcePos -> Region
-newRegion pos1 pos2 = Region (fromSourcePos pos1)
-                             (fromSourcePos pos2)
+newRegion :: SourcePos -> SourcePos -> SourceRegion
+newRegion pos1 pos2 = SourceRegion (fromSourcePos pos1)
+                                   (fromSourcePos pos2)
 
-withRegion :: Monad m => ParsecT s u m (Region -> b) -> ParsecT s u m b
-withRegion p = do
+withSourceRegion :: Monad m => ParsecT s u m (SourceRegion -> b) -> ParsecT s u m b
+withSourceRegion p = do
   pos1 <- getPosition
   f <- p
   pos2 <- getPosition

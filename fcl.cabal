@@ -20,8 +20,10 @@ Library
   HS-source-dirs: src
 
   exposed-modules: Language.FCL
-                   Language.FCL.Syntax
+                   Language.FCL.Identifier
                    Language.FCL.SourceRegion
+                   Language.FCL.Syntax
+                   Language.FCL.Substitution
                    Language.FCL.Lexer
                    Language.FCL.Parser
                    Language.FCL.Pretty

@@ -10,20 +10,21 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
 
 import Language.FCL.SourceRegion
+import Language.FCL.Identifier
 import Language.FCL.Syntax
 
-type TyEnv = Map.Map Name (TypeScheme Type)
+type TyEnv = Map.Map Identifier (TypeScheme Type)
 
 type Subst = (Map.Map TyVar Type,
               Map.Map LvlVar Level)
 data TVE = TVE Int Subst
 
-data TypeError = UnificationError Region Type Type
+data TypeError = UnificationError SourceRegion Type Type
                | LevelUnificationError Level Level
                | NotImplementedError String
-               | UnboundVariableError Name
-               | UnboundLevelVariableError Name
-               | UnboundTypeVariableError Name
+               | UnboundVariableError Identifier
+               | UnboundLevelVariableError Identifier
+               | UnboundTypeVariableError Identifier
                | OccursCheckFailed TyVar Type
                | OccursCheckFailedLevel
  deriving (Eq, Show)
@@ -58,15 +59,29 @@ lvlVarExt (lvlVar,lvl) = do
  (TVE i (stv, slvl)) <- get
  put (TVE i (stv, Map.insert lvlVar lvl slvl))
 
-lkup :: TyEnv -> Name -> TI (TypeScheme Type)
+lkup :: TyEnv -> Identifier -> TI (TypeScheme Type)
 lkup env x =
   case Map.lookup x env of
     Just ty  -> return ty
     Nothing -> throwError (UnboundVariableError x)
 
-ext :: TyEnv -> Name -> TypeScheme Type -> TyEnv
+ext :: TyEnv -> Identifier -> TypeScheme Type -> TyEnv
 ext env x ty = Map.insert x ty env
 
+-- | Return the list of type variables in t (possibly with duplicates)
+freeTyVars :: Type -> [TyVar]
+freeTyVars IntT        = []
+freeTyVars BoolT       = []
+freeTyVars DoubleT     = []
+freeTyVars StringT     = []
+freeTyVars UnitT       = []
+freeTyVars (_ :-> t)   = freeTyVars t
+freeTyVars (t1 :> t2)  = freeTyVars t1 ++ freeTyVars t2
+freeTyVars (t1 :*: t2) = freeTyVars t1 ++ freeTyVars t2
+freeTyVars (PullArrayT t)   = freeTyVars t
+freeTyVars (PushArrayT _ t) = freeTyVars t
+freeTyVars (VarT v)         = [v]
+freeTyVars (ProgramT _ t)   = freeTyVars t
 
 tvsub :: Subst -> Type -> Type
 tvsub _ IntT = IntT
@@ -94,12 +109,9 @@ lvlVarSub (stv,slvl) (VarL lvlVar) =
     Nothing -> VarL lvlVar
 
 tvsubExp :: Subst -> Exp Type -> Exp Type
-tvsubExp _ (IntScalar i reg) = IntScalar i reg
-tvsubExp _ (BoolScalar b reg) = BoolScalar b reg
-tvsubExp _ (DoubleScalar d reg) = DoubleScalar d reg
-tvsubExp _ (String str reg) = String str reg
-tvsubExp s (UnOp op e reg) = UnOp op (tvsubExp s e) reg
-tvsubExp s (BinOp op e1 e2 reg) = BinOp op (tvsubExp s e1) (tvsubExp s e2) reg
+tvsubExp _ (Literal l reg) = Literal l reg
+tvsubExp s (UnaryOp op e reg) = UnaryOp op (tvsubExp s e) reg
+tvsubExp s (BinaryOp op e1 e2 reg) = BinaryOp op (tvsubExp s e1) (tvsubExp s e2) reg
 tvsubExp s (Var x t reg) = Var x (tvsub s t) reg
 tvsubExp s (Vec es t reg) = Vec (map (tvsubExp s) es) (tvsub s t) reg
 tvsubExp s (Lamb x t1 e t2 reg) = Lamb x (tvsub s t1) (tvsubExp s e) (tvsub s t2) reg
@@ -141,14 +153,14 @@ tvchase (VarT x) = do
 tvchase t = return t
 
 -- | The unification. If unification failed, return the reason
-unify :: Region -> Type -> Type -> TI ()
+unify :: SourceRegion -> Type -> Type -> TI ()
 unify reg t1 t2 = do
   t1' <- tvchase t1
   t2' <- tvchase t2
   unify' reg t1' t2'
 
 -- | If either t1 or t2 are type variables, they are definitely unbound
-unify' :: Region -> Type -> Type -> TI ()
+unify' :: SourceRegion -> Type -> Type -> TI ()
 unify' reg t1 t2 =
   case (t1, t2) of
     (IntT, IntT) -> return ()
@@ -227,10 +239,15 @@ occursLvl (stv, slvl) lvlVar (VarL lvlVar2) =
          Nothing -> lvlVar == lvlVar2
 
 infer :: TyEnv -> Exp ty -> TI (Type, Exp Type)
-infer _ (IntScalar i reg) = return (IntT, IntScalar i reg)
-infer _ (BoolScalar b reg) = return (BoolT, BoolScalar b reg)
-infer _ (DoubleScalar d reg) = return (DoubleT, DoubleScalar d reg)
-infer _ (String str reg) = return (StringT, String str reg)
+infer _ (Literal l reg) =
+  let ty =
+        case l of
+          LiteralInt _    -> IntT
+          LiteralDouble _ -> DoubleT
+          LiteralBool _   -> BoolT
+          LiteralString _ -> StringT
+          Unit            -> UnitT
+  in return (ty, Literal l reg)
 infer env (Var x _ reg) = do
   ty <- lkup env x
   ty' <- instantiate ty
@@ -392,15 +409,15 @@ infer env (Interleave e1 e2 e3 reg) = do
   unify reg t3 (PullArrayT (ProgramT (VarL lvlVar) (PushArrayT (VarL lvlVar) tv)))
   return (ProgramT (Step (VarL lvlVar)) (PushArrayT (Step (VarL lvlVar)) tv), Interleave e1' e2' e3' reg)
 infer _ (BlockSize reg) = return (IntT, BlockSize reg)
-infer env (UnOp op e reg) = do
+infer env (UnaryOp op e reg) = do
   (t, e') <- infer env e
   tret <- unifyUnOp op reg t
-  return (tret, UnOp op e' reg)
-infer env (BinOp op e1 e2 reg) = do
+  return (tret, UnaryOp op e' reg)
+infer env (BinaryOp op e1 e2 reg) = do
   (t1, e1') <- infer env e1
   (t2, e2') <- infer env e2
   tret <- unifyBinOp op reg t1 t2
-  return (tret, BinOp op e1' e2' reg)
+  return (tret, BinaryOp op e1' e2' reg)
 infer env (Vec es _ reg) = do
   tes <- mapM (infer env) es
   t <- unifyAll reg (map fst tes)
@@ -429,19 +446,19 @@ infer env (ReadIntCSV e1 reg) = do
   unify reg te1 StringT
   return (ProgramT gridLevel (PullArrayT IntT), ReadIntCSV e1' reg)
 
-unifyAll :: Region -> [Type] -> TI Type
+unifyAll :: SourceRegion -> [Type] -> TI Type
 unifyAll _ [] = newtv
 unifyAll _ [t] = return t
 unifyAll r (t1 : t2 : ts) =
   do unify r t1 t2
      unifyAll r (t2 : ts)
 
-unify1 :: Region -> Type -> Type -> Type -> TI Type
+unify1 :: SourceRegion -> Type -> Type -> Type -> TI Type
 unify1 r t1' tret t1 = do
   unify r t1 t1'
   return tret
 
-unifyUnOp :: UnOp -> Region -> Type -> TI Type
+unifyUnOp :: UnaryOperator -> SourceRegion -> Type -> TI Type
 unifyUnOp AbsI r = unify1 r IntT IntT
 unifyUnOp SignI r = unify1 r IntT IntT
 unifyUnOp NegateI r = unify1 r IntT IntT
@@ -450,13 +467,13 @@ unifyUnOp I2D r = unify1 r IntT DoubleT
 unifyUnOp B2I r = unify1 r BoolT IntT
 unifyUnOp CLZ r = unify1 r IntT IntT
 
-unify2 :: Region -> Type -> Type -> Type -> Type -> Type -> TI Type
+unify2 :: SourceRegion -> Type -> Type -> Type -> Type -> Type -> TI Type
 unify2 r t1' t2' tret t1 t2 = do
   unify r t1 t1'
   unify r t2 t2'
   return tret
 
-unifyBinOp :: BinOp -> Region -> Type -> Type -> TI Type
+unifyBinOp :: BinaryOperator -> SourceRegion -> Type -> Type -> TI Type
 unifyBinOp AddI r = unify2 r IntT IntT IntT
 unifyBinOp SubI r = unify2 r IntT IntT IntT
 unifyBinOp MulI r = unify2 r IntT IntT IntT

@@ -1,10 +1,12 @@
 module Language.FCL.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
 
-import Text.PrettyPrint
-import Language.FCL.Syntax
-
 import Control.Monad.Trans.State
 import qualified Data.Map as Map
+import Text.PrettyPrint
+
+import Language.FCL.Identifier
+import Language.FCL.Syntax
+
 
 angles :: Doc -> Doc
 angles p = char '<' <> p <> char '>'
@@ -22,7 +24,7 @@ prettyPrint :: [Definition a] -> String
 prettyPrint prog = render $ evalState (ppProgram prog) startEnv
 
 showType :: Definition Type -> String
-showType (Definition v _ _ _ e) = v ++ " : " ++ prettyPrintType (typeOf e)
+showType (Definition v _ _ e) = identToString v ++ " : " ++ prettyPrintType (typeOf e)
 
 
 -- Names used when pretty printing type variables
@@ -81,19 +83,16 @@ ppProgram ds = vcat <$> mapM (\d -> do def <- ppDef d
 
 ppDef :: Definition a -> PP Doc
 ppDef d =
-  do let fnName = text (defVar d)
+  do let fnName = text (identToString (defVar d))
      sig <- case defSignature d of
               Nothing -> return (text "")
               Just ty ->
                  do ty' <- ppType ty
                     return (text "sig" <+> fnName <+> char ':' <+> ty')
      body <- pp (defBody d)
-     let decl = if defEmitKernel d
-                then text "kernel"
-                else text "fun"
      return (sig
              $+$
-             decl <+> fnName <+> char '=' <+> body)
+             text "fun" <+> fnName <+> char '=' <+> body)
 
 
 -- Pretty print types
@@ -106,7 +105,7 @@ ppType UnitT = return (text "()")
 ppType (VarT (TyVar i Nothing)) =
   do name <- getName i
      return (text name)
-ppType (VarT (TyVar i (Just v))) = return (text v <> int i)
+ppType (VarT (TyVar i (Just v))) = return (text (identToString v) <> int i)
 ppType (ty0 :> ty1)  =
   do ty0' <- ppType ty0
      ty1' <- ppType ty1
@@ -134,7 +133,7 @@ ppLvlVar (LvlVar i Nothing) =
   do name <- getLvlName i
      return (text name)
 ppLvlVar (LvlVar _ (Just name)) =
-  return (text name)
+  return (text (identToString name))
 
 -- Pretty print levels
 ppLevel :: Level -> PP Doc
@@ -165,15 +164,16 @@ ppTriop str e1 e2 e3 =
 
 
 pp :: Exp a -> PP Doc
-pp (IntScalar i _)       = return (int i)
-pp (DoubleScalar d _)    = return (double d)
-pp (BoolScalar True _)   = return (text "true")
-pp (BoolScalar False _)  = return (text "false")
-pp (String str _)        = return (char '\"' <> text str <> char '\"')
-pp (UnOp op e1 _)        = parens <$> (ppUnOp op e1)
-pp (BinOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
+pp (Literal (LiteralInt i) _)       = return (int i)
+pp (Literal (LiteralDouble d) _)    = return (double d)
+pp (Literal (LiteralBool True) _)   = return (text "true")
+pp (Literal (LiteralBool False) _)  = return (text "false")
+pp (Literal (LiteralString str) _)  = return (char '\"' <> text str <> char '\"')
+pp (Literal Unit _)                 = return (text "unit")
+pp (UnaryOp op e1 _)        = parens <$> (ppUnOp op e1)
+pp (BinaryOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
 pp (Var x _ _)          =
-  return (text x)
+  return (text (identToString x))
 pp (Vec es _ _)          =
   do es' <- mapM pp es
      return (brackets (hsep (punctuate (char ',') es')))
@@ -184,7 +184,7 @@ pp (App e1 e2)           =
 pp (Lamb x _ e1 _ _) =
   do e1' <- pp e1
      return (
-           parens (text "fn" <+> text x
+           parens (text "fn" <+> text (identToString x)
                    <+> text "=>" <+> e1'))
 pp (AppLvl e lvl)           =
   do e' <- pp e
@@ -199,7 +199,7 @@ pp (Let x e1 e2 _ _)    =
   do e1' <- pp e1
      e2' <- pp e2
      return (
-                parens (text "let" <+> text x
+                parens (text "let" <+> text (identToString x)
                         <+> text "=" <+> e1'
                         <+> text "in" <+> e2')
             )
@@ -245,7 +245,7 @@ pp (ForceAndPrint e1 e2 _) = ppBinop "forceAndPrint" e1 e2
 pp (Benchmark e1 e2 _) = ppBinop "benchmark" e1 e2
 
 
-ppUnOp :: UnOp -> Exp a -> PP Doc
+ppUnOp :: UnaryOperator -> Exp a -> PP Doc
 ppUnOp op e1 =
   let opName =
         case op of
@@ -259,7 +259,7 @@ ppUnOp op e1 =
   in do e1' <- pp e1
         return (text opName <> parens e1')
 
-ppBinOp :: BinOp -> Exp a -> Exp a -> PP Doc
+ppBinOp :: BinaryOperator -> Exp a -> Exp a -> PP Doc
 ppBinOp op e1 e2 =
   let opName =
         case op of

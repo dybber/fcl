@@ -2,21 +2,21 @@ module Language.FCL.Eval (eval) where
 
 import qualified Data.Map as Map
 import Data.Bits ((.&.), (.|.), xor, shiftL, shiftR, testBit)
-
-import Language.FCL.SourceRegion
-import Language.FCL.Syntax
-import Language.FCL.Eval.ArrayLib
+import Data.List (sortBy)
+import Data.Ord (comparing)
 
 import Control.Monad.Trans.Except
 import Control.Monad (liftM, liftM2)
 
-import Data.List (sortBy)
-import Data.Ord (comparing)
+import Language.FCL.SourceRegion
+import Language.FCL.Identifier
+import Language.FCL.Syntax
+import Language.FCL.Eval.ArrayLib
 
 ----------------
 -- Eval Monad --
 ----------------
-data EvalError = EvalError (Maybe Region) String
+data EvalError = EvalError (Maybe SourceRegion) String
   deriving Show
 
 type Eval a = Except EvalError a
@@ -24,37 +24,37 @@ type Eval a = Except EvalError a
 runEval :: Eval a -> Either EvalError a
 runEval = runExcept
 
-evalError :: (Maybe Region) -> String -> Eval a
+evalError :: (Maybe SourceRegion) -> String -> Eval a
 evalError reg msg = throwE (EvalError reg msg)
 
 ----------------------------
 -- Evaluation environment --
 ----------------------------
-type VarEnv ty = Map.Map Name (Value ty)
+type VarEnv ty = Map.Map Identifier (Value ty)
 
 data Env ty = Env { varEnv :: VarEnv ty }
-  deriving (Eq, Show)
+  deriving Show
 
 emptyEnv :: Env ty
 emptyEnv = Env { varEnv = Map.empty }
 
-lookupVar :: Name -> Env ty -> Maybe (Value ty)
+lookupVar :: Identifier -> Env ty -> Maybe (Value ty)
 lookupVar x env = Map.lookup x (varEnv env)
 
-insertVar :: Name -> Value ty -> Env ty -> Env ty
+insertVar :: Identifier -> Value ty -> Env ty -> Env ty
 insertVar x v env = env { varEnv = Map.insert x v (varEnv env) }
 
 ------------
 -- Values --
 ------------
-data Value ty = LamV (Env ty) Name (Exp ty)
+data Value ty = LamV (Env ty) Identifier (Exp ty)
               | IntV Int
               | DoubleV Double
               | PairV (Value ty) (Value ty)
               | BoolV Bool
               | StringV String
+              | UnitV
               | ArrayV (FCLArray (Value ty))
-   deriving Eq
 
 instance Show (Value ty) where
   show (LamV _ _ _) = "<function>"
@@ -63,6 +63,7 @@ instance Show (Value ty) where
   show (PairV v1 v2) = concat ["(", show v1, ", ", show v2, ")"]
   show (BoolV b) = show b
   show (StringV str) = show str
+  show UnitV = "unit"
   show (ArrayV arr) = show arr
 
 ------------------------------
@@ -74,7 +75,7 @@ eval prog = runEval (evalProgram emptyEnv prog)
 evalProgram :: Show ty => Env ty -> [Definition ty] -> Eval (Value ty)
 evalProgram _ [] = evalError Nothing "No main, exiting."
 evalProgram env (def:defs) =
-  if defVar def == "main"
+  if identToString (defVar def) == "main"
   then evalExp env (defBody def)
   else
     do v <- evalExp env (defBody def)
@@ -83,10 +84,11 @@ evalProgram env (def:defs) =
 
 -- Evaluation of expressions
 evalExp :: Show ty => Env ty -> Exp ty -> Eval (Value ty)
-evalExp _ (IntScalar i _) = return (IntV i)
-evalExp _ (DoubleScalar d _) = return (DoubleV d)
-evalExp _ (BoolScalar b _) = return (BoolV b)
-evalExp _ (String str _) = return (StringV str)
+evalExp _ (Literal (LiteralInt i) _) = return (IntV i)
+evalExp _ (Literal (LiteralDouble d) _) = return (DoubleV d)
+evalExp _ (Literal (LiteralBool b) _) = return (BoolV b)
+evalExp _ (Literal (LiteralString str) _) = return (StringV str)
+evalExp _ (Literal Unit _) = return UnitV
 evalExp env (Var x _ reg) =
   case lookupVar x env of
     Just v -> return v
@@ -123,7 +125,7 @@ evalExp env (AppLvl e _) = evalExp env e      -- ignore lvl argument, just retur
 evalExp env (Let x e ebody _ _) = do
   v <- evalExp env e
   evalExp (insertVar x v env) ebody
-evalExp env (BinOp op e1 e2 r) = do
+evalExp env (BinaryOp op e1 e2 r) = do
   v1 <- evalExp env e1
   v2 <- evalExp env e2
   case op of
@@ -196,7 +198,7 @@ evalExp env (Push _ e0 _) = evalExp env e0
 evalExp env (Vec ls _ _) = do
   vs <- mapM (evalExp env) ls
   return (ArrayV (fromList vs))
-evalExp env (UnOp op e0 reg) = do
+evalExp env (UnaryOp op e0 reg) = do
   v0 <- evalExp env e0
   case op of
     AbsI    -> liftM (IntV . abs)    (unInt reg "absi" v0)
@@ -280,19 +282,19 @@ countLeadingZeros x = (w-1) - go (w-1)
 
     w = 32
 
-generate :: Show ty => Int -> Env ty -> Name -> Exp ty -> Eval (Value ty)
+generate :: Show ty => Int -> Env ty -> Identifier -> Exp ty -> Eval (Value ty)
 generate n env' var ebody = do
   let arr = fromFunction n (\i -> evalExp (insertVar var (IntV i) env') ebody)
   arr' <- materializeM arr
   return (ArrayV arr')
 
-map_ :: Show ty => Env ty -> Name -> Exp ty -> FCLArray (Value ty) -> Eval (Value ty)
+map_ :: Show ty => Env ty -> Identifier -> Exp ty -> FCLArray (Value ty) -> Eval (Value ty)
 map_ env' var ebody arr = do
   let arr' = mapA (\x -> evalExp (insertVar var x env') ebody) arr
   arr'' <- materializeM arr'
   return (ArrayV arr'')
 
-interleave_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> Region -> Eval (Value ty)
+interleave_ :: Show ty => Env ty -> Exp ty -> Exp ty -> Exp ty -> SourceRegion -> Eval (Value ty)
 interleave_ env e0 e1 e2 reg =
  do n <- evalExp env e0
     ixf <- evalExp env e1
@@ -310,7 +312,7 @@ interleave_ env e0 e1 e2 reg =
            return (ArrayV (fromList (interleave f (map toList vs'))))
       _ -> evalError (Just reg) "interleave eval err"
 
-while :: Region
+while :: SourceRegion
       -> (Value ty -> Eval (Value ty))
       -> (Value ty -> Eval (Value ty))
       -> Value ty
@@ -324,7 +326,7 @@ while reg cond step x = do
     BoolV False -> return x
     _ -> evalError (Just reg) "First argument to while should return Bool"
 
-for :: Region
+for :: SourceRegion
     -> Value ty
     -> Value ty
     -> (Value ty -> Value ty -> Eval (Value ty))
@@ -333,7 +335,7 @@ for reg (IntV size) (IntV iterations) step = undefined
 for reg _ _ _ = evalError (Just reg) "First argument to power should be an integer"
 
 
-power :: Region
+power :: SourceRegion
       -> Int
       -> Value ty
       -> (Value ty -> Value ty -> Eval (Value ty))
@@ -346,25 +348,25 @@ power reg i (IntV n) step x =
 power reg _ _ _ _ = evalError (Just reg) "First argument to power should be an integer"
 
 
-unInt ::  Region -> String -> Value ty -> Eval Int
+unInt ::  SourceRegion -> String -> Value ty -> Eval Int
 unInt reg str v =
   case v of
     IntV v' -> return v'
     u -> evalError (Just reg) ("expecting int in " ++ str ++ " got " ++ show u)
 
-unDouble :: Region -> String -> Value ty -> Eval Double
+unDouble :: SourceRegion -> String -> Value ty -> Eval Double
 unDouble reg str v =
   case v of
     DoubleV v' -> return v'
     _ -> evalError (Just reg) ("expecting int in " ++ str)
 
-unBool :: Region -> String -> Value ty -> Eval Bool
+unBool :: SourceRegion -> String -> Value ty -> Eval Bool
 unBool reg str v =
   case v of
     BoolV v' -> return v'
     _ -> evalError (Just reg) ("expecting int in " ++ str)
 
-unArray :: Region -> String -> Value ty -> Eval (FCLArray (Value ty))
+unArray :: SourceRegion -> String -> Value ty -> Eval (FCLArray (Value ty))
 unArray reg str v =
   case v of
     ArrayV v' -> return v'

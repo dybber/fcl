@@ -113,7 +113,7 @@ unProgram :: String -> Value -> Program Value
 unProgram _ (TagProgram p) = p
 unProgram loc v            = error ("expected Program in " ++ loc ++ " got " ++ show v)
 
-unPair :: String -> Region -> Value -> (Value, Value)
+unPair :: String -> SourceRegion -> Value -> (Value, Value)
 unPair _ _ (TagPair v1 v2) = (v1, v2)
 unPair loc reg v           = error ("expected pair in " ++ loc ++ " at " ++ show reg ++ " got " ++ show v)
 
