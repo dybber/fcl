@@ -28,7 +28,11 @@ Library
                    FCL.External.Parser
                    FCL.External.Pretty
 
-                   FCL.TypeInference
+                   FCL.Infer
+                   FCL.Infer.Monad
+                   FCL.Infer.Substitution
+                   FCL.Infer.Unification
+                   
                    FCL.Inline
                    FCL.Simplify
                    FCL.Substitution

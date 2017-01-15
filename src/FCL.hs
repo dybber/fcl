@@ -14,7 +14,7 @@ module FCL
 where
 
 import FCL.External.Parser (parseTopLevel, ParseError)
-import FCL.TypeInference   (typeinfer, TypeError)
+import FCL.Infer           (typeinfer, TypeError)
 import FCL.Inline          (inline)
 import FCL.Simplify        (simplify)
 import FCL.Compile         (compile)

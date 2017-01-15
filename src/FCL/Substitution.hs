@@ -1,3 +1,4 @@
+-- | Capture-avoiding substitution
 module FCL.Substitution (apply, freeIn) where
 
 import Control.Monad.Trans.State
@@ -7,9 +8,6 @@ import FCL.Core.SourceRegion
 import FCL.Core.Identifier
 import FCL.Core.Syntax
 
-------------------
--- Substitution --
-------------------
 freeIn :: Identifier -> Exp ty -> Bool
 freeIn _ (Literal _ _)            = True
 freeIn x (UnaryOp _ e _)          = freeIn x e
