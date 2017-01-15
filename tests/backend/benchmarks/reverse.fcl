@@ -1,7 +1,7 @@
 sig reverse : ['a] -> ['a]
 fun reverse arr =
   let n = lengthPull arr
-  in generatePull n (fn i => index arr (n - i - 1))
+  in generate n (fn i => index arr (n - i - 1))
 
 sig simpleReverse : int -> ['a] -> Program <grid> ['a]<grid>
 fun simpleReverse splitSize arr =
@@ -12,7 +12,7 @@ fun simpleReverse splitSize arr =
 
 
 sig example : Program <grid> [int]<grid>
-fun example = simpleReverse #BlockSize (generatePull (2048 * 2048) (fn i => i))
+fun example = simpleReverse #BlockSize (generate (2048 * 2048) (fn i => i))
 
 sig main : Program <grid> unit
 fun main =

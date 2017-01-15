@@ -6,14 +6,14 @@ fun test02 x = fst x + snd x
 
 fun test03 x = i2d x
 
-fun test04 = modi
+fun test04 = mini
 
 fun test05 x y = if lti x y then x else y
 
 fun test06 f x = (f x) + x
 
-fun test07 = test06 (addi 5) 2
+fun test07 = test06 (mini 5) 2
 
 fun test08 f x y = (f x y) + x + y
 
-fun test09 = test08 addi 10 5
+fun test09 = test08 maxi 10 5

@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import Text.PrettyPrint
 
 import FCL.Core.Identifier
-import FCL.Core.Syntax
+import FCL.External.Syntax
 
 
 angles :: Doc -> Doc
@@ -172,12 +172,12 @@ pp (Literal (LiteralString str) _)  = return (char '\"' <> text str <> char '\"'
 pp (Literal Unit _)                 = return (text "unit")
 pp (UnaryOp op e1 _)        = parens <$> (ppUnOp op e1)
 pp (BinaryOp op e1 e2 _)    = parens <$> (ppBinOp op e1 e2)
-pp (Var x _ _)          =
+pp (Symbol x _ _)          =
   return (text (identToString x))
 pp (Vec es _ _)          =
   do es' <- mapM pp es
      return (brackets (hsep (punctuate (char ',') es')))
-pp (App e1 e2)           =
+pp (App e1 e2 _)           =
   do e1' <- pp e1
      e2' <- pp e2
      return (parens (e1' <+> e2'))
@@ -186,7 +186,7 @@ pp (Lamb x _ e1 _ _) =
      return (
            parens (text "fn" <+> text (identToString x)
                    <+> text "=>" <+> e1'))
-pp (AppLvl e lvl)           =
+pp (AppLvl e lvl _)           =
   do e' <- pp e
      lvl' <- ppLevel lvl
      return (parens (e' <+> angles lvl'))
@@ -216,33 +216,33 @@ pp (Pair e1 e2 _)            =
     do e1' <- pp e1
        e2' <- pp e2
        return (parens (e1' <> char ',' <+> e2'))
-pp (Proj1E e1 _)             = ppUnop "fst" e1
-pp (Proj2E e1 _)             = ppUnop "snd" e1
-pp (Index e1 e2 _)           = ppBinop "index" e1 e2
-pp (LengthPull e1 _)         = ppUnop "lengthPull" e1
-pp (LengthPush e1 _)         = ppUnop "lengthPush" e1
-pp (For e1 e2 e3 _)          = ppTriop "seqFor" e1 e2 e3
-pp (Power e1 e2 e3 _)        = ppTriop "power" e1 e2 e3
-pp (While e1 e2 e3 _)        = ppTriop "while" e1 e2 e3
-pp (WhileSeq e1 e2 e3 _)     = ppTriop "whileSeq" e1 e2 e3
-pp (GeneratePull e1 e2 _)    = ppBinop "generate" e1 e2
-pp (MapPull e1 e2 _)    = ppBinop "mapPull" e1 e2
-pp (MapPush e1 e2 _)    = ppBinop "mapPush" e1 e2
-pp (Force e1 _)         = ppUnop "force" e1
-pp (Push lvl e1 _)      =
-  do e1' <- pp e1
-     lvl' <- ppLevel lvl
-     return (parens (text "push" <> parens (angles lvl' <> comma <> e1')))
-pp (Interleave e1 e2 e3 _)   = ppTriop "interleave" e1 e2 e3
-pp (BlockSize _)             = return (text "#BlockSize")
-pp (Return lvl e1 _)            =
-  do e1' <- pp e1
-     lvl' <- ppLevel lvl
-     return (parens (text "return" <> parens (angles lvl' <> comma <> e1')))
-pp (Bind e1 e2 _)          = ppBinop "bind" e1 e2
-pp (ReadIntCSV e _)        = ppUnop "readIntCSV" e
-pp (ForceAndPrint e1 e2 _) = ppBinop "forceAndPrint" e1 e2
-pp (Benchmark e1 e2 _) = ppBinop "benchmark" e1 e2
+-- pp (Proj1E e1 _)             = ppUnop "fst" e1
+-- pp (Proj2E e1 _)             = ppUnop "snd" e1
+-- pp (Index e1 e2 _)           = ppBinop "index" e1 e2
+-- pp (LengthPull e1 _)         = ppUnop "lengthPull" e1
+-- pp (LengthPush e1 _)         = ppUnop "lengthPush" e1
+-- pp (For e1 e2 e3 _)          = ppTriop "seqFor" e1 e2 e3
+-- pp (Power e1 e2 e3 _)        = ppTriop "power" e1 e2 e3
+-- pp (While e1 e2 e3 _)        = ppTriop "while" e1 e2 e3
+-- pp (WhileSeq e1 e2 e3 _)     = ppTriop "whileSeq" e1 e2 e3
+-- pp (GeneratePull e1 e2 _)    = ppBinop "generate" e1 e2
+-- pp (MapPull e1 e2 _)    = ppBinop "mapPull" e1 e2
+-- pp (MapPush e1 e2 _)    = ppBinop "mapPush" e1 e2
+-- pp (Force e1 _)         = ppUnop "force" e1
+-- pp (Push lvl e1 _)      =
+--   do e1' <- pp e1
+--      lvl' <- ppLevel lvl
+--      return (parens (text "push" <> parens (angles lvl' <> comma <> e1')))
+-- pp (Interleave e1 e2 e3 _)   = ppTriop "interleave" e1 e2 e3
+-- pp (BlockSize _)             = return (text "#BlockSize")
+-- pp (Return lvl e1 _)            =
+--   do e1' <- pp e1
+--      lvl' <- ppLevel lvl
+--      return (parens (text "return" <> parens (angles lvl' <> comma <> e1')))
+-- pp (Bind e1 e2 _)          = ppBinop "bind" e1 e2
+-- pp (ReadIntCSV e _)        = ppUnop "readIntCSV" e
+-- pp (ForceAndPrint e1 e2 _) = ppBinop "forceAndPrint" e1 e2
+-- pp (Benchmark e1 e2 _) = ppBinop "benchmark" e1 e2
 
 
 ppUnOp :: UnaryOperator -> Exp a -> PP Doc
@@ -253,7 +253,6 @@ ppUnOp op e1 =
           SignI -> "signi"
           NegateI -> "negatei"
           Not -> "not"
-          I2D -> "i2d"
           B2I -> "b2i"
           CLZ -> "clz"
   in do e1' <- pp e1
@@ -268,12 +267,9 @@ ppBinOp op e1 e2 =
           MulI -> "muli"
           DivI -> "divi"
           ModI -> "modi"
-          MinI -> "mini"
-          MaxI -> "maxi"
           AddR -> "addr"
           EqI -> "eqi"
           NeqI -> "neqi"
-          LtI -> "lti"
           AndI -> "andi"
           OrI -> "ori"
           XorI -> "xori"

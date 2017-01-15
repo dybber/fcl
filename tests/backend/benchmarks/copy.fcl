@@ -6,7 +6,7 @@ fun copy arr =
 
 
 sig example : Program <grid> [int]<grid>
-fun example = copy (generatePull (2048 * 2048) (fn i => i))
+fun example = copy (generate (2048 * 2048) (fn i => i))
 
 sig main : Program <grid> unit
 fun main =

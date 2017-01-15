@@ -7,14 +7,15 @@ module FCL.External.Parser
 where
 
 import qualified Data.Map as Map
+import Data.Functor.Identity (Identity)
 
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Expr
 
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
-import FCL.Core.Syntax
 import FCL.External.Lexer
+import FCL.External.Syntax
 
 -----------
 -- Monad --
@@ -27,6 +28,7 @@ data ParserState =
     }
 
 type ParserFCL = Parsec String ParserState
+type Op a = Operator String ParserState Identity a
 
 initState :: ParserState
 initState =
@@ -59,10 +61,10 @@ incVarCount =
      modifyState (\s -> s {varCount = i+1})
      return i
 
-newLvlVar :: ParserFCL LvlVar
-newLvlVar = do
- i <- incVarCount
- return (LvlVar i Nothing)
+-- newLvlVar :: ParserFCL LvlVar
+-- newLvlVar = do
+--  i <- incVarCount
+--  return (LvlVar i Nothing)
 
 newNamedTV :: Identifier -> ParserFCL Type
 newNamedTV name =
@@ -131,14 +133,16 @@ fundef tyanno =
            then return ()
            else fail "Name in signature and function-definition does not match."
          Nothing -> return ()
+       pos1 <- getPosition
        args <- arguments
+       pos2 <- getPosition
        reservedOp "="
        rhs <- expr
-       let function = args rhs Missing
+       let function = args rhs (regionFromPos pos1 pos2)
        return (Definition
                  { defVar = Identifier name
                  , defSignature = fmap snd tyanno
-                 , defTypeScheme = TypeScheme [] Untyped
+                 , defTypeScheme = TypeScheme [] [] Untyped
                  , defBody = function
                  })
 
@@ -179,12 +183,12 @@ term =
    <|> try floating
    <|> try integer
    <|> try stringLiteral
-   <|> try op
+   <|> try var
    <|> array
    <|> let'
 
 sign :: Num a => ParserFCL (a -> a)
-sign = (oneOf "-~" >> return negate)
+sign = (oneOf "~" >> return negate)
        <|> (char '+' >> return id)
        <|> return id
 
@@ -238,7 +242,7 @@ do' = reserved "do" >> braces dobody
        do e <- expr
           reservedOp ";"
           rest <- dobody
-          return (Bind e (Lamb (Identifier "$ignored") Untyped rest Untyped Missing))
+          return (bindConstructor e (Lamb (Identifier "$ignored") Untyped rest Untyped (newRegion Missing Missing)))
 
    bind :: ParserFCL (Exp Untyped)
    bind =
@@ -248,7 +252,17 @@ do' = reserved "do" >> braces dobody
           e <- expr
           reservedOp ";"
           rest <- dobody
-          return (Bind e (Lamb (Identifier v) Untyped rest Untyped Missing))
+          return (bindConstructor e (Lamb (Identifier v) Untyped rest Untyped (newRegion Missing Missing)))
+
+
+-- Wrap binary function, to allow partial application
+bindConstructor :: Exp Untyped -> Exp Untyped -> SourceRegion -> Exp Untyped
+bindConstructor e1 e2 reg =
+  App (App (Symbol (Identifier "bind") Untyped reg)
+           e1
+           (newRegion Missing Missing))
+      e2
+      (newRegion Missing Missing)
 
 
 array :: ParserFCL (Exp Untyped)
@@ -265,7 +279,7 @@ tupleOrParens =
              t2 <- expr
              symbol ")"
              p2 <- getPosition
-             return (Pair t1 t2 (newRegion p1 p2)))
+             return (Pair t1 t2 (regionFromPos p1 p2)))
       <|> do symbol ")"
              return t1
 
@@ -280,133 +294,11 @@ let' =
     e2 <- expr
     return (Let (Identifier ident) e1 e2 Untyped)
 
-
-unop :: Bool -> (Exp Untyped -> SourceRegion -> Exp Untyped) -> ParserFCL (SourceRegion -> Exp Untyped)
-unop False opr =
-  do char '('
-     e1 <- expr
-     char ')'
-     return (opr e1)
--- Wrap unary function, to allow partial application
-unop True opr =
-  return (\r ->
-      Lamb (Identifier "x") Untyped
-           (opr (Var (Identifier "x") Untyped Missing) r)
-           Untyped r)
-
-binop :: Bool -> (Exp Untyped -> Exp Untyped -> SourceRegion -> Exp Untyped) ->  ParserFCL (SourceRegion -> Exp Untyped)
-binop False opr =
-  do char '('
-     e1 <- expr
-     char ','
-     e2 <- expr
-     char ')'
-     return (opr e1 e2)
--- Wrap binary function, to allow partial application
-binop True opr =
-    return (\r ->
-      Lamb (Identifier "x") Untyped
-          (Lamb (Identifier "y") Untyped
-              (opr (Var (Identifier "x") Untyped Missing)
-                   (Var (Identifier "y") Untyped Missing) r)
-              Untyped r)
-          Untyped r)
-
-triop :: Bool -> (Exp Untyped -> Exp Untyped -> Exp Untyped -> SourceRegion -> Exp Untyped) -> ParserFCL (SourceRegion -> Exp Untyped)
-triop False opr =
-  do char '('
-     e1 <- expr
-     char ','
-     e2 <- expr
-     char ','
-     e3 <- expr
-     char ')'
-     return (opr e1 e2 e3)
-triop True opr = -- Wrap ternary function, to allow partial application
-  return (\r ->
-      Lamb (Identifier "x") Untyped
-          (Lamb (Identifier "y") Untyped
-              (Lamb (Identifier "z") Untyped
-                  (opr (Var (Identifier "x") Untyped Missing)
-                       (Var (Identifier "y") Untyped Missing)
-                       (Var (Identifier "z") Untyped Missing) r)
-                  Untyped r)
-              Untyped r)
-          Untyped r)
-
-builtin_ops :: Bool -> String -> (ParserFCL (SourceRegion -> Exp Untyped))
-builtin_ops _ "BlockSize"  = return BlockSize
-builtin_ops curried "i2d"        = unop curried (UnaryOp I2D)
-builtin_ops curried "b2i"        = unop curried (UnaryOp B2I)
-builtin_ops curried "clz"        = unop curried (UnaryOp CLZ)
-builtin_ops curried "negatei"    = unop curried (UnaryOp NegateI)
-builtin_ops curried "addi"       = binop curried (BinaryOp AddI)
-builtin_ops curried "addr"       = binop curried (BinaryOp AddR)
-builtin_ops curried "subi"       = binop curried (BinaryOp SubI)
-builtin_ops curried "muli"       = binop curried (BinaryOp MulI)
-builtin_ops curried "divi"       = binop curried (BinaryOp DivI)
-builtin_ops curried "modi"       = binop curried (BinaryOp ModI)
-builtin_ops curried "mini"       = binop curried (BinaryOp MinI)
-builtin_ops curried "maxi"       = binop curried (BinaryOp MaxI)
-builtin_ops curried "eqi"        = binop curried (BinaryOp EqI)
-builtin_ops curried "neqi"       = binop curried (BinaryOp NeqI)
-builtin_ops curried "lti"        = binop curried (BinaryOp LtI)
-builtin_ops curried "powi"       = binop curried (BinaryOp PowI)
-builtin_ops curried "shiftLi"    = binop curried (BinaryOp ShiftLI)
-builtin_ops curried "shiftRi"    = binop curried (BinaryOp ShiftRI)
-builtin_ops curried "andi"       = binop curried (BinaryOp AndI)
-builtin_ops curried "ori"        = binop curried (BinaryOp OrI)
-builtin_ops curried "xori"       = binop curried (BinaryOp XorI)
-builtin_ops curried "powr"       = binop curried (BinaryOp PowR)
-builtin_ops curried "divr"       = binop curried (BinaryOp DivR)
-builtin_ops curried "fst"        = unop curried Proj1E
-builtin_ops curried "snd"        = unop curried Proj2E
-builtin_ops curried "lengthPull" = unop curried LengthPull
-builtin_ops curried "lengthPush" = unop curried LengthPush
-builtin_ops curried "force"      = unop curried Force
-builtin_ops False "push"       =
-  do char '('
-     lvl <- angles level
-     char ','
-     e <- expr
-     char ')'
-     return (Push lvl e)
-builtin_ops True "push"       =
-  do var <- newLvlVar
-     return (\r -> LambLvl var (Lamb (Identifier "x") Untyped (Push (VarL var) (Var (Identifier "x") Untyped Missing) r) Untyped r) Untyped r)
-builtin_ops False "return"       =
-  do char '('
-     lvl <- angles level
-     char ','
-     e <- expr
-     char ')'
-     return (Return lvl e)
-builtin_ops True "return"     =
-  do var <- newLvlVar
-     return (\r -> LambLvl var (Lamb (Identifier "x") Untyped (Return (VarL var) (Var (Identifier "x") Untyped Missing) r) Untyped r) Untyped r)
-builtin_ops curried "bind"         = binop curried Bind
-builtin_ops curried "index"        = binop curried Index
-builtin_ops curried "generatePull" = binop curried GeneratePull
-builtin_ops curried "mapPull"    = binop curried MapPull
-builtin_ops curried "mapPush"    = binop curried MapPush
-builtin_ops curried "power"      = triop curried Power
-builtin_ops curried "seqfor"      = triop curried For
-builtin_ops curried "while"      = triop curried While
-builtin_ops curried "whileSeq"   = triop curried WhileSeq
-builtin_ops curried "interleave" = triop curried Interleave
-builtin_ops curried "forceAndPrint" = binop curried ForceAndPrint
-builtin_ops curried "benchmark" = binop curried Benchmark
-builtin_ops curried "readIntCSV" = unop curried ReadIntCSV
-builtin_ops False n            = return (Var (Identifier ('#':n)) Untyped)
-builtin_ops True n            = return (Var (Identifier n) Untyped)
-
-op :: ParserFCL (Exp Untyped)
-op =
+var :: ParserFCL (Exp Untyped)
+var =
   withSourceRegion $
     do name <- identifier
-       case name of
-         ('#':name') -> builtin_ops False name'
-         name'       -> builtin_ops True name'
+       return (Symbol (Identifier name) Untyped)
 
 fn :: ParserFCL (Exp Untyped)
 fn =
@@ -422,34 +314,50 @@ fn =
 expr :: ParserFCL (Exp Untyped)
 expr =
   let
-    lvlapp :: ParserFCL (Exp Untyped -> Exp Untyped)
-    lvlapp =
-      do e2 <- angles level
-         return (\e1 -> AppLvl e1 e2)
+    application :: Op (Exp Untyped)
+    application =
+      Infix (return (\e1 e2 ->
+                        let start = beginPosition (getSourceRegion e1)
+                            end = endPosition (getSourceRegion e2)
+                        in App e1 e2 (newRegion start end)))
+            AssocLeft
 
-    pipeForward :: ParserFCL (Exp Untyped -> Exp Untyped -> Exp Untyped)
+    lvlapp :: Op (Exp Untyped)
+    lvlapp =
+      Postfix (try $ do e2 <- angles level
+                        return (\e1 ->
+                                 let start = beginPosition (getSourceRegion e1)
+                                 in AppLvl e1 e2 (newRegion start Missing)))
+
+    pipeForward :: Op (Exp Untyped)
     pipeForward =
-      do reservedOp "|>"
-         return (\e1 e2 -> App e2 e1)
+      Infix (do reservedOp "|>"
+                return (\e1 e2 ->
+                        let start = beginPosition (getSourceRegion e1)
+                            end = endPosition (getSourceRegion e2)
+                        in App e2 e1 (newRegion start end)))
+            AssocLeft
 
     binOp :: String -> BinaryOperator -> ParserFCL (Exp Untyped -> Exp Untyped -> Exp Untyped)
     binOp opName operator =
-      do reservedOp opName
-         return (\e1 e2 -> BinaryOp operator e1 e2 Missing)
+      do pos1 <- getPosition
+         reservedOp opName
+         pos2 <- getPosition
+         let reg = regionFromPos pos1 pos2
+         return (\e1 e2 -> BinaryOp operator e1 e2 reg)
 
-    table = [ [Infix (return App) AssocLeft, Postfix lvlapp],
+    table = [ [application, lvlapp],
               [Infix (binOp "*" MulI) AssocLeft, Infix (binOp "/" DivI) AssocLeft, Infix (binOp "%" ModI) AssocLeft],
               [Infix (binOp "+" AddI) AssocLeft, Infix (binOp "-" SubI) AssocLeft],
-              [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft],
+              [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft, Infix (binOp "&" AndI) AssocLeft],
               [Infix (binOp "==" EqI) AssocLeft, Infix (binOp "!=" NeqI) AssocLeft],
-              [Infix pipeForward AssocLeft]
+              [pipeForward]
             ]
   in buildExpressionParser table term
 
 -------------------
 -- Parsing types --
 -------------------
-
 type' :: ParserFCL Type
 type' =
  let scan =
@@ -490,14 +398,13 @@ programType =
     return (ProgramT lvl ty)
 
 level :: ParserFCL Level
-level = (reserved "thread" >> return threadLevel)
-    <|> (reserved "block" >> return blockLevel)
-    <|> (reserved "grid" >> return gridLevel)
-    <|> (VarL <$> lvlVar)
-    <|> do char '1'
-           reservedOp "+"
-           lvl <- level
-           return (Step lvl)
+level = (VarL <$> lvlVar)
+    <|> (do char 'Z'
+            return Zero)
+    <|> (do char '1'
+            reservedOp "+"
+            lvl <- level
+            return (Step lvl))
 
 arrayType :: ParserFCL Type
 arrayType =
@@ -523,3 +430,27 @@ tyVar =
 
 lvlVar :: ParserFCL LvlVar
 lvlVar = (Identifier <$> identifier) >>= newNamedLvlVar
+
+
+----------------------
+-- Parsec utilities --
+----------------------
+
+-- | Convert Parsec `SourcePos` to `Position`
+fromSourcePos :: SourcePos -> Position
+fromSourcePos pos = Position { fileName = sourceName pos
+                             , line = sourceLine pos
+                             , column = sourceColumn pos }
+
+
+-- | Convert two Parsec `SourcePos` positions to a `Region`
+regionFromPos :: SourcePos -> SourcePos -> SourceRegion
+regionFromPos pos1 pos2 = SourceRegion (fromSourcePos pos1)
+                                       (fromSourcePos pos2)
+
+withSourceRegion :: Monad m => ParsecT s u m (SourceRegion -> b) -> ParsecT s u m b
+withSourceRegion p = do
+  pos1 <- getPosition
+  f <- p
+  pos2 <- getPosition
+  return (f (regionFromPos pos1 pos2))

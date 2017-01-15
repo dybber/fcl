@@ -33,7 +33,7 @@ inlineAll _ e@(BlockSize _) = e
 inlineAll env (Var v ty _) =
   case Map.lookup v env of
     Just (_, e) -> inlineAll env e  -- TODO fix up types (currently we perform a re-run of the typechecker after inlining)
-    Nothing -> Var v ty Missing
+    Nothing -> Var v ty (newRegion Missing Missing)
 inlineAll env (UnaryOp op e0 reg)        = UnaryOp op   (inlineAll env e0) reg
 inlineAll env (BinaryOp op e0 e1 reg)    = BinaryOp op  (inlineAll env e0) (inlineAll env e1) reg
 inlineAll env (Vec es ety reg)           = Vec          (map (inlineAll env) es) ety reg

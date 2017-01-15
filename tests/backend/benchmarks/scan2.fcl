@@ -2,7 +2,7 @@ sig appendPull : ['a] -> ['a] -> ['a]
 fun appendPull a1 a2 =
   let n1 = lengthPull a1 in
   let n2 = lengthPull a2
-  in generatePull (n1+n2)
+  in generate (n1+n2)
        (fn ix => if lti ix n1
                  then index a1 ix
                  else index a2 (ix - n1))
@@ -17,13 +17,13 @@ fun fan op arr =
 
 sig binsplit2 : int -> ([int] -> [int]) -> int -> [int] -> Program <block> [int]<block>
 fun binsplit2 n f iteration arr =
-  let c  = shiftLi 1 (subi n iteration) in -- number of blocks
+  let c  = 1 << (subi n iteration) in -- number of blocks
   let m  = divi (lengthPull arr) c in -- size of each block
   let lt = c * m in -- total size after
-  let h  = fn i => modi i m in -- global index -> index inside block
+  let h  = fn i => i % m in -- global index -> index inside block
   let g  = fn i => fn j => (divi i m) * m -- block-offset from global index
                            + j             -- index inside block
-  in return <block> (push <block> (generatePull lt (fn i => index (f (generatePull m (fn j => (index arr (g i j))))) (h i))))
+  in return <block> (push <block> (generate lt (fn i => index (f (generate m (fn j => (index arr (g i j))))) (h i))))
 
 -- block-level scan
 sig sklansky : int -> ('a -> 'a -> 'a) -> ['a] -> Program <block> ['a]<block>
@@ -34,7 +34,7 @@ fun sklansky n op arr =
 
 sig scanInChunks : int -> ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun scanInChunks lgChunkSize op arr =
-  let chunkSize = shiftLi 1 lgChunkSize
+  let chunkSize = 1 << lgChunkSize
   in concatMap chunkSize (sklansky lgChunkSize op) (splitUp chunkSize arr)
 
 sig last : ['a] -> 'a
@@ -42,12 +42,12 @@ fun last arr = index arr (lengthPull arr - 1)
 
 sig intermediateSums : int -> ['a] -> ['a]
 fun intermediateSums lgChunkSize arr =
-  let chunkSize = shiftLi 1 lgChunkSize
+  let chunkSize = 1 << lgChunkSize
   in mapPull last (splitUp chunkSize arr)
 
 sig main : Program <grid> [int]
 fun main =
-  do { arr <- scanInChunks 5 addi (generatePull 128 (fn i => i))
+  do { arr <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
      ; forceAndPrint 128 arr
      -- ; b <- forceAndPrint 128 arr
      -- ; forceAndPrint 4 (push <grid> (intermediateSums 5 b))

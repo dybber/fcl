@@ -108,7 +108,7 @@ subst s x e =
       | x == y                    -> return e
       | Set.member y (freeVars s) ->
           do z <- freshVar
-             ebody' <- subst (Var z ty1 Missing) y ebody
+             ebody' <- subst (Var z ty1 (newRegion Missing Missing)) y ebody
              ebody'' <- subst s x ebody'
              return (Lamb z ty1 ebody'' ty2 r)
       | otherwise ->
@@ -125,7 +125,7 @@ subst s x e =
       | Set.member y (freeVars s) ->
           do z <- freshVar
              e1' <- subst s x e1
-             e2' <- subst (Var z t Missing) y e2 -- TODO the "t" here is REALLY wrong
+             e2' <- subst (Var z t (newRegion Missing Missing)) y e2 -- TODO the "t" here is REALLY wrong
              e2'' <- subst s x e2'
              return (Let z e1' e2'' t r)
       | otherwise ->

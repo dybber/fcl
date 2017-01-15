@@ -1,6 +1,6 @@
 sig transpose : int -> int -> ['a] -> ['a]
 fun transpose cols rows elems =
-  generatePull (muli cols rows)
+  generate (cols * rows)
            (fn n =>
               let i = n / rows in
               let j = n % rows
@@ -14,7 +14,7 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
   let mkTile =
         (fn groupIDy =>
           fn groupIDx =>
-             generatePull tileSize
+             generate tileSize
                       (fn tid =>
                          let localIDx = tid % splitSize in -- column in inner array
                          let localIDy = tid / splitSize in -- row in inner array
@@ -22,7 +22,7 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
                          let yIndex = groupIDx * splitSize + localIDy in
                          let ix = yIndex * width + xIndex
                          in index elems ix))
-  in generatePull (groupsWidth * groupsHeight)
+  in generate (groupsWidth * groupsHeight)
        (fn gid =>
           let groupIDy = gid / groupsWidth in -- row in outer
           let groupIDx = gid % groupsWidth -- column in outer
@@ -80,7 +80,7 @@ fun transposeChunked16 = transposeChunked 16
 
 --- Testing
 sig make_NxN_Matrix : int -> [int]
-fun make_NxN_Matrix n = generatePull (n / n) (fn i => i)
+fun make_NxN_Matrix n = generate (n / n) (fn i => i)
 
 
 sig example : Program <grid> [int]<grid>

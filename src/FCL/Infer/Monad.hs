@@ -6,7 +6,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
 
-import FCL.Core.Syntax
+import FCL.External.Syntax
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
 import FCL.Infer.Substitution (Subst)
@@ -28,14 +28,17 @@ data TypeError = UnificationError SourceRegion Type Type
 throwError :: TypeError -> TI a
 throwError err = lift (throwE err)
 
+initEnv :: TVE
+initEnv = TVE 0 (Map.empty, Map.empty)
+
 runTI :: TI a -> TVE -> Either TypeError (a, TVE)
 runTI m s = runExcept (runStateT m s)
 
-newtv :: TI Type
+newtv :: TI TyVar
 newtv = do
  (TVE i s) <- get
  put (TVE (i+1) s)
- return (VarT (TyVar i Nothing))
+ return (TyVar i Nothing)
 
 newLvlVar :: TI LvlVar
 newLvlVar = do

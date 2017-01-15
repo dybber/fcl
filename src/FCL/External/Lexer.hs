@@ -23,10 +23,6 @@ reservedNames =
    "if",
    "then",
    "else",
-   "thread",
-   "block",
-   "grid",
-   "config",
    "do"]
 
 reservedOps :: [String]

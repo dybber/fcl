@@ -1,13 +1,13 @@
 sig scanBlock : [int] -> Program <block> [int]<block>
 fun scanBlock arr =
   splitUp 32 arr
-   |> mapPull (scanl addi 0)
+   |> mapPull (scanl (fn a => fn b => a + b) 0)
    |> mapPull (return <thread>)
    |> concat 33
 
 sig runtest : Program <grid> [int]<grid>
 fun runtest =
-  generatePull 1 (fn i => iota (32*32))
+  generate 1 (fn i => iota (32*32))
    |> mapPull scanBlock
    |> concat (33*32)
 

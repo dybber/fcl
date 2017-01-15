@@ -3,8 +3,8 @@ sig evenOdds : ['a] -> (['a], ['a])
 fun evenOdds arr =
   let n = lengthPull arr in
   let n2 = divi n 2
-  in (generatePull (n-n2) (fn ix => index arr (2*ix)),
-      generatePull n2     (fn ix => index arr (2*ix + 1)))
+  in (generate (n-n2) (fn ix => index arr (2*ix)),
+      generate n2     (fn ix => index arr (2*ix + 1)))
 
 sig reduceBlockNoncommutative : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
 fun reduceBlockNoncommutative <lvl> f arr =
@@ -33,7 +33,7 @@ fun reducePart f neutralElement arr =
  in concatMap 1 (reduceBlock <block> f) (splitUp workPerBlock paddedArray)
 
 sig example1 : Program <grid> [int]<grid>
-fun example1 = reducePart addi 0 (generatePull (2048*2048) (fn i => i))
+fun example1 = reducePart (fn a => fn b => a + b) 0 (generate (2048*2048) (fn i => i))
 
 -- Full reduction
 
@@ -54,7 +54,7 @@ fun reduce f neutralElement arr =
 --while : ('a -> bool) -> ('a -> Program <lvl> 'a) -> 'a -> Program <lvl> 'a
 
 sig example2 : Program <grid> int
-fun example2 = reduce addi 0 (generatePull (4096*4096) (fn i => 1))
+fun example2 = reduce (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => 1))
 
 sig main : Program <grid> unit
 fun main =

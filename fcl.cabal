@@ -24,6 +24,7 @@ Library
                    FCL.Core.SourceRegion
                    FCL.Core.Syntax
 
+                   FCL.External.Syntax
                    FCL.External.Lexer
                    FCL.External.Parser
                    FCL.External.Pretty
@@ -32,10 +33,13 @@ Library
                    FCL.Infer.Monad
                    FCL.Infer.Substitution
                    FCL.Infer.Unification
-                   
+                   FCL.Infer.TypeEnvironment
+
+                   FCL.Desugaring
                    FCL.Inline
                    FCL.Simplify
                    FCL.Substitution
+                   FCL.TypeInference
 
                    FCL.Compile
                    FCL.Compile.Config

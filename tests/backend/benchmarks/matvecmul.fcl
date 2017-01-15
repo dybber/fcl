@@ -9,7 +9,7 @@ fun reduceBlock <lvl> f arr =
 
 sig dotp : [int] -> [int] -> Program <block> [int]<block>
 fun dotp vec1 vec2 =
-  reduceBlock <block> addi (zipWith muli vec1 vec2)
+  reduceBlock <block> (fn a => fn b => a + b) (zipWith (fn a => fn b => a * b) vec1 vec2)
 
 sig matVecMul : [int] -> [int] -> int -> Program <grid> [int]<grid>
 fun matVecMul mat vec cols =

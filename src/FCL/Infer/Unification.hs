@@ -3,8 +3,8 @@ module FCL.Infer.Unification (unify, unifyAll, unifyBinOp, unifyUnOp, unifyLvlVa
 import qualified Data.Map as Map
 import Control.Monad.Trans.State
 
-import FCL.Core.Syntax
 import FCL.Core.SourceRegion
+import FCL.External.Syntax
 import FCL.Infer.Substitution
 import FCL.Infer.Monad
 
@@ -55,7 +55,7 @@ unify_fv tv t =
        else tvext (tv, t)
 
 unifyAll :: SourceRegion -> [Type] -> TI Type
-unifyAll _ [] = newtv
+unifyAll _ [] = VarT <$> newtv
 unifyAll _ [t] = return t
 unifyAll r (t1 : t2 : ts) =
   do unify r t1 t2
@@ -71,7 +71,6 @@ unifyUnOp AbsI r    = unify1 r IntT IntT
 unifyUnOp SignI r   = unify1 r IntT IntT
 unifyUnOp NegateI r = unify1 r IntT IntT
 unifyUnOp Not r     = unify1 r BoolT BoolT
-unifyUnOp I2D r     = unify1 r IntT DoubleT
 unifyUnOp B2I r     = unify1 r BoolT IntT
 unifyUnOp CLZ r     = unify1 r IntT IntT
 
@@ -87,11 +86,8 @@ unifyBinOp SubI r    = unify2 r IntT IntT IntT
 unifyBinOp MulI r    = unify2 r IntT IntT IntT
 unifyBinOp DivI r    = unify2 r IntT IntT IntT
 unifyBinOp ModI r    = unify2 r IntT IntT IntT
-unifyBinOp MinI r    = unify2 r IntT IntT IntT
-unifyBinOp MaxI r    = unify2 r IntT IntT IntT
 unifyBinOp EqI r     = unify2 r IntT IntT BoolT
 unifyBinOp NeqI r    = unify2 r IntT IntT BoolT
-unifyBinOp LtI r     = unify2 r IntT IntT BoolT
 unifyBinOp PowI r    = unify2 r IntT IntT IntT
 unifyBinOp ShiftLI r = unify2 r IntT IntT IntT
 unifyBinOp ShiftRI r = unify2 r IntT IntT IntT

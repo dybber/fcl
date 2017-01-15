@@ -6,7 +6,7 @@ fun test01 = false
 
 fun test02 = if true then 1 else 0
 
-fun test03 = eqi 1 1
+fun test03 = 1 == 1
 
-fun test04 = if eqi 2 2 then 17 else 42
+fun test04 = if 2 == 2 then 17 else 42
 

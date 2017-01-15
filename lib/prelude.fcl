@@ -3,32 +3,31 @@ fun id x = x
 
 sig concat : int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
 fun concat n arr =
-  interleave n (fn sh => addi (muli (fst sh) n) (snd sh)) arr
+  interleave n (fn sh => ((fst sh) * n) + (snd sh)) arr
 
 sig iota : int -> [int]
-fun iota n = generatePull n (fn x => x)
+fun iota n = generate n (fn x => x)
 
 sig range : int -> int -> [int]
 fun range begin end =
-  iota (addi (subi end begin) 1)
-   |> mapPull (addi begin)
+  mapPull (fn x => begin + x) (iota (1 + (subi end begin)))
 
 sig zipWith : ('a -> 'b -> 'c) -> ['a] -> ['b] -> ['c]
 fun zipWith f a1 a2 =
-  generatePull (mini (lengthPull a1) (lengthPull a2))
+  generate (mini (lengthPull a1) (lengthPull a2))
     (fn ix => f (index a1 ix) (index a2 ix))
 
 sig backpermute : int -> (int -> (int, int)) -> [['a]] -> ['a]
 fun backpermute totalSize f array =
-  generatePull totalSize
+  generate totalSize
     (fn ix => let ix0 = f ix
               in index (index array (fst ix0)) (snd ix0))
 
 -- Split an array at a given point
 sig splitAt : int -> ['a] -> (['a], ['a])
 fun splitAt n arr =
-  (generatePull n (fn i => index arr i),
-   generatePull (subi (lengthPull arr) n) (fn x => index arr (addi x n)))
+  (generate n (fn i => index arr i),
+   generate (subi (lengthPull arr) n) (fn x => index arr (x + n)))
 
 sig halve : ['a] -> (['a], ['a])
 fun halve arr = 
@@ -40,31 +39,31 @@ fun evenOdds arr =
   let n  = lengthPull arr
   in let n2 = divi n 2
      in
-     (generatePull (subi n n2) (fn ix => index arr (muli 2 ix)),
-      generatePull n2     (fn ix => index arr (addi (muli 2 ix) 1)))
+     (generate (subi n n2) (fn ix => index arr (2 * ix)),
+      generate n2     (fn ix => index arr ((2 * ix) + 1)))
 
 sig splitUp : int -> ['a] -> [['a]]
 fun splitUp n arr =
-  generatePull (divi (lengthPull arr) n)
-    (fn i => generatePull n
-       (fn j => index arr (addi (muli i n) j)))
+  generate (divi (lengthPull arr) n)
+    (fn i => generate n
+       (fn j => index arr ((i * n) + j)))
 
 sig coalesce : int -> ['a] -> [['a]]
 fun coalesce n arr =
   let s = divi (lengthPull arr) n
-  in generatePull s (fn i =>
-       generatePull n (fn j => index arr (addi i (muli s j))))
+  in generate s (fn i =>
+       generate n (fn j => index arr (i + (s * j))))
 
 sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
-fun take n arr = generatePull n (fn ix => index arr n)
+fun take n arr = generate n (fn ix => index arr n)
 
 sig bit : int -> int
-fun bit i = shiftLi 1 i
+fun bit i = 1 << i
 
 sig testBit : int -> int -> bool
-fun testBit x i = neqi (andi x (bit i)) 0
+fun testBit x i = (x & (bit i)) != 0
 
 
 --fun test = if true then ... else ...
@@ -73,7 +72,7 @@ sig foldl : ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun foldl f b array =
   seqfor 1 (1 + (lengthPull array))
     (fn read => fn i =>
-       (0, if eqi i 0
+       (0, if i == 0
            then b
            else f (read 0) (index array (subi i 1))))
 
@@ -82,7 +81,7 @@ fun scanl1 op array =
  let n = lengthPull array
  in seqfor n n
       (fn read => fn i =>
-          (i, if eqi i 0
+          (i, if i == 0
               then index array i
               else op (read (subi i 1)) (index array i)))
 
@@ -91,27 +90,17 @@ fun scanl op b array =
  let n = lengthPull array
  in seqfor (1 + n) (1 + n)
       (fn read => fn i =>
-          (i, if eqi i 0
+          (i, if i == 0
               then b
               else op (read (subi i 1)) (index array (subi i 1))))
-
-sig seqReduce : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a
-fun seqReduce f b array =
-  let n = lengthPull array in
-  let cond = fn x => neqi (fst x) n in
-  let step  = fn x => (addi (fst x) 1,
-                       f (index array (fst x)) (snd x))
-  in snd (whileSeq cond step (0,b))
-
-
 
 -- Pad array with a neutral element
 sig pad : int -> 'a -> ['a] -> ['a]
 fun pad divisor neutralElement arr =
   let n = lengthPull arr in
-  let extension = subi divisor (modi n divisor) in
+  let extension = subi divisor (n % divisor) in
   let newlength = n + extension
-  in generatePull newlength
+  in generate newlength
        (fn i => if lti i n
                 then index arr i
                 else neutralElement)

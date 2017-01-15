@@ -16,6 +16,8 @@ import Control.Monad.Trans.Reader
 import Paths_fcl
 
 import FCL
+import qualified FCL.External.Syntax as E
+import qualified FCL.Core.Syntax as C
 
 ---------------
 ---- Monad ----
@@ -25,6 +27,7 @@ type CLI = ReaderT Options (ExceptT CompilerError IO)
 data CompilerError = IOError IOError
                    | ParseError ParseError
                    | TypeError TypeError
+                   | TypeErrorCore TypeErrorCore
                    | EvalError String
                    | CLIError String
   deriving Show
@@ -144,13 +147,13 @@ readFileSafe filename = do
   contents <- liftIO (tryIOError (readFile filename))
   liftEither IOError contents
 
-parseFile :: String -> CLI [Definition Untyped]
+parseFile :: String -> CLI [E.Definition E.Untyped]
 parseFile fname = do
   contents <- readFileSafe fname
   logInfo ("Parsing " ++ fname ++ ".")
   liftEither ParseError (parseTopLevel fname contents)
 
-parseFiles :: [String] -> CLI [Definition Untyped]
+parseFiles :: [String] -> CLI [E.Definition E.Untyped]
 parseFiles files = do
   definitions <- mapM parseFile files
   return (concat definitions)
@@ -166,21 +169,21 @@ showUsageAndExit =
        putStr (usageInfo heading optionDescriptions)
        exitFailure
 
-dumpAST :: Show a => [Definition a] -> CLI ()
+dumpAST :: Show a => [E.Definition a] -> CLI ()
 dumpAST ast = message (show ast)
 
-printTypes :: [Definition Type] -> CLI ()
+printTypes :: [E.Definition E.Type] -> CLI ()
 printTypes ast = mapM_ (message . showType) ast
 
-pp :: [Definition a] -> CLI ()
+pp :: [E.Definition a] -> CLI ()
 pp ast = message (prettyPrint ast)
 
-evalAndPrint :: [Definition Type] -> CLI ()
+evalAndPrint :: [C.Definition C.Type] -> CLI ()
 evalAndPrint ast =
   do v <- liftEither EvalError (return (eval ast))
      liftIO (print v)
 
-compileAndWrite :: [Definition Type] -> CLI ()
+compileAndWrite :: [C.Definition C.Type] -> CLI ()
 compileAndWrite typed_ast =
   do logInfo "Compiling."
      optIter <- asks fclOptimizeIterations
@@ -267,17 +270,21 @@ dispatch filenames opts =
      onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
 
+     let desugared_ast = map desugarDefinition typed_ast
+
+
      do logInfo "Inlining."
-     let inlined = inline typed_ast
+     let inlined = inline desugared_ast
 
      logInfo "Simplifying."
      let simpl = simplify defaultCompileConfig inlined
 
-     onCommand DumpASTSimplified (dumpAST [simpl])
+--     onCommand DumpASTSimplified (dumpAST [simpl])
      
      logInfo "Typechecking again."
-     typed_ast2 <- liftEither TypeError (typeinfer [simpl])
-     mapM_ (logInfo . (" " ++) . showType) typed_ast2
+     typed_ast2 <- liftEither TypeErrorCore (typeinferCore [simpl])
+     -- mapM_ (logInfo . (" " ++) . showType) typed_ast2
+
 
      onCommand Eval        (evalAndPrint typed_ast2)
      onCommand Compile     (compileAndWrite typed_ast2)

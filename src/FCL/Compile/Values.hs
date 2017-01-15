@@ -42,7 +42,7 @@ elemType BoolT = BoolT
 elemType (PullArrayT ty) = elemType ty
 elemType (PushArrayT _ ty) = elemType ty
 elemType (ProgramT _ ty) = elemType ty
-elemType _ = error "elemType: non array type found"
+elemType t = error ("elemType: non array type found: " ++ show t)
 
 createPull :: ILName -> Type -> ILExp -> Array
 createPull name ty n = ArrPull n ty (\i -> tagScalar ty (name ! i))

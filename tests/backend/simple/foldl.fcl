@@ -1,13 +1,13 @@
 sig foldBlock : [int] -> Program <block> [int]<block>
 fun foldBlock arr =
   splitUp 32 arr
-   |> mapPull (foldl addi 0)
+   |> mapPull (foldl (fn a => fn b => a + b) 0)
    |> mapPull (return <thread>)
    |> concat 1
 
 sig runtest : Program <grid> [int]<grid>
 fun runtest =
-  generatePull 1 (fn i => (iota (32*32)))
+  generate 1 (fn i => (iota (32*32)))
    |> mapPull foldBlock
    |> concat 32
 
