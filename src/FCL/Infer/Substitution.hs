@@ -1,5 +1,5 @@
 module FCL.Infer.Substitution
-  (Subst, tvsub, tvsubExp)
+  (Subst, emptySubst, union, tvsub, tvsubExp)
 where
 
 import qualified Data.Map as Map
@@ -9,6 +9,13 @@ import FCL.Type.Polymorphic
 
 type Subst = (Map.Map TyVar Type,
               Map.Map LvlVar Level)
+
+union :: Subst -> Subst -> Subst
+(substTy0, substlvl0) `union` (substTy1, substlvl1) =
+  (substTy0 `Map.union` substTy1, substlvl0 `Map.union` substlvl1)
+
+emptySubst :: Subst
+emptySubst = (Map.empty, Map.empty)
 
 tvsub :: Subst -> Type -> Type
 tvsub _ IntT                = IntT
