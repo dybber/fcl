@@ -139,14 +139,19 @@ logDebug msg = do
 -------------
 -- Parsing --
 -------------
-readFileSafe :: FilePath -> CLI String
-readFileSafe filename = do
+readFileChecked :: FilePath -> CLI String
+readFileChecked filename = do
   contents <- liftIO (tryIOError (readFile filename))
   liftEither IOError contents
 
+writeFileChecked :: FilePath -> String -> CLI ()
+writeFileChecked filename contents = do
+  status <- liftIO (tryIOError (writeFile filename contents))
+  liftEither IOError status
+
 parseFile :: String -> CLI [Definition Untyped]
 parseFile fname = do
-  contents <- readFileSafe fname
+  contents <- readFileChecked fname
   logInfo ("Parsing " ++ fname ++ ".")
   liftEither ParseError (parseTopLevel fname contents)
 
@@ -193,15 +198,15 @@ compileAndWrite typed_ast =
                                     , configVerbosity = verbosity
                                     }
          (main_, kernels) = compile cfg typed_ast
-     liftIO (writeFile cfile main_)
-     liftIO (writeFile kernelsFile kernels)
+     writeFileChecked cfile main_
+     writeFileChecked kernelsFile kernels
 
 parserTest :: [FilePath] -> CLI ()
 parserTest filenames =
  let checkfile filename =
        do logInfo "Testing parser."
           logDebug "Input:"
-          contents <- readFileSafe filename
+          contents <- readFileChecked filename
           logDebug contents
           
           ast <- parseFile filename

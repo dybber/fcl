@@ -17,7 +17,7 @@ data SourceRegion = SourceRegion Position Position
 ---------------------
 
 printXY :: Position -> String
-printXY p = show (line p) ++ "." ++ show (column p)
+printXY p = "(" ++ show (line p) ++ "," ++ show (column p) ++ ")"
 
 instance Show Position where
   show p = show (fileName p) ++ ":" ++ printXY p
@@ -25,6 +25,8 @@ instance Show Position where
 instance Show SourceRegion where
   show (SourceRegion p1 p2)
     | p1 == p2  = show p1
+    | (fileName p1) == (fileName p2) =
+       show (fileName p1) ++ ":" ++ printXY p1 ++ "-" ++ printXY p2
     | otherwise = show p1 ++ "-" ++ show p2
   show Missing = "<missing>"
 

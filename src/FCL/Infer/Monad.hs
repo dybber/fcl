@@ -10,6 +10,7 @@ import FCL.Core.Syntax
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
 import FCL.Infer.Substitution (Subst)
+import FCL.External.Pretty (prettyPrintType, prettyPrintLevel)
 
 data TVE = TVE Int Subst
 
@@ -23,7 +24,28 @@ data TypeError = UnificationError SourceRegion Type Type
                | UnboundTypeVariableError Identifier
                | OccursCheckFailed TyVar Type
                | OccursCheckFailedLevel
- deriving (Eq, Show)
+ deriving Eq
+
+instance Show TypeError where
+  show (UnificationError reg ty0 ty1) =
+    concat [show reg,
+            ": Unification error.\n",
+            "Cannot unify types: ",
+            prettyPrintType ty0,
+            " and ",
+            prettyPrintType ty1]
+  show (LevelUnificationError lvl0 lvl1) =
+    concat ["Unification error. ",
+            "Cannot unify types: ",
+            prettyPrintLevel lvl0,
+            " and ",
+            prettyPrintLevel lvl1]
+  show (NotImplementedError msg) = "Not implemented: " ++ msg
+  show (UnboundVariableError ident) = "Variable: " ++ show ident ++ " not defined."
+  show (UnboundLevelVariableError ident) = "Level variable: " ++ show ident ++ " not defined."
+  show (UnboundTypeVariableError ident) = "Type variable: " ++ show ident ++ " not defined."
+  show (OccursCheckFailed tyvar ty) = "Occurs check failed. Cannot construct the infinite type " ++ show tyvar ++ " = " ++ show ty
+  show (OccursCheckFailedLevel) = "Occurs check failed between two level types."
 
 throwError :: TypeError -> TI a
 throwError err = lift (throwE err)
