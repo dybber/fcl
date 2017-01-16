@@ -8,6 +8,7 @@ import Control.Monad.Trans.State (get)
 
 import FCL.Core.SourceRegion
 import FCL.External.Syntax
+import FCL.Type.Polymorphic
 
 import FCL.Infer.Substitution
 import FCL.Infer.Monad

@@ -16,6 +16,7 @@ import Control.Monad.Trans.Reader
 import Paths_fcl
 
 import FCL
+import FCL.Type.Polymorphic
 import qualified FCL.External.Syntax as E
 import qualified FCL.Core.Syntax as C
 
@@ -172,7 +173,7 @@ showUsageAndExit =
 dumpAST :: Show a => [E.Definition a] -> CLI ()
 dumpAST ast = message (show ast)
 
-printTypes :: [E.Definition E.Type] -> CLI ()
+printTypes :: [E.Definition Type] -> CLI ()
 printTypes ast = mapM_ (message . showType) ast
 
 pp :: [E.Definition a] -> CLI ()

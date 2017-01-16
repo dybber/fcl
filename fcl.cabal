@@ -29,6 +29,8 @@ Library
                    FCL.External.Parser
                    FCL.External.Pretty
 
+                   FCL.Type.Polymorphic
+
                    FCL.Infer
                    FCL.Infer.Monad
                    FCL.Infer.Substitution

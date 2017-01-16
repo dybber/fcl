@@ -6,6 +6,7 @@ import Text.PrettyPrint
 
 import FCL.Core.Identifier
 import FCL.External.Syntax
+import FCL.Type.Polymorphic
 
 
 angles :: Doc -> Doc

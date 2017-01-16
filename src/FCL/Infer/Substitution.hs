@@ -5,6 +5,7 @@ where
 import qualified Data.Map as Map
 
 import FCL.External.Syntax
+import FCL.Type.Polymorphic
 
 type Subst = (Map.Map TyVar Type,
               Map.Map LvlVar Level)

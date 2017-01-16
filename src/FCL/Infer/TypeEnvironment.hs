@@ -3,7 +3,7 @@ module FCL.Infer.TypeEnvironment where
 import qualified Data.Map as Map
 
 import FCL.Core.Identifier
-import FCL.External.Syntax
+import FCL.Type.Polymorphic
 import FCL.Infer.Monad
 
 type TypeEnvironment = Map.Map Identifier (TypeScheme Type)

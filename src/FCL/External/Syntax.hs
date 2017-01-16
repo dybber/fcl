@@ -1,10 +1,6 @@
 -- This module containts the FCL AST
 module FCL.External.Syntax (
-  -- Levels
-  Level(..), LvlVar(..), threadLevel, blockLevel, gridLevel,
-  
-  -- Types
-  Type(..), TyVar(..), TypeScheme(..), Untyped(Untyped),
+  Untyped(..),
   
   -- Expressions
   Literal(..),
@@ -23,44 +19,7 @@ module FCL.External.Syntax (
 
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
-
----------------------
--- Syntax of types --
----------------------
-data LvlVar = LvlVar Int (Maybe Identifier)
-  deriving (Eq, Show, Ord)
-
-data Level = Zero | Step Level | VarL LvlVar
-  deriving (Eq, Show)
-
-threadLevel, blockLevel, gridLevel :: Level
-threadLevel = Zero
-blockLevel  = Step threadLevel
-gridLevel   = Step blockLevel
-
-data Type =
-    IntT
-  | BoolT
-  | DoubleT
-  | StringT
-  | UnitT
-  | VarT TyVar
-  | LvlVar :-> Type
-  | Type :> Type
-  | Type :*: Type
-  | PullArrayT Type
-  | PushArrayT Level Type
-  | ProgramT Level Type
-  deriving (Eq, Show)
-
-infixr 9 :>
-infixr 9 :->
-
-data TyVar = TyVar Int (Maybe Identifier)
-  deriving (Eq, Show, Ord)
-
-data TypeScheme ty = TypeScheme [TyVar] [LvlVar] ty
-  deriving (Eq, Show)
+import FCL.Type.Polymorphic
 
 data Untyped = Untyped
   deriving (Eq, Show)
@@ -91,36 +50,6 @@ data Exp ty =
 
   | UnaryOp UnaryOperator (Exp ty) SourceRegion
   | BinaryOp BinaryOperator (Exp ty) (Exp ty) SourceRegion
-
---   | Proj1E (Exp ty) SourceRegion
---   | Proj2E (Exp ty) SourceRegion
-
--- -- Array handling
---   | Index (Exp ty) (Exp ty) SourceRegion
---   | LengthPull (Exp ty) SourceRegion
---   | LengthPush (Exp ty) SourceRegion
-
--- -- Combinators
---   | For (Exp ty) (Exp ty) (Exp ty) SourceRegion -- Sequential for loop at thread-level
---   | Power (Exp ty) (Exp ty) (Exp ty) SourceRegion -- APL-style power-operator
---   | While (Exp ty) (Exp ty) (Exp ty) SourceRegion -- APL-style, representing tail-recursive functions
---   | WhileSeq (Exp ty) (Exp ty) (Exp ty) SourceRegion
---   | GeneratePull (Exp ty) (Exp ty) SourceRegion
---   | MapPull (Exp ty) (Exp ty) SourceRegion
---   | MapPush (Exp ty) (Exp ty) SourceRegion
---   | Force (Exp ty) SourceRegion
---   | Push Level (Exp ty) SourceRegion
---   | Interleave (Exp ty) (Exp ty) (Exp ty) SourceRegion
---   | Bind (Exp ty) (Exp ty) SourceRegion
---   | Return Level (Exp ty) SourceRegion
---   | BlockSize SourceRegion
-
--- -- I/O
---   | ReadIntCSV (Exp ty) SourceRegion
---   -- | ReadDoubleCSV (Exp ty)
---   | ForceAndPrint (Exp ty) (Exp ty) SourceRegion
---   | Benchmark (Exp ty) (Exp ty) SourceRegion
---   -- | PrintDoubleArray (Exp ty) (Exp ty)
   deriving Show
 
 data UnaryOperator = AbsI | SignI | NegateI | Not | B2I | CLZ
@@ -154,6 +83,7 @@ instance SourceInfo (Exp ty) where
 
       UnaryOp _ _ r    -> r
       BinaryOp _ _ _ r -> r
+
 
 typeOf :: Exp Type -> Type
 typeOf (Literal (LiteralInt _) _) = IntT

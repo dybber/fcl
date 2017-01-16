@@ -6,7 +6,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
 
-import FCL.External.Syntax
+import FCL.Type.Polymorphic
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
 import FCL.Infer.Substitution (Subst)

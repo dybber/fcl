@@ -16,6 +16,7 @@ import FCL.Core.Identifier
 import FCL.Core.SourceRegion
 import FCL.External.Lexer
 import FCL.External.Syntax
+import FCL.Type.Polymorphic
 
 -----------
 -- Monad --

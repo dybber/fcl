@@ -3,6 +3,7 @@ module FCL.Desugaring (desugarDefinition, desugarExp) where
 import FCL.Core.Identifier
 import FCL.Core.SourceRegion
 
+import FCL.Type.Polymorphic as E
 import qualified FCL.External.Syntax as E
 import qualified FCL.Core.Syntax as C
 
