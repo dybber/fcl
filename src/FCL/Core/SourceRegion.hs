@@ -27,7 +27,7 @@ endPosition (SourceRegion _ pos2) = pos2
 ---------------------
 
 printXY :: Position -> String
-printXY p = show (line p) ++ "." ++ show (column p)
+printXY p = "(" ++ show (line p) ++ "," ++ show (column p) ++ ")"
 
 instance Show Position where
   show (p@(Position fname _ _)) = show fname ++ ":" ++ printXY p
@@ -36,4 +36,6 @@ instance Show Position where
 instance Show SourceRegion where
   show (SourceRegion p1 p2)
     | p1 == p2  = show p1
+    | (fileName p1) == (fileName p2) =
+       show (fileName p1) ++ ":" ++ printXY p1 ++ "-" ++ printXY p2
     | otherwise = show p1 ++ "-" ++ show p2

@@ -1,4 +1,4 @@
-module FCL.External.Pretty (prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
+module FCL.External.Pretty (prettyPrintLevel, prettyPrintType, prettyPrintExp, prettyPrintDef, prettyPrint, showType) where
 
 import Control.Monad.Trans.State
 import qualified Data.Map as Map
@@ -8,9 +8,11 @@ import FCL.Core.Identifier
 import FCL.External.Syntax
 import FCL.Type.Polymorphic
 
-
 angles :: Doc -> Doc
 angles p = char '<' <> p <> char '>'
+
+prettyPrintLevel :: Level -> String
+prettyPrintLevel lvl = render $ evalState (ppLevel lvl) startEnv
 
 prettyPrintType :: Type -> String
 prettyPrintType t = render $ evalState (ppType t) startEnv
@@ -26,7 +28,6 @@ prettyPrint prog = render $ evalState (ppProgram prog) startEnv
 
 showType :: Definition Type -> String
 showType (Definition v _ _ e) = identToString v ++ " : " ++ prettyPrintType (typeOf e)
-
 
 -- Names used when pretty printing type variables
 tyVarNames :: [String]

@@ -14,6 +14,7 @@ import FCL.Compile.Config
 import FCL.IL.Cons
 import FCL.IL.Program (runProgram)
 import FCL.IL.CodeGen (codeGen)
+import FCL.IL.Optimise (optimise)
 
 compile :: CompileConfig -> [Definition Type] -> (String, String)
 compile compileConfig defs =
@@ -26,7 +27,8 @@ compile compileConfig defs =
   in case compBody emptyEnv (defBody main) of
        TagProgram p ->
          let (stmts, _) = runProgram p
-         in codeGen compileConfig stmts
+             optimised = optimise 20 stmts
+         in codeGen compileConfig optimised
        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
 type VarEnv = Map.Map Identifier Value
