@@ -13,6 +13,8 @@ import Data.Map (Map)
 import CGen hiding (freeVars)
 import CGen.OpenCL.HostCode
 
+import FCL.IL.Analysis.Liveness
+import FCL.IL.Analysis.FreeVars
 import FCL.Compile.Config
 import FCL.IL.Syntax
 
@@ -202,6 +204,7 @@ binop Sll (VInt i1) (VInt i2) = VInt (sll i1 i2)
 binop Srl (VInt i1) (VInt i2) = VInt (srl i1 i2)
 binop Xor (VInt i1) (VInt i2) = VInt (xor i1 i2)
 binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
+binop Land (VInt i1) (VInt i2) = VInt (land i1 i2)
 binop op _ _ = error ("binary operation not implemented yet: " ++ show op)
 
 assignVar :: VarEnv -> ILName -> Value -> CGen a ()
@@ -223,15 +226,15 @@ assignSub env x ix v =
 ------------------------
 -- Thread-level compilation --
 ------------------------
-compThread :: CompileConfig -> VarEnv -> [Stmt] -> ILKernel ()
+compThread :: CompileConfig -> VarEnv -> [Stmt a] -> ILKernel ()
 compThread cfg env stmts =
   case stmts of
     [] -> return ()
-    (Declare (x,ty) e : ss) ->
+    (Declare (x,ty) e _ : ss) ->
       do let v = compExp env e
          v' <- lett x v
          compThread cfg (Map.insert (x,ty) v' env) ss
-    (Alloc (x,ty) elemty e : ss) ->
+    (Alloc (x,ty) elemty e _ : ss) ->
        do let size = compExp env e
           sizeVar <- letVar "size" int32_t (constant (configBlockSize cfg)) --(muli (unInt size) (constant (configBlockSize cfg)))
           let cty = convertType elemty
@@ -240,54 +243,54 @@ compThread cfg env stmts =
           ptr' <- letVar "threadLocal" (snd ptr) offset
           v <- lett "arr" (VKernelArray elemty ptr')
           compThread cfg (Map.insert (x,ty) v env) ss
-    (SeqFor loopVar loopBound body : ss) ->
+    (SeqFor loopVar loopBound body _ : ss) ->
       do let ub = compExp env loopBound
          for (unInt ub)
              (\i -> do i' <- lett "ub" (VInt i)
                        compThread cfg (Map.insert loopVar i' env) body)
          compThread cfg env ss
-    (Synchronize : ss) ->
+    (Synchronize _ : ss) ->
        -- synchronization is a no-op on thread-level
        compThread cfg env ss
-    (Assign x e : ss) ->
+    (Assign x e _ : ss) ->
       do let e' = compExp env e
          assignVar env x e'
          compThread cfg env ss
-    (AssignSub x ix e : ss) ->
+    (AssignSub x ix e _ : ss) ->
       do let ix' = compExp env ix
          let e' = compExp env e
          assignSub env x ix' e'
          compThread cfg env ss
-    (While stopCond body : ss) ->
+    (While stopCond body _ : ss) ->
       do let v = compExp env stopCond
          whileLoop (unBool v) (compThread cfg env body)
          compThread cfg env ss
-    (If cond then_ else_ : ss) ->
+    (If cond then_ else_ _ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
              (compThread cfg env then_
              ,compThread cfg env else_)
          compThread cfg env ss
-    (ParFor _ _ _ _ : _)     -> error "Cannot use parallel constructs on thread-level."
-    (Distribute _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
-    (ReadIntCSV _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
-    (PrintIntArray _ _ : _)  -> error "Printing not possible at thread level."
-    (Benchmark _ _ : _)  -> error "Benchmarking not possible at thread level."
+    (ParFor _ _ _ _ _ : _)     -> error "Cannot use parallel constructs on thread-level."
+    (Distribute _ _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
+    (ReadIntCSV _ _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
+    (PrintIntArray _ _ _ : _)  -> error "Printing not possible at thread level."
+    (Benchmark _ _ _ : _)  -> error "Benchmarking not possible at thread level."
 
 ------------------------
 -- Kernel compilation --
 ------------------------
-compKernelBody :: CompileConfig -> VarEnv -> [Stmt] -> ILKernel ()
+compKernelBody :: CompileConfig -> VarEnv -> [Stmt a] -> ILKernel ()
 compKernelBody cfg env stmts =
   case stmts of
     [] -> return ()
-    (Declare (x,ty) e : ss) ->
+    (Declare (x,ty) e _ : ss) ->
       do let v = compExp env e
          v' <- lett x v
          compKernelBody cfg (Map.insert (x,ty) v' env) ss
 
     -- allocate shared memory
-    (Alloc (x,ty) elemty e : ss) ->
+    (Alloc (x,ty) elemty e _ : ss) ->
        do let size = compExp env e
           sizeVar <- letVar "size" int32_t (unInt size)
           let cty = convertType elemty
@@ -296,47 +299,47 @@ compKernelBody cfg env stmts =
           compKernelBody cfg (Map.insert (x,ty) v env) ss
 
     -- lift a thread-level computation to block level
-    (ParFor _ loopVar loopBound body : ss) ->
+    (ParFor _ loopVar loopBound body _ : ss) ->
       do let ub = compExp env loopBound
          forAllBlock cfg (unInt ub)
                 (\i -> do i' <- lett "ub" (VInt i)
                           compThread cfg (Map.insert loopVar i' env) body)
          compKernelBody cfg env ss
     -- lift a thread-level computation to block-level (on this level identical to ParFor)
-    (Distribute _ loopVar loopBound body : ss) ->
+    (Distribute _ loopVar loopBound body _ : ss) ->
       do let ub = compExp env loopBound
          forAllBlock cfg (unInt ub)
                 (\i -> do i' <- lett "ub" (VInt i)
                           compThread cfg (Map.insert loopVar i' env) body)
          compKernelBody cfg env ss
-    (Synchronize : ss) ->
+    (Synchronize _ : ss) ->
       do syncLocal
          compKernelBody cfg env ss
-    (Assign x e : ss) ->
+    (Assign x e _ : ss) ->
       do let e' = compExp env e
          assignVar env x e'
          compKernelBody cfg env ss
-    (AssignSub x ix e : ss) ->
+    (AssignSub x ix e _ : ss) ->
       do let ix' = compExp env ix
          let e' = compExp env e
          assignSub env x ix' e'
          compKernelBody cfg env ss
-    (While stopCond body : ss) ->
+    (While stopCond body _ : ss) ->
       do let v = compExp env stopCond
          whileLoop (unBool v) (compKernelBody cfg env body)
          compKernelBody cfg env ss
-    (If cond then_ else_ : ss) ->
+    (If cond then_ else_ _ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
              (compKernelBody cfg env then_
              ,compKernelBody cfg env else_)
          compKernelBody cfg env ss
-    (SeqFor _ _ _ : _)      -> error "seqfor: Only available at thread-level"
-    (ReadIntCSV _ _ _ : _)  -> error "Reading input-data is not possible at block level"
-    (PrintIntArray _ _ : _) -> error "Printing not possible at block level"
-    (Benchmark _ _ : _) -> error "Benchmarking not possible at block level"
+    (SeqFor _ _ _ _ : _)      -> error "seqfor: Only available at thread-level"
+    (ReadIntCSV _ _ _ _ : _)  -> error "Reading input-data is not possible at block level"
+    (PrintIntArray _ _ _ : _) -> error "Printing not possible at block level"
+    (Benchmark _ _ _ : _) -> error "Benchmarking not possible at block level"
 
-mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILKernel ()
+mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILKernel ()
 mkKernelBody cfg env loopVar loopBound body =
   do let ub = compExp env loopBound
      distrParBlock cfg (unInt ub) (\i ->
@@ -383,62 +386,62 @@ lett _ (VHostBuffer ty buf) = return (VarHostBuffer ty buf)
 ---------------------
 -- Host compilation
 ---------------------
-compHost :: CompileConfig -> ClContext -> VarEnv -> [Stmt] -> ILHost ()
+compHost :: CompileConfig -> ClContext -> VarEnv -> [Stmt a] -> ILHost ()
 compHost cfg ctx env stmts =
   case stmts of
     [] -> return ()
-    (PrintIntArray size arr : ss) ->
+    (PrintIntArray size arr _ : ss) ->
       do let n = compExp env size
          let arr' = compExp env arr
          finish ctx
          printArray ctx n arr'
          compHost cfg ctx env ss
-    (Benchmark iterations ss0 : ss) ->
+    (Benchmark iterations ss0 _ : ss) ->
       do let n = compExp env iterations
          benchmark n (compHost cfg ctx env ss0 >> finish ctx)
          compHost cfg ctx env ss
-    (Declare (x,ty) e : ss) ->
+    (Declare (x,ty) e _ : ss) ->
       do let v = compExp env e
          v' <- lett x v
          compHost cfg ctx (Map.insert (x,ty) v' env) ss
-    (Distribute _ x e stmts' : ss) -> -- use level for something? Only for type check?
+    (Distribute _ x e stmts' _ : ss) -> -- use level for something? Only for type check?
       do distribute cfg ctx env x e stmts'
          compHost cfg ctx env ss
-    (ParFor _ _ _ _ : _) -> error "parfor<grid>: Not supported yet"
-    (Synchronize : ss) ->
+    (ParFor _ _ _ _ _ : _) -> error "parfor<grid>: Not supported yet"
+    (Synchronize _ : ss) ->
       do finish ctx
          compHost cfg ctx env ss
-    (ReadIntCSV (x,ty) xlen e : ss) ->
+    (ReadIntCSV (x,ty) xlen e _ : ss) ->
       do let filename = compExp env e
          (valuesRead, hostPtr) <- readCSVFile int32_t filename
          v <- copyToDevice ctx ILInt (var valuesRead) (var hostPtr)
          compHost cfg ctx (Map.insert xlen (VarInt valuesRead) (Map.insert (x,ty) v env)) ss
-    (Alloc (x,ty) elemty e : ss) ->
+    (Alloc (x,ty) elemty e _ : ss) ->
       do let size = compExp env e
          v <- allocate ctx elemty size
          compHost cfg ctx (Map.insert (x,ty) v env) ss
-    (Assign x e : ss) ->
+    (Assign x e _ : ss) ->
       do let e' = compExp env e
          assignVar env x e'
          compHost cfg ctx env ss
-    (AssignSub x ix e : ss) ->
+    (AssignSub x ix e _ : ss) ->
       do let ix' = compExp env ix
              e' = compExp env e
          assignSub env x ix' e'
          compHost cfg ctx env ss
-    (While stopCond body : ss) ->
+    (While stopCond body _ : ss) ->
       do let v = compExp env stopCond
          whileLoop (unBool v) (compHost cfg ctx env body)
          compHost cfg ctx env ss
-    (If cond then_ else_ : ss) ->
+    (If cond then_ else_ _ : ss) ->
       do let cond' = compExp env cond
          iff (unBool cond')
              (compHost cfg ctx env then_
              ,compHost cfg ctx env else_)
          compHost cfg ctx env ss
-    (SeqFor _ _ _ : _) -> error "seqfor: Only available at thread-level"
+    (SeqFor _ _ _ _ : _) -> error "seqfor: Only available at thread-level"
 
-distribute :: CompileConfig -> ClContext -> VarEnv -> ILName -> ILExp -> [Stmt] -> ILHost ()
+distribute :: CompileConfig -> ClContext -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILHost ()
 distribute cfg ctx env loopVar loopBound stmts =
   let
     createArgument :: ILName -> ILHost KernelArg
@@ -475,7 +478,7 @@ distribute cfg ctx env loopVar loopBound stmts =
 -- create kernel definition (using distrParBlock)
 -- create/build kernel on host
 -- call the kernel using the same order of arguments, as in the parameter list.
-mkKernel :: CompileConfig -> VarEnv -> String -> ILName -> ILExp -> [Stmt] -> ILHost Kernel
+mkKernel :: CompileConfig -> VarEnv -> String -> ILName -> ILExp -> [Stmt a] -> ILHost Kernel
 mkKernel cfg env kernelName loopVar loopBound stmts =
   let params = Set.toList (Set.delete loopVar (freeVars stmts `Set.union` liveInExp loopBound))
       mkArgumentList :: [ILName] -> ILHost [Var]
@@ -557,7 +560,7 @@ benchmark _ _ = error "Benchmark expects int as first argument (number of iterat
 ---------------------
 -- Compile program --
 ---------------------
-compProgram :: CompileConfig -> [Stmt] -> CGen () KernelMap
+compProgram :: CompileConfig -> [Stmt a] -> CGen () KernelMap
 compProgram cfg program =
   -- compile body
   let ctxVar = ClContext ("ctx", contextCType)
@@ -616,13 +619,13 @@ includes = [includeSys "stdio.h",
             includeSys "mcl.h",
             includeSys "fcl.h"]
                   
-codeGen :: CompileConfig -> ILProgram -> (String, String)
+codeGen :: CompileConfig -> ILProgram a -> (String, String)
 codeGen cfg program =
  let (mainBody, _, kernels') = evalCGen () (compProgram cfg program)
  in (createMain mainBody,
      prettyKernels kernels')
 
-compileAndOutput :: CompileConfig -> ILProgram -> FilePath -> IO ()
+compileAndOutput :: CompileConfig -> ILProgram a -> FilePath -> IO ()
 compileAndOutput cfg program path =
   let (main, kernelsfile) = codeGen cfg program
       mainPath = path ++ "/main.c"

@@ -20,7 +20,7 @@ fun matVecMul mat vec cols =
 
 
 sig example : Program <grid> [int]<grid>
-fun example = matVecMul (iota (32*32)) (iota 32) 32.0
+fun example = matVecMul (iota (32*32)) (iota 32) 32
 
 sig main : Program <grid> unit
 fun main =

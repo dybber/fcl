@@ -54,13 +54,13 @@ import FCL.IL.Program
 let_ :: String -> ILType -> ILExp -> Program ILExp
 let_ name ty e = do
   v <- newVar ty name
-  addStmt (Declare v e)
+  addStmt (Declare v e ())
   return (EVar v)
 
 letVar :: String -> ILType -> ILExp -> Program ILName
 letVar name ty e = do
   v <- newVar ty name
-  addStmt (Declare v e)
+  addStmt (Declare v e ())
   return v
 
 var :: ILName -> ILExp
@@ -73,7 +73,7 @@ var v = EVar v
 allocate :: ILType -> ILExp -> Program ILName
 allocate elemty n =
   do arr <- newVar elemty "arr"
-     addStmt (Alloc arr elemty n)
+     addStmt (Alloc arr elemty n ())
      return arr
 
 -- I think these two are wrong, we should not just start with an
@@ -87,7 +87,7 @@ distribute lvl ub f = do
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
-    addStmt (Distribute lvl i upperbound body))
+    addStmt (Distribute lvl i upperbound body ()))
 
 parFor :: ILLevel -> ILExp -> (ILExp -> Program ()) -> Program ()
 parFor lvl ub f = do
@@ -95,7 +95,7 @@ parFor lvl ub f = do
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
-    addStmt (ParFor lvl i upperbound body))
+    addStmt (ParFor lvl i upperbound body ()))
 
 seqFor :: ILExp -> (ILExp -> Program ()) -> Program ()
 seqFor ub f = do
@@ -103,7 +103,7 @@ seqFor ub f = do
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
-    addStmt (SeqFor i upperbound body))
+    addStmt (SeqFor i upperbound body ()))
 
 
 -- whileLoop :: CExp -> CGen u () -> CGen u ()
@@ -112,39 +112,39 @@ seqFor ub f = do
 while :: ILExp -> Program () -> Program ()
 while cond body = do
   body' <- run body -- TODO: Var count should be passed on!
-  addStmt (While cond body')
+  addStmt (While cond body' ())
                                     
 iff :: ILExp -> (Program (), Program ()) -> Program ()
 iff cond (f1, f2) = do
   f1' <- run f1
   f2' <- run f2
-  addStmt (If cond f1' f2')
+  addStmt (If cond f1' f2' ())
 
 -- assign variable, and add to current list of operators
 assign :: ILName -> ILExp -> Program ()
-assign name e = addStmt (Assign name e)
+assign name e = addStmt (Assign name e ())
 
 (<==) :: ILName -> ILExp -> Program ()
 name <== e = assign name e
 
 -- assign to an array
 assignArray :: ILName -> ILExp -> ILExp -> Program ()
-assignArray arrILName e idx = addStmt (AssignSub arrILName idx e)
+assignArray arrILName e idx = addStmt (AssignSub arrILName idx e ())
 
 printIntArray :: ILExp -> ILExp -> Program ()
-printIntArray prefix arr = addStmt (PrintIntArray prefix arr)
+printIntArray prefix arr = addStmt (PrintIntArray prefix arr ())
 
 readIntCSV :: ILExp -> Program (ILName, ILExp)
 readIntCSV file =
   do arr <- newVar (ILArray ILInt) "arr"
      len <- newVar ILInt "len"
-     addStmt (ReadIntCSV arr len file)
+     addStmt (ReadIntCSV arr len file ())
      return (arr, var len)
 
 benchmark :: ILExp -> Program () -> Program ()
 benchmark iterations prog =
   do p' <- run prog
-     addStmt (Benchmark iterations p')
+     addStmt (Benchmark iterations p' ())
 
 -----------------
 -- Expressions --

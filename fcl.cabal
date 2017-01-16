@@ -45,6 +45,18 @@ Library
                    FCL.Eval.ArrayLib
                    
                    FCL.IL.Syntax
+                   FCL.IL.Analysis
+                   FCL.IL.Analysis.Graph
+                   FCL.IL.Analysis.Dataflow
+                   FCL.IL.Analysis.Liveness
+                   FCL.IL.Analysis.FreeVars
+                   FCL.IL.Analysis.ReachingDefs
+                   FCL.IL.Optimise
+                   FCL.IL.Optimise.ConstantFold
+                   FCL.IL.Optimise.ConstantPropagation
+                   FCL.IL.Optimise.CopyPropagation
+                   FCL.IL.Optimise.DeadCodeElimination
+                   FCL.IL.Optimise.LoopUnroll
                    FCL.IL.CodeGen
                    FCL.IL.Program
                    FCL.IL.Cons
