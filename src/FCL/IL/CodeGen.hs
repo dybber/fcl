@@ -204,6 +204,7 @@ binop Sll (VInt i1) (VInt i2) = VInt (sll i1 i2)
 binop Srl (VInt i1) (VInt i2) = VInt (srl i1 i2)
 binop Xor (VInt i1) (VInt i2) = VInt (xor i1 i2)
 binop MinI (VInt i1) (VInt i2) = VInt (mini i1 i2)
+binop MaxI (VInt i1) (VInt i2) = VInt (maxi i1 i2)
 binop Land (VInt i1) (VInt i2) = VInt (land i1 i2)
 binop op _ _ = error ("binary operation not implemented yet: " ++ show op)
 
