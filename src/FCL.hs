@@ -1,5 +1,5 @@
 module FCL
- (parseTopLevel, typeinfer, typeinferCore, desugarDefinition, inline, simplify,
+ (parseTopLevel, typeinfer, desugarDefinition, inline,
   eval,
   compile, pretty,
 
@@ -9,16 +9,14 @@ module FCL
 
   CompileConfig(..), defaultCompileConfig,
   
-  TypeError, TypeErrorCore, ParseError
+  TypeError, ParseError
  )
 where
 
 import FCL.External.Parser (parseTopLevel, ParseError)
 import FCL.Infer           (typeinfer, TypeError)
-import FCL.TypeInference   (typeinferCore, TypeErrorCore)
 import FCL.Desugaring      (desugarDefinition)
 import FCL.Inline          (inline)
-import FCL.Simplify        (simplify)
 import FCL.Compile         (compile)
 --import FCL.Core.Syntax     (Definition, Type, Untyped)
 import FCL.Compile.Config  (CompileConfig(..), defaultCompileConfig)

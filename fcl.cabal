@@ -39,9 +39,6 @@ Library
 
                    FCL.Desugaring
                    FCL.Inline
-                   FCL.Simplify
-                   FCL.Substitution
-                   FCL.TypeInference
 
                    FCL.Compile
                    FCL.Compile.Config

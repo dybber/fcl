@@ -28,7 +28,6 @@ type CLI = ReaderT Options (ExceptT CompilerError IO)
 data CompilerError = IOError IOError
                    | ParseError ParseError
                    | TypeError TypeError
-                   | TypeErrorCore TypeErrorCore
                    | EvalError String
                    | CLIError String
   deriving Show
@@ -80,7 +79,7 @@ defaultOptions =
           , fclOptimizeIterations = 10
           , fclNoPrelude = False
           , fclCommand = Compile
-          , fclOutputFile = "main.c"
+          , fclOutputFile = "main"
           }
 
 optionDescriptions :: [OptDescr (Options -> Options)]
@@ -276,22 +275,27 @@ dispatch filenames opts =
      onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
 
-     let desugared_ast = map desugarDefinition typed_ast
-
-
      do logInfo "Inlining."
-     let inlined = inline desugared_ast
+     let inlined = inline typed_ast
 
-     logInfo "Simplifying."
-     let simpl = simplify defaultCompileConfig inlined
-
---     onCommand DumpASTSimplified (dumpAST [simpl])
-     
      logInfo "Typechecking again."
-     typed_ast2 <- liftEither TypeErrorCore (typeinferCore [simpl])
-     -- mapM_ (logInfo . (" " ++) . showType) typed_ast2
+     typed_ast2 <- liftEither TypeError (typeinfer [inlined])
 
 
-     onCommand Eval        (evalAndPrint typed_ast2)
-     onCommand Compile     (compileAndWrite typed_ast2)
+     let desugared_ast = map desugarDefinition typed_ast2
+
+     -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
+     
+     -- logInfo "Simplifying."
+     -- let simpl = simplify defaultCompileConfig (head typed_ast2)
+
+     
+     
+     -- logInfo "Typechecking again."
+     -- typed_ast3 <- liftEither TypeErrorCore (typeinferCore [simpl])
+     -- -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
+
+     onCommand DumpASTSimplified (message (show [desugared_ast]))
+     onCommand Eval        (evalAndPrint desugared_ast)
+     onCommand Compile     (compileAndWrite desugared_ast)
      

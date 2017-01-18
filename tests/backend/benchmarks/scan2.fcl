@@ -32,6 +32,11 @@ fun sklansky n op arr =
      ; return <block> (push <block> a)
      }
 
+sig scan1Block : ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
+fun scan1Block op arr =
+  let lgChunkSize = 2
+  in concatMap (lengthPull arr) (sklansky lgChunkSize op) (generate 1 (fn i => arr))
+
 sig scanInChunks : int -> ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun scanInChunks lgChunkSize op arr =
   let chunkSize = 1 << lgChunkSize
@@ -48,11 +53,16 @@ fun intermediateSums lgChunkSize arr =
 sig main : Program <grid> [int]
 fun main =
   do { arr <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
-     ; forceAndPrint 128 arr
+     ; arr' <- forceAndPrint 128 arr
+     ; arr2 <- scan1Block (fn a => fn b => a + b) (intermediateSums 5 arr')
+     ; forceAndPrint 1 arr2
+     ; return <grid> arr'
      -- ; b <- forceAndPrint 128 arr
      -- ; forceAndPrint 4 (push <grid> (intermediateSums 5 b))
      }
 
-
 -- TODO:
------ push <grid>
+------- Fix simplifier/typechecker bug. I guess it's the simplifier that's buggy.
+------- (push <grid>, to scan in a single block)
+------- or recursion on host?!
+
