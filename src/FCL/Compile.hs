@@ -27,7 +27,7 @@ compile compileConfig defs =
   in case compBody emptyEnv (defBody main) of
        TagProgram p ->
          let (stmts, _) = runProgram p
-             optimised = optimise 20 stmts
+             optimised = optimise 0 stmts
          in codeGen compileConfig optimised
        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
@@ -342,6 +342,7 @@ compileBinOp MulI (TagInt i0) (TagInt i1) _ = TagInt (muli i0 i1)
 compileBinOp DivI (TagInt i0) (TagInt i1) _ = TagInt (divi i0 i1)
 compileBinOp ModI (TagInt i0) (TagInt i1) _ = TagInt (modi i0 i1)
 compileBinOp MinI (TagInt i0) (TagInt i1) _ = TagInt (mini i0 i1)
+compileBinOp MaxI (TagInt i0) (TagInt i1) _ = TagInt (maxi i0 i1)
 compileBinOp EqI  (TagInt i0) (TagInt i1) _ = TagBool (eqi i0 i1)
 compileBinOp NeqI (TagInt i0) (TagInt i1) _ = TagBool (neqi i0 i1)
 compileBinOp LtI  (TagInt i0) (TagInt i1) _ = TagBool (lti i0 i1)

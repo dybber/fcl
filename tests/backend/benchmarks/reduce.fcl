@@ -28,7 +28,7 @@ fun reduceBlock <lvl> f arr =
 -- Reduce array partially by one kernel invocation
 sig reducePart : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]<grid>
 fun reducePart f neutralElement arr =
- let workPerBlock = 2 * #BlockSize in
+ let workPerBlock = 2 * 256 in
  let paddedArray = pad workPerBlock neutralElement arr     
  in concatMap 1 (reduceBlock <block> f) (splitUp workPerBlock paddedArray)
 

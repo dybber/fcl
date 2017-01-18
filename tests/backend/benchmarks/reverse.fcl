@@ -12,7 +12,7 @@ fun simpleReverse splitSize arr =
 
 
 sig example : Program <grid> [int]<grid>
-fun example = simpleReverse #BlockSize (generate (2048 * 2048) (fn i => i))
+fun example = simpleReverse 256 (generate (2048 * 2048) (fn i => i))
 
 sig main : Program <grid> unit
 fun main =

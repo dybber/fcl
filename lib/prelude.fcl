@@ -57,7 +57,14 @@ fun coalesce n arr =
 sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
 fun concatMap size f arr = concat size (mapPull f arr)
 
+sig take : int -> ['a] -> ['a]
 fun take n arr = generate n (fn ix => index arr n)
+
+sig drop : int -> ['a] -> ['a]
+fun drop n arr = generate (subi (lengthPull arr) n) (fn i => index arr (i+n))
+
+sig last : ['a] -> 'a
+fun last arr = index arr (lengthPull arr - 1)
 
 sig bit : int -> int
 fun bit i = 1 << i
@@ -104,3 +111,9 @@ fun pad divisor neutralElement arr =
        (fn i => if lti i n
                 then index arr i
                 else neutralElement)
+
+sig computeInSingleBlock : ['a] -> Program <grid> ['a]<grid>
+fun computeInSingleBlock arr =
+  generate 1 (fn i => arr)
+    |> mapPull (fn a => return <block> (push<block> a))
+    |> concat (lengthPull arr)
