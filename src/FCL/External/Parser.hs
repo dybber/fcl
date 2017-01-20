@@ -399,13 +399,16 @@ programType =
     return (ProgramT lvl ty)
 
 level :: ParserFCL Level
-level = (VarL <$> lvlVar)
-    <|> (do char 'Z'
+level = (do char 'Z'
             return Zero)
+    <|> (reserved "thread" >> return Zero)
+    <|> (reserved "block" >> return (Step Zero))
+    <|> (reserved "grid" >> return (Step (Step Zero)))
     <|> (do char '1'
             reservedOp "+"
             lvl <- level
             return (Step lvl))
+    <|> (VarL <$> lvlVar)
 
 arrayType :: ParserFCL Type
 arrayType =

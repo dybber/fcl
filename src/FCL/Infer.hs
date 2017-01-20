@@ -30,7 +30,7 @@ freeTyVars (PushArrayT _ t) = freeTyVars t
 freeTyVars (VarT v)         = [v]
 freeTyVars (ProgramT _ t)   = freeTyVars t
 
-infer :: TypeEnvironment -> Exp ty -> TI (Type, Exp Type)
+infer :: Show ty => TypeEnvironment -> Exp ty -> TI (Type, Exp Type)
 infer _ (Literal l reg) =
   let ty =
         case l of
@@ -127,17 +127,17 @@ tvdependentset :: TVE -> Subst -> (TyVar -> Bool)
 tvdependentset (TVE i s_before) s_after = 
   \tv -> any (\tvb -> occurs s_after tv (VarT tvb)) (free (s_before,i))
 
-typeinfer :: [Definition a] -> Either TypeError [Definition Type]
+typeinfer :: Show ty => [Definition ty] -> Either TypeError [Definition Type]
 typeinfer prog =
   do (typrog, TVE _ s) <- runTI (typecheck prog) initEnv
      return (map (mapBody (tvsubExp s)) typrog)
 
-typecheck :: [Definition a] -> TI [Definition Type]
+typecheck :: Show ty => [Definition ty] -> TI [Definition Type]
 typecheck prog =
   do initTypeEnvironment <- initialTypeEnvironment
      typecheckProg initTypeEnvironment prog
 
-typecheckProg :: TypeEnvironment -> [Definition a] -> TI [Definition Type]
+typecheckProg :: Show ty => TypeEnvironment -> [Definition ty] -> TI [Definition Type]
 typecheckProg _ [] = return []
 typecheckProg tenv (d : ds) = do
   (tysc@(TypeScheme _ _ ty), ety) <- generalize (infer tenv (defBody d))

@@ -34,6 +34,8 @@ instance Show Position where
   show Missing = "<<missing>>"
 
 instance Show SourceRegion where
+  show (SourceRegion _ Missing) = "<<missing>>"
+  show (SourceRegion Missing _) = "<<missing>>"
   show (SourceRegion p1 p2)
     | p1 == p2  = show p1
     | (fileName p1) == (fileName p2) =

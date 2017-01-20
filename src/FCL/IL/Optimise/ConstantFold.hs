@@ -111,16 +111,8 @@ constantFold stmts = concat (map process stmts)
        EInt 0 -> []
        EInt 1 -> [Declare v (EInt 0) i] ++ constantFold body
        e' -> [SeqFor v e' (constantFold body) i]
-   process (ParFor lvl v e body i)          =
-     case foldExp e of
-       EInt 0 -> []
-       EInt 1 -> [Declare v (EInt 0) i] ++ constantFold body
-       e' -> [ParFor lvl v e' (constantFold body) i]
-   process (Distribute lvl v e body i)          =
-     case foldExp e of
-       EInt 0 -> []
-       EInt 1 -> [Declare v (EInt 0) i] ++ constantFold body
-       e' -> [Distribute lvl v e' (constantFold body) i]
+   process (ParFor lvl v e body i)          = [ParFor lvl v (foldExp e) (constantFold body) i]
+   process (Distribute lvl v e body i)          = [Distribute lvl v (foldExp e) (constantFold body) i]
    process (If e strue sfalse i) =
         case foldExp e of
           EBool True -> constantFold strue

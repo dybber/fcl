@@ -136,4 +136,4 @@ convertLevel :: Level -> ILLevel
 convertLevel Zero               = Thread
 convertLevel (Step Zero)        = Block
 convertLevel (Step (Step Zero)) = Grid
-convertLevel _ = error "can not convert level"
+convertLevel l = error ("cannot convert level: " ++ show l)

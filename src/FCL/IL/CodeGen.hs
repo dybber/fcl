@@ -3,7 +3,7 @@
 --- typechecker
 --- parser
 
-module FCL.IL.CodeGen where
+module FCL.IL.CodeGen (codeGen) where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map

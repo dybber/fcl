@@ -72,9 +72,6 @@ fun bit i = 1 << i
 sig testBit : int -> int -> bool
 fun testBit x i = (x & (bit i)) != 0
 
-
---fun test = if true then ... else ...
-
 sig foldl : ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun foldl f b array =
   seqfor 1 (1 + (lengthPull array))

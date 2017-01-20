@@ -39,6 +39,7 @@ Library
 
                    FCL.Desugaring
                    FCL.Inline
+                   FCL.TypeInference
 
                    FCL.Compile
                    FCL.Compile.Config
@@ -48,6 +49,7 @@ Library
                    FCL.Eval.ArrayLib
                    
                    FCL.IL.Syntax
+                   FCL.IL.Pretty
                    FCL.IL.Analysis
                    FCL.IL.Analysis.Graph
                    FCL.IL.Analysis.Dataflow

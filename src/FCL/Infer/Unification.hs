@@ -30,16 +30,16 @@ unify' reg t1 t2 =
            unify reg t1a t2a
     (lvl1 :-> t1r, lvl2 :-> t2r) ->
         do unify reg t1r t2r
-           unifyLvls (VarL lvl1) (VarL lvl2)
+           unifyLevels (VarL lvl1) (VarL lvl2)
     (t1l :*: t1r, t2l :*: t2r) ->
         do unify reg t1l t2l
            unify reg t1r t2r
     (PullArrayT t1', PullArrayT t2') -> unify reg t1' t2'
     (PushArrayT lvl1 t1', PushArrayT lvl2 t2') ->
-      do unifyLvls lvl1 lvl2
+      do unifyLevels lvl1 lvl2
          unify reg t1' t2'
     (ProgramT lvl1 t1', ProgramT lvl2 t2') ->
-      do unifyLvls lvl1 lvl2
+      do unifyLevels lvl1 lvl2
          unify reg t1' t2'
     (VarT v1, t2') -> unify_fv v1 t2'
     (t1', VarT v2) -> unify_fv v2 t1'
@@ -99,12 +99,20 @@ unifyBinOp AddR r    = unify2 r DoubleT DoubleT DoubleT
 unifyBinOp DivR r    = unify2 r DoubleT DoubleT DoubleT
 unifyBinOp PowR r    = unify2 r DoubleT DoubleT DoubleT
 
-unifyLvls :: Level -> Level -> TI ()
-unifyLvls Zero Zero           = return ()
-unifyLvls (Step l0) (Step l1) = unifyLvls l0 l1
-unifyLvls (VarL lvlVar) lvl   = unifyLvlVar lvlVar lvl
-unifyLvls lvl (VarL lvlVar)   = unifyLvlVar lvlVar lvl
-unifyLvls lvl1 lvl2           = throwError (LevelUnificationError lvl1 lvl2)
+unifyLevels :: Level -> Level -> TI ()
+unifyLevels l0 l1 =
+  do l0' <- lvlVarChase l0
+     l1' <- lvlVarChase l1
+     unifyLvls' l0' l1'
+
+unifyLvls' :: Level -> Level -> TI ()
+unifyLvls' l0 l1 =
+  case (l0, l1) of
+    (Zero, Zero)         -> return ()
+    (Step l0', Step l1') -> unifyLvls' l0' l1'
+    (VarL lvlVar, lvl)   -> unifyLvlVar lvlVar lvl
+    (lvl, VarL lvlVar)   -> unifyLvlVar lvlVar lvl
+    (_, _)               -> throwError (LevelUnificationError l0 l1)
 
 unifyLvlVar :: LvlVar -> Level -> TI ()
 unifyLvlVar lvlVar1 lvl@(VarL lvlVar2) | lvlVar1 == lvlVar2  = return ()
@@ -134,9 +142,11 @@ occurs (stv, slvl) tv (VarT tv2) =
     Nothing -> tv == tv2
 
 occursLvl :: Subst -> LvlVar -> Level -> Bool
-occursLvl _ _ Zero = False
-occursLvl s lvlVar (Step lvl) = occursLvl s lvlVar lvl
-occursLvl (stv, slvl) lvlVar (VarL lvlVar2) =
-  case Map.lookup lvlVar2 slvl of
-    Just t  -> occursLvl (stv, slvl) lvlVar t
-    Nothing -> lvlVar == lvlVar2
+occursLvl s@(stv, slvl) lvlVar lvl =
+  case lvl of
+    Zero -> False
+    (Step lvl') -> occursLvl s lvlVar lvl'
+    (VarL lvlVar2) ->
+      case Map.lookup lvlVar2 slvl of
+        Just t  -> occursLvl (stv, slvl) lvlVar t
+        Nothing -> lvlVar == lvlVar2

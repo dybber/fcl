@@ -28,6 +28,7 @@ type CLI = ReaderT Options (ExceptT CompilerError IO)
 data CompilerError = IOError IOError
                    | ParseError ParseError
                    | TypeError TypeError
+                   | TypeErrorCore TypeErrorCore
                    | EvalError String
                    | CLIError String
   deriving Show
@@ -59,7 +60,11 @@ data Command = ParserTest
              | Help
              | DumpAST
              | DumpASTUntyped
+             | DumpASTInlined
+             | DumpASTDesugared
              | DumpASTSimplified
+             | DumpIL
+             | DumpILOptimised
   deriving Eq
 
 ----------------------------
@@ -92,7 +97,11 @@ optionDescriptions =
   , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
   , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
   , Option []  ["dump-ast-untyped"] (NoArg (\opt -> opt {fclCommand = DumpASTUntyped})) "Dump AST after parsing"
-  , Option []  ["dump-ast-simplified"] (NoArg (\opt -> opt {fclCommand = DumpASTSimplified})) "Dump AST after parsing"
+  , Option []  ["dump-ast-inlined"] (NoArg (\opt -> opt {fclCommand = DumpASTInlined})) "Dump AST after parsing and inlining"
+  , Option []  ["dump-ast-desugared"] (NoArg (\opt -> opt {fclCommand = DumpASTDesugared})) "Dump AST after desugaring"
+  , Option []  ["dump-ast-simplified"] (NoArg (\opt -> opt {fclCommand = DumpASTSimplified})) "Dump AST after parsing, inlining and simplifications."
+  , Option []  ["dump-il"]          (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
+  , Option []  ["dump-il-optimised"] (NoArg (\opt -> opt {fclCommand = DumpILOptimised})) "Dump intermediate representation."
   , Option []  ["dump-ast"]         (NoArg (\opt -> opt {fclCommand = DumpAST})) "Dump AST after typechecking"
   , Option "v" ["verbose"]      (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
   , Option "d" ["debug"]        (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
@@ -175,7 +184,7 @@ showUsageAndExit =
        exitFailure
 
 dumpAST :: Show a => [E.Definition a] -> CLI ()
-dumpAST ast = message (show ast)
+dumpAST ast = message (prettyPrint ast)
 
 printTypes :: [E.Definition Type] -> CLI ()
 printTypes ast = mapM_ (message . showType) ast
@@ -188,22 +197,6 @@ evalAndPrint ast =
   do v <- liftEither EvalError (return (eval ast))
      liftIO (print v)
 
-compileAndWrite :: [C.Definition C.Type] -> CLI ()
-compileAndWrite typed_ast =
-  do logInfo "Compiling."
-     optIter <- asks fclOptimizeIterations
-     verbosity <- asks fclVerbosity
-     outputFile <- asks fclOutputFile
-     let cfile = outputFile ++ ".c"
-         kernelsFile = outputFile ++ ".cl"
-         cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
-                                    , configOptimizeIterations = optIter
-                                    , configVerbosity = verbosity
-                                    }
-         (main_, kernels) = compile cfg typed_ast
-     writeFileChecked cfile main_
-     writeFileChecked kernelsFile kernels
-
 parserTest :: [FilePath] -> CLI ()
 parserTest filenames =
  let checkfile filename =
@@ -211,7 +204,7 @@ parserTest filenames =
           logDebug "Input:"
           contents <- readFileChecked filename
           logDebug contents
-          
+
           ast <- parseFile filename
           logInfo "Pretty printing."          
           let pp1 = prettyPrint ast
@@ -270,7 +263,6 @@ dispatch filenames opts =
      
      logInfo "Typechecking."
      typed_ast <- liftEither TypeError (typeinfer ast)
-
      onCommand DumpAST     (dumpAST typed_ast)
      onCommand PrettyPrint (pp typed_ast)
      onCommand Typecheck   (printTypes typed_ast)
@@ -278,24 +270,46 @@ dispatch filenames opts =
      do logInfo "Inlining."
      let inlined = inline typed_ast
 
+     onCommand DumpASTInlined (message (prettyPrint [inlined]))
+     
      logInfo "Typechecking again."
-     typed_ast2 <- liftEither TypeError (typeinfer [inlined])
-
-
-     let desugared_ast = map desugarDefinition typed_ast2
-
+     inlined_typed <- liftEither TypeError (typeinfer [inlined])
+     let desugared_ast = map desugarDefinition inlined_typed
+     desugared_typed <- liftEither TypeErrorCore (typeinferCore desugared_ast)
+     
+     onCommand DumpASTDesugared (message (show desugared_typed))
+     
      -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
      
      -- logInfo "Simplifying."
      -- let simpl = simplify defaultCompileConfig (head typed_ast2)
-
-     
      
      -- logInfo "Typechecking again."
      -- typed_ast3 <- liftEither TypeErrorCore (typeinferCore [simpl])
      -- -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
 
-     onCommand DumpASTSimplified (message (show [desugared_ast]))
-     onCommand Eval        (evalAndPrint desugared_ast)
-     onCommand Compile     (compileAndWrite desugared_ast)
-     
+--     onCommand DumpASTSimplified (message (show [desugared_ast]))
+     onCommand Eval        (evalAndPrint desugared_typed)
+
+     logInfo "Compiling."
+     optIter <- asks fclOptimizeIterations
+     verbosity <- asks fclVerbosity
+     outputFile <- asks fclOutputFile
+     let cfile = outputFile ++ ".c"
+         kernelsFile = outputFile ++ ".cl"
+         cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
+                                    , configOptimizeIterations = optIter
+                                    , configVerbosity = verbosity
+                                    }
+         intermediate_prog = compile cfg desugared_typed
+     onCommand DumpIL (message (prettyIL intermediate_prog))
+
+     let optimised = optimise optIter intermediate_prog
+
+     onCommand DumpILOptimised (message (prettyIL optimised))
+
+     onCommand Compile $
+       do let (main_, kernels) = codeGen cfg optimised
+          writeFileChecked cfile main_
+          writeFileChecked kernelsFile kernels
+

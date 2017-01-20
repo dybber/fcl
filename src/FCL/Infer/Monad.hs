@@ -13,6 +13,7 @@ import FCL.Infer.Substitution (Subst)
 import FCL.External.Pretty (prettyPrintType, prettyPrintLevel)
 
 data TVE = TVE Int Subst
+  deriving Show
 
 type TI x = StateT TVE (Except TypeError) x
 
@@ -36,7 +37,7 @@ instance Show TypeError where
             prettyPrintType ty1]
   show (LevelUnificationError lvl0 lvl1) =
     concat ["Unification error. ",
-            "Cannot unify types: ",
+            "Cannot unify levels: ",
             prettyPrintLevel lvl0,
             " and ",
             prettyPrintLevel lvl1]
@@ -68,7 +69,6 @@ newLvlVar = do
  put (TVE (i+1) s)
  return (LvlVar i Nothing)
 
-
 -- | `shallow' substitution; check if tv is bound to anything `substantial'
 tvchase :: Type -> TI Type
 tvchase (VarT x) = do
@@ -77,6 +77,15 @@ tvchase (VarT x) = do
     Just t -> tvchase t
     Nothing -> return (VarT x)
 tvchase t = return t
+
+-- | `shallow' substitution; check if tv is bound to anything `substantial'
+lvlVarChase :: Level -> TI Level
+lvlVarChase (VarL x) = do
+  (TVE _ (_,slvl)) <- get
+  case Map.lookup x slvl of
+    Just l -> lvlVarChase l
+    Nothing -> return (VarL x)
+lvlVarChase l = return l
 
 tvext :: (TyVar,Type) -> TI ()
 tvext (x,ty) = do

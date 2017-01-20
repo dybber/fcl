@@ -37,21 +37,12 @@ fun example1 = reducePart (fn a => fn b => a + b) 0 (generate (2048*2048) (fn i 
 
 -- Full reduction
 
--- TODO:
----- to benchmark, it should return a push-array
-------- should while return a push-array?
----- while does not support interleaving. Between each iteration
----- the size of the array can shrink. How do we shrink a push-array
----- with an interleave around?
 sig reduce : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> 'a
 fun reduce f neutralElement arr =
   let cond = fn arr => 1 != lengthPull arr
   in do { a <- while cond (reducePart f neutralElement) (reducePart f neutralElement arr)
         ; return <grid> (index a 0)
         }
-
---while : (['a] -> bool) -> (['a] -> Program <lvl> ['a]<lvl>) -> ['a]<lvl> -> Program <lvl> ['a]
---while : ('a -> bool) -> ('a -> Program <lvl> 'a) -> 'a -> Program <lvl> 'a
 
 sig example2 : Program <grid> int
 fun example2 = reduce (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => 1))

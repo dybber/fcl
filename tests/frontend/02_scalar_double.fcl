@@ -2,7 +2,7 @@
 
 fun test00 = 1.0
 
-fun test01 = -1.0
+fun test01 = ~1.0
 
 fun test02 = test00
 

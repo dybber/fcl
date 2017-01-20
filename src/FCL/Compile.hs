@@ -3,7 +3,6 @@ module FCL.Compile (compile) where
 import qualified Data.Map as Map
 import Control.Monad (liftM)
 
-
 import FCL.Core.SourceRegion
 import FCL.Core.Identifier
 import FCL.Core.Syntax
@@ -12,11 +11,10 @@ import FCL.Compile.Values
 import FCL.Compile.Config
 
 import FCL.IL.Cons
+import FCL.IL.Syntax (Stmt)
 import FCL.IL.Program (runProgram)
-import FCL.IL.CodeGen (codeGen)
-import FCL.IL.Optimise (optimise)
 
-compile :: CompileConfig -> [Definition Type] -> (String, String)
+compile :: CompileConfig -> [Definition Type] -> [Stmt ()]
 compile compileConfig defs =
   let findMain [] = error "No 'main'-function defined"
       findMain (d:ds) =
@@ -25,10 +23,7 @@ compile compileConfig defs =
           else findMain ds
       main = findMain defs
   in case compBody emptyEnv (defBody main) of
-       TagProgram p ->
-         let (stmts, _) = runProgram p
-             optimised = optimise 0 stmts
-         in codeGen compileConfig optimised
+       TagProgram p -> fst (runProgram p)
        _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
 type VarEnv = Map.Map Identifier Value
