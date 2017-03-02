@@ -1,73 +1,125 @@
 -- | A few simple simplification: beta-reduction, eta-conversion
 -- and a few peep-hole optimizations.
-module FCL.Simplify (simplify, simplifyExp) where
+module FCL.Simplify
+  (simplify)
+where
 
-import FCL.Core.SourceRegion
-import FCL.Core.Syntax
-import FCL.Compile.Config
-import FCL.Substitution (apply, freeIn)
+import qualified Data.Set as Set
+import Control.Monad.Trans.State
 
+import FCL.Core.Identifier
+import FCL.Core.Literal
+import FCL.Core.Monotyped
 
 -- Right now, types are not maintained correctly by the simplifier
-simplify :: CompileConfig -> Definition ty -> Definition ty
-simplify info d = d { defBody = simplifyExp info (defBody d) }
-
-simplifyExp :: CompileConfig -> Exp ty -> Exp ty
-simplifyExp _ e@(Literal _ _)    = e
-simplifyExp cfg (BlockSize r)      = Literal (LiteralInt (configBlockSize cfg)) r
-simplifyExp _ e@(Var _ _ _)        = e
-simplifyExp cfg (App (Lamb x _ ebody _ _) e) = simplifyExp cfg (apply (x, ebody) e)
-simplifyExp cfg (App e1 e2) =
-  let e1' = simplifyExp cfg e1
-      e2' = simplifyExp cfg e2
+simplify :: Exp -> Exp
+simplify e@(Literal _ _)    = e
+simplify e@(Unit _)         = e
+simplify e@(Symbol _ _)     = e
+simplify (App (Lamb x ebody _) e _) = simplify (apply (x, ebody) e)
+simplify (App e1 e2 ty) =
+  let e1' = simplify e1
+      e2' = simplify e2
   in case e1' of
-       (Lamb x _ ebody _ _) -> simplifyExp cfg (apply (x, ebody) e2')
-       _ -> App e1' e2'
-simplifyExp cfg (Lamb x1 _ (App ebody (Var x2 _ _)) _ _)
- | x1 == x2 && not (x1 `freeIn` ebody) = simplifyExp cfg ebody
-simplifyExp cfg (Lamb x1 tya ebody tyr r) = Lamb x1 tya (simplifyExp cfg ebody) tyr r
---simplifyExp cfg (Let x1 e1 e2 _ _) = simplifyExp cfg (apply (x1,e2) e1)
-simplifyExp cfg (Let x1 e1@(Lamb _ _ _ _ _) e2 _ _) = simplifyExp cfg (apply (x1,e2) e1)
-simplifyExp cfg (Let x1 e1 e2 ty r) =
-  let e1_simpl = simplifyExp cfg e1
+       (Lamb x ebody _) -> simplify (apply (x, ebody) e2')
+       _ -> App e1' e2' ty
+simplify (Lamb x1 (App ebody (Symbol x2 _) _) _)
+ | x1 == x2 && not (x1 `freeIn` ebody) = simplify ebody
+simplify (Lamb x1 ebody ty) = Lamb x1 (simplify ebody) ty
+--simplify (Let x1 e1 e2 _ _) = simplify (apply (x1,e2) e1)
+simplify (Let x1 e1@(Lamb _ _ _) e2 _) = simplify (apply (x1,e2) e1)
+simplify (Let x1 e1 e2 ty) =
+  let e1_simpl = simplify e1
   in if isLiteral e1_simpl
-     then simplifyExp cfg (apply (x1,e2) e1_simpl)
-     else Let x1 e1_simpl (simplifyExp cfg e2) ty r
-simplifyExp cfg (UnaryOp op e r) = simplifyUnOp op (simplifyExp cfg e) r
-simplifyExp cfg (BinaryOp op e1 e2 r) = simplifyBinOp op (simplifyExp cfg e1) (simplifyExp cfg e2) r
-simplifyExp cfg (Cond econd etrue efalse ty r) =
-  case simplifyExp cfg econd of
-    Literal (LiteralBool True)  _ -> simplifyExp cfg etrue
-    Literal (LiteralBool False) _ -> simplifyExp cfg efalse
-    econd' -> Cond econd' (simplifyExp cfg etrue) (simplifyExp cfg efalse) ty r
-simplifyExp cfg (Vec es ety reg)           = Vec          (map (simplifyExp cfg) es) ety reg
-simplifyExp cfg (Pair e0 e1 reg)           = Pair         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (Proj1E e0 reg)            = Proj1E       (simplifyExp cfg e0) reg
-simplifyExp cfg (Proj2E e0 reg)            = Proj2E       (simplifyExp cfg e0) reg
-simplifyExp cfg (Index e0 e1 reg)          = Index        (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (LengthPull e0 reg)        = LengthPull   (simplifyExp cfg e0) reg
-simplifyExp cfg (LengthPush e0 reg)        = LengthPush   (simplifyExp cfg e0) reg
-simplifyExp cfg (For e0 e1 e2 reg)         = For          (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
-simplifyExp cfg (Power e0 e1 e2 reg)       = Power        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
-simplifyExp cfg (While e0 e1 e2 reg)       = While        (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
-simplifyExp cfg (WhileSeq e0 e1 e2 reg)    = WhileSeq     (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
-simplifyExp cfg (GeneratePull e0 e1 reg)   = GeneratePull (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (MapPull e0 e1 reg)        = MapPull      (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (MapPush e0 e1 reg)        = MapPush      (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (Push lvl e0 reg)          = Push         lvl (simplifyExp cfg e0) reg
-simplifyExp cfg (Force e0 reg)             = Force        (simplifyExp cfg e0) reg
-simplifyExp cfg (Interleave e0 e1 e2 reg)  = Interleave   (simplifyExp cfg e0) (simplifyExp cfg e1) (simplifyExp cfg e2) reg
-simplifyExp cfg (LambLvl lvlvar ebody ty reg) = LambLvl lvlvar  (simplifyExp cfg ebody) ty reg
-simplifyExp cfg (AppLvl e lvl) = AppLvl (simplifyExp cfg e) lvl
-simplifyExp cfg (Return lvl e0 reg)        = Return         lvl (simplifyExp cfg e0) reg
-simplifyExp cfg (Bind e0 e1 reg)           = Bind         (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (ReadIntCSV e0 reg)        = ReadIntCSV (simplifyExp cfg e0) reg
-simplifyExp cfg (ForceAndPrint e0 e1 reg)  = ForceAndPrint (simplifyExp cfg e0) (simplifyExp cfg e1) reg
-simplifyExp cfg (Benchmark e0 e1 reg)      = Benchmark (simplifyExp cfg e0) (simplifyExp cfg e1) reg
+     then simplify (apply (x1,e2) e1_simpl)
+     else Let x1 e1_simpl (simplify e2) ty
+simplify (Cond econd etrue efalse ty) =
+  case simplify econd of
+    Literal (LiteralBool True)  _ -> simplify etrue
+    Literal (LiteralBool False) _ -> simplify efalse
+    econd' -> Cond econd' (simplify etrue) (simplify efalse) ty
+simplify (Pair e1 e2 ty) = Pair (simplify e1) (simplify e2) ty
 
-simplifyUnOp :: UnaryOperator -> Exp ty -> SourceRegion -> Exp ty
-simplifyUnOp op e r = UnaryOp op e r
 
-simplifyBinOp :: BinaryOperator -> Exp ty -> Exp ty -> SourceRegion -> Exp ty
-simplifyBinOp MulI (Literal (LiteralInt v1) _) (Literal (LiteralInt v2) _) r = Literal (LiteralInt (v1*v2)) r
-simplifyBinOp op e1 e2 r = BinaryOp op e1 e2 r
+freeIn :: Identifier -> Exp -> Bool
+freeIn _ (Literal _ _)     = True
+freeIn _ (Unit _)          = True
+freeIn x (Symbol y _)      = x /= y
+freeIn x (Pair e1 e2 _)    = all (freeIn x) [e1, e2]
+freeIn x (Cond e1 e2 e3 _) = all (freeIn x) [e1, e2, e3]
+freeIn x (Lamb y e _)      = x == y || freeIn x e
+freeIn x (App e1 e2 _)     = freeIn x e1 && freeIn x e2
+freeIn x (Let y e ebody _) = freeIn x e && (x == y || freeIn x ebody)
+
+freeVars :: Exp -> Set.Set Identifier
+freeVars (Literal _ _)     = Set.empty
+freeVars (Unit _)          = Set.empty
+freeVars (Symbol x _)      = Set.singleton x
+freeVars (Lamb x e _)      = Set.difference (freeVars e) (Set.singleton x)
+freeVars (App e1 e2 _)     = Set.union (freeVars e1) (freeVars e2)
+freeVars (Let x e1 e2 _)   = Set.union (freeVars e1)
+                                       (Set.difference (freeVars e2) (Set.singleton x))
+freeVars (Cond e1 e2 e3 _) = Set.unions (map freeVars [e1, e2, e3])
+freeVars (Pair e1 e2 _)    = Set.unions (map freeVars [e1, e2])
+
+freshVar :: State [Identifier] Identifier
+freshVar =
+  do (x:xs) <- get
+     put xs
+     return x
+
+apply :: (Identifier, Exp) -> Exp -> Exp
+apply (x, ebody) e =
+  let vars = ['x' : show (i :: Int) | i <- [0..]]
+  in evalState (subst e x ebody) vars
+
+subst :: Exp -> Identifier -> Exp -> State [Identifier] Exp
+subst s x e =
+  case e of
+   -- Base cases
+    Literal _ _ -> return e
+    Unit _      -> return e
+    Symbol y _
+      | x == y    -> return s
+      | otherwise -> return e
+
+   -- Interesting cases
+    (Lamb y ebody ty@(ty1 :> _))
+      | x == y                    -> return e
+      | Set.member y (freeVars s) ->
+          do z <- freshVar
+             ebody' <- subst (Symbol z ty1) y ebody
+             ebody'' <- subst s x ebody'
+             return (Lamb z ebody'' ty)
+      | otherwise ->
+          do ebody' <- subst s x ebody
+             return (Lamb y ebody' ty)
+    (Lamb _ _ _) -> error "Lambda not of function type"
+    (Let y e1 e2 ty)
+      | x == y                    -> return e
+      | Set.member y (freeVars s) ->
+          do z <- freshVar
+             e1' <- subst s x e1
+             e2' <- subst (Symbol z (typeOf e1)) y e2
+             e2'' <- subst s x e2'
+             return (Let z e1' e2'' ty)
+      | otherwise ->
+          do e1' <- subst s x e1
+             e2' <- subst s x e2
+             return (Let y e1' e2' ty)
+
+    -- Recurse in all other cases
+    App e1 e2 ty ->
+          do e1' <- subst s x e1
+             e2' <- subst s x e2
+             return (App e1' e2' ty)
+    Cond e1 e2 e3 ty ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          e3' <- subst s x e3
+          return (Cond e1' e2' e3' ty)
+    Pair e1 e2 ty ->
+       do e1' <- subst s x e1
+          e2' <- subst s x e2
+          return (Pair e1' e2' ty)
+

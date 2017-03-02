@@ -14,39 +14,46 @@ Library
                , cgen >= 0.1
                , containers >= 0.5
                , parsec >= 3.0 && < 3.2
-               , pretty >= 1.1
+               , wl-pprint >= 1.2
                , transformers >= 0.4.2 && < 0.5
 
   HS-source-dirs: src
 
-  exposed-modules: FCL
+  exposed-modules: MiniFCL
                    FCL.Core.Identifier
-                   FCL.Core.SourceRegion
-                   FCL.Core.Syntax
+                   FCL.Core.Literal
+                   FCL.Core.MonoLevel
+                   FCL.Core.PolyLevel
+                   FCL.Core.Untyped
+                   FCL.Core.Polytyped
+                   FCL.Core.Monotyped
 
                    FCL.External.Syntax
                    FCL.External.Lexer
                    FCL.External.Parser
-                   FCL.External.Pretty
 
-                   FCL.Type.Polymorphic
+                   FCL.Pretty
+                   
+                   FCL.Desugaring
 
+                   FCL.Instantiate
+                   FCL.Substitution
                    FCL.Infer
                    FCL.Infer.Monad
-                   FCL.Infer.Substitution
                    FCL.Infer.Unification
                    FCL.Infer.TypeEnvironment
 
-                   FCL.Desugaring
-                   FCL.Inline
-                   FCL.TypeInference
+                   FCL.Monomorphization
+
+                   FCL.Core.SourceRegion
 
                    FCL.Compile
                    FCL.Compile.Config
-                   FCL.Compile.Values
+                   FCL.Compile.Value
+                   FCL.Compile.CompileEnvironment
                    
-                   FCL.Eval
-                   FCL.Eval.ArrayLib
+                   -- FCL.Eval
+                   -- FCL.Eval.ArrayLib
                    
                    FCL.IL.Syntax
                    FCL.IL.Pretty

@@ -3,270 +3,282 @@ module FCL.Infer.TypeEnvironment where
 import qualified Data.Map as Map
 
 import FCL.Core.Identifier
-import FCL.Type.Polymorphic
-import FCL.Infer.Monad
+import FCL.Core.Polytyped
+import FCL.Core.PolyLevel
 
-type TypeEnvironment = Map.Map Identifier (TypeScheme Type)
+newtype TypeEnvironment = TypeEnvironment (Map.Map Identifier TypeScheme)
 
-lkup :: TypeEnvironment -> Identifier -> TI (TypeScheme Type)
-lkup env x =
-  case Map.lookup x env of
-    Just ty  -> return ty
-    Nothing -> throwError (UnboundVariableError x)
+ext :: TypeEnvironment -> (Identifier, TypeScheme) -> TypeEnvironment
+ext (TypeEnvironment env) (x, ty) = TypeEnvironment (Map.insert x ty env)
 
-ext :: TypeEnvironment -> Identifier -> TypeScheme Type -> TypeEnvironment
-ext env x ty = Map.insert x ty env
-
-initialTypeEnvironment :: TI TypeEnvironment
+initialTypeEnvironment :: TypeEnvironment
 initialTypeEnvironment =
-  do typeSchemesBuiltins <-
-       sequence [opMaxI,
-                 opMinI,
-                 opI2D,
-                 opAddR,
-                 opSubI,
-                 opDivI,
-                 opLtI,
-                 opFst,
-                 opSnd,
-                 opIndex,
-                 opLengthPull,
-                 opLengthPush,
-                 opGenerate,
-                 opMapPull,
-                 opMapPush,
-                 opForce,
-                 opPush,
-                 opReturn,
-                 opBind,
-                 opInterleave,
-                 opSeqFor,
-                 opPower,
-                 opWhile,
-                 opBlockSize,
-                 opReadIntCSV,
-                 opForceAndPrint,
-                 opBenchmark]
-     return (Map.fromList typeSchemesBuiltins)
+  let typeSchemesBuiltins = basicOps ++ unaryOps ++ binaryOps ++ arrayOps
+  in TypeEnvironment (Map.fromList typeSchemesBuiltins)
 
-opMaxI :: TI (Identifier, TypeScheme Type)
-opMaxI =
-  return (Identifier "maxi",
-          TypeScheme [] [] (IntT :> IntT :> IntT))
+basicOps :: [(Identifier, TypeScheme)]
+basicOps = [opFst, opSnd]
+  
+unaryOps :: [(Identifier, TypeScheme)]
+unaryOps =
+  [i2i "absi",
+   i2i "signi",
+   i2d "i2d",
+   b2i "b2i"
+  ]
 
-opMinI :: TI (Identifier, TypeScheme Type)
-opMinI =
-  return (Identifier "mini",
-          TypeScheme [] [] (IntT :> IntT :> IntT))
+binaryOps :: [(Identifier, TypeScheme)]
+binaryOps =
+  [-- integer arithmetic
+   ii2i "addi",
+   ii2i "subi",
+   ii2i "muli",
+   ii2i "divi",
+   ii2i "modi",
+   ii2i "mini",
+   ii2i "maxi",
 
-opI2D :: TI (Identifier, TypeScheme Type)
-opI2D =
-  return (Identifier "i2d",
+   -- floating point arithmetic
+   dd2d "addr",
+   
+   -- conditionals
+   ii2b "eqi",
+   ii2b "neqi",
+   ii2b "lti",
+
+   -- bitwise
+   ii2i "andi",
+   ii2i "ori",
+   ii2i "xor",
+   ii2i "sll",
+   ii2i "srl"]
+
+arrayOps :: [(Identifier, TypeScheme)]
+arrayOps =
+  [opIndex,
+   opLengthPull,
+   opLengthPush,
+   opGenerate,
+   opMapPull,
+   opMapPush,
+   opForce,
+   opPush,
+   opReturn,
+   opBind,
+   opInterleave,
+   opSeqFor,
+   -- opPower,
+   -- opWhile,
+   -- opBlockSize,
+   -- opReadIntCSV,
+   opForceAndPrint,
+   opBenchmark
+  ]
+
+opFst :: (Identifier, TypeScheme)
+opFst =
+  let tva = TyVar 0 Nothing
+      tvb = TyVar 1 Nothing
+      ta = VarT tva
+      tb = VarT tvb
+  in ("fst",
+      TypeScheme [tva,tvb] [] ((ta :*: tb) :> ta))
+
+opSnd :: (Identifier, TypeScheme)
+opSnd =
+  let tva = TyVar 0 Nothing
+      tvb = TyVar 1 Nothing
+      ta = VarT tva
+      tb = VarT tvb
+  in ("snd",
+      TypeScheme [tva,tvb] [] ((ta :*: tb) :> tb))
+
+i2i :: String -> (Identifier, TypeScheme)
+i2i op = (op,
+          TypeScheme [] [] (IntT :> IntT))
+
+i2d :: String -> (Identifier, TypeScheme)
+i2d op = (op,
           TypeScheme [] [] (IntT :> DoubleT))
 
-opAddR :: TI (Identifier, TypeScheme Type)
-opAddR =
-  return (Identifier "addr",
-          TypeScheme [] [] (DoubleT :> DoubleT :> DoubleT))
+b2i :: String -> (Identifier, TypeScheme)
+b2i op = (op,
+          TypeScheme [] [] (IntT :> BoolT))
 
-opDivI :: TI (Identifier, TypeScheme Type)
-opDivI =
-  return (Identifier "divi",
-          TypeScheme [] [] (IntT :> IntT :> IntT))
 
-opSubI :: TI (Identifier, TypeScheme Type)
-opSubI =
-  return (Identifier "subi",
-          TypeScheme [] [] (IntT :> IntT :> IntT))
+ii2i :: String -> (Identifier, TypeScheme)
+ii2i op = (op,
+           TypeScheme [] [] (IntT :> IntT :> IntT))
 
-opLtI :: TI (Identifier, TypeScheme Type)
-opLtI =
-  return (Identifier "lti",
-          TypeScheme [] [] (IntT :> IntT :> BoolT))
+dd2d :: String -> (Identifier, TypeScheme)
+dd2d op = (op,
+           TypeScheme [] [] (DoubleT :> DoubleT :> DoubleT))
 
-opFst :: TI (Identifier, TypeScheme Type)
-opFst =
-  do tva <- newtv
-     tvb <- newtv
-     let ta = VarT tva
-     let tb = VarT tvb
-     return (Identifier "fst",
-             TypeScheme [tva,tvb] [] ((ta :*: tb) :> ta))
+ii2b :: String -> (Identifier, TypeScheme)
+ii2b op = (op,
+           TypeScheme [] [] (IntT :> IntT :> BoolT))
 
-opSnd :: TI (Identifier, TypeScheme Type)
-opSnd =
-  do tva <- newtv
-     tvb <- newtv
-     let ta = VarT tva
-     let tb = VarT tvb
-     return (Identifier "snd",
-             TypeScheme [tva,tvb] [] ((ta :*: tb) :> tb))
-
-opIndex :: TI (Identifier, TypeScheme Type)
+opIndex :: (Identifier, TypeScheme)
 opIndex =
-  do tva <- newtv
-     let ta = VarT tva
-     return (Identifier "index",
-             TypeScheme [tva] [] (PullArrayT ta :> IntT :> ta))
+  let tva = TyVar 0 Nothing
+      ta = VarT tva
+  in ("index",
+      TypeScheme [tva] [] (PullArrayT ta :> IntT :> ta))
 
-opLengthPull :: TI (Identifier, TypeScheme Type)
+opLengthPull :: (Identifier, TypeScheme)
 opLengthPull =
-  do tva <- newtv
-     return (Identifier "lengthPull",
-             TypeScheme [tva] [] (PullArrayT (VarT tva) :> IntT))
+  let tva = TyVar 0 Nothing
+  in ("lengthPull",
+      TypeScheme [tva] [] (PullArrayT (VarT tva) :> IntT))
 
-opLengthPush :: TI (Identifier, TypeScheme Type)
+opLengthPush :: (Identifier, TypeScheme)
 opLengthPush =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     return (Identifier "lengthPush",
-             TypeScheme [tva] [lvlVar] (PushArrayT (VarL lvlVar) (VarT tva) :> IntT))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+  in ("lengthPush",
+      TypeScheme [tva] [lvlVar] (PushArrayT (VarL lvlVar) (VarT tva) :> IntT))
 
-opGenerate :: TI (Identifier, TypeScheme Type)
+opGenerate :: (Identifier, TypeScheme)
 opGenerate =
-  do tva <- newtv
-     let ta = VarT tva
-     return (Identifier "generate",
-             TypeScheme [tva] [] (IntT
-                                  :> (IntT :> ta)
-                                  :> PullArrayT ta))
+  let tva = TyVar 0 Nothing
+      ta = VarT tva
+  in ("generate",
+      TypeScheme [tva] [] (IntT
+                           :> (IntT :> ta)
+                           :> PullArrayT ta))
 
-opMapPull :: TI (Identifier, TypeScheme Type)
+opMapPull :: (Identifier, TypeScheme)
 opMapPull =
-  do tva <- newtv
-     tvb <- newtv
-     let ta = VarT tva
-     let tb = VarT tvb
-     return (Identifier "mapPull",
-             TypeScheme [tva,tvb] [] ((ta :> tb)
-                                      :> PullArrayT ta
-                                      :> PullArrayT tb))
+  let tva = TyVar 0 Nothing
+      tvb = TyVar 1 Nothing
+      ta = VarT tva
+      tb = VarT tvb
+  in ("mapPull",
+      TypeScheme [tva,tvb] [] ((ta :> tb)
+                               :> PullArrayT ta
+                               :> PullArrayT tb))
 
-opMapPush :: TI (Identifier, TypeScheme Type)
+opMapPush :: (Identifier, TypeScheme)
 opMapPush =
-  do tva <- newtv
-     tvb <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let tb = VarT tvb
-     let lvl = VarL lvlVar
-     return (Identifier "mapPush",
-             TypeScheme [tva,tvb] [lvlVar] ((ta :> tb)
-                                            :> PushArrayT lvl ta
-                                            :> PushArrayT lvl tb))
+  let tva = TyVar 0 Nothing
+      tvb = TyVar 1 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      tb = VarT tvb
+      lvl = VarL lvlVar
+  in  ("mapPush",
+       TypeScheme [tva,tvb] [lvlVar] ((ta :> tb)
+                                      :> PushArrayT lvl ta
+                                      :> PushArrayT lvl tb))
 
-opForce :: TI (Identifier, TypeScheme Type)
+opForce :: (Identifier, TypeScheme)
 opForce =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "force",
-             TypeScheme [tva] [lvlVar] (PushArrayT lvl ta
-                                        :> ProgramT lvl (PullArrayT ta)))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in ("force",
+      TypeScheme [tva] [lvlVar] (PushArrayT lvl ta
+                                 :> ProgramT lvl (PullArrayT ta)))
 
-opPush :: TI (Identifier, TypeScheme Type)
+opPush :: (Identifier, TypeScheme)
 opPush =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "push",
-             TypeScheme [tva] [lvlVar] (lvlVar
-                                        :-> PullArrayT ta
-                                        :> PushArrayT lvl ta))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in  ("push",
+       TypeScheme [tva] [lvlVar] (PullArrayT ta
+                                  :> PushArrayT lvl ta))
 
-opReturn :: TI (Identifier, TypeScheme Type)
+opReturn :: (Identifier, TypeScheme)
 opReturn =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "return",
-             TypeScheme [tva] [lvlVar] (lvlVar
-                                        :-> ta
-                                        :> ProgramT lvl ta))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in  ("return",
+       TypeScheme [tva] [lvlVar] (ta
+                                  :> ProgramT lvl ta))
 
-opBind :: TI (Identifier, TypeScheme Type)
+opBind :: (Identifier, TypeScheme)
 opBind =
-  do tva <- newtv
-     tvb <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let tb = VarT tvb
-     let lvl = VarL lvlVar
-     return (Identifier "bind",
-             TypeScheme [tva,tvb] [lvlVar] (ProgramT lvl ta
-                                            :> (ta :> ProgramT lvl tb)
-                                            :> ProgramT lvl tb))
+  let tva = TyVar 0 Nothing
+      tvb = TyVar 1 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      tb = VarT tvb
+      lvl = VarL lvlVar
+  in  ("bind",
+       TypeScheme [tva,tvb] [lvlVar] (ProgramT lvl ta
+                                      :> (ta :> ProgramT lvl tb)
+                                      :> ProgramT lvl tb))
 
-opInterleave :: TI (Identifier, TypeScheme Type)
+opInterleave :: (Identifier, TypeScheme)
 opInterleave =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "interleave",
-             TypeScheme [tva] [lvlVar] (IntT
-                                        :> ((IntT :*: IntT) :> IntT)
-                                        :> PullArrayT (ProgramT lvl (PushArrayT lvl ta))
-                                        :> ProgramT (Step lvl) (PushArrayT (Step lvl) ta)))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in ("interleave",
+      TypeScheme [tva] [lvlVar] (IntT
+                                 :> ((IntT :*: IntT) :> IntT)
+                                 :> PullArrayT (ProgramT lvl (PushArrayT lvl ta))
+                                 :> ProgramT (Step lvl) (PushArrayT (Step lvl) ta)))
 
-opSeqFor :: TI (Identifier, TypeScheme Type)
+opSeqFor :: (Identifier, TypeScheme)
 opSeqFor =
-  do tva <- newtv
-     return (Identifier "seqfor",
-             TypeScheme [tva] [] (IntT
-                                  :> IntT
-                                  :> ((IntT :> VarT tva) :> (IntT :> (IntT :*: VarT tva)))
-                                  :> PushArrayT Zero (VarT tva)))
+  let tva = TyVar 0 Nothing
+  in  ("seqfor",
+       TypeScheme [tva] [] (IntT
+                            :> IntT
+                            :> ((IntT :> VarT tva) :> (IntT :> (IntT :*: VarT tva)))
+                            :> PushArrayT Zero (VarT tva)))
 
-opPower :: TI (Identifier, TypeScheme Type)
+opPower :: (Identifier, TypeScheme)
 opPower =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ty = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "power",
-             TypeScheme [tva] [lvlVar] (IntT
-                                        :> (IntT :> (PullArrayT ty :> ProgramT lvl (PushArrayT lvl ty)))
-                                        :> (ProgramT lvl (PushArrayT lvl ty))
-                                        :> ProgramT lvl (PullArrayT ty)))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ty = VarT tva
+      lvl = VarL lvlVar
+  in ("power",
+      TypeScheme [tva] [lvlVar] (IntT
+                                 :> (IntT :> (PullArrayT ty :> ProgramT lvl (PushArrayT lvl ty)))
+                                 :> (ProgramT lvl (PushArrayT lvl ty))
+                                 :> ProgramT lvl (PullArrayT ty)))
 
-opWhile :: TI (Identifier, TypeScheme Type)
+opWhile :: (Identifier, TypeScheme)
 opWhile =
-  do tva <- newtv
-     lvlVar <- newLvlVar
-     let ta = VarT tva
-     let lvl = VarL lvlVar
-     return (Identifier "while",
-             TypeScheme [tva] [lvlVar] ((PullArrayT ta :> BoolT)
-                                        :> (PullArrayT ta :> ProgramT lvl (PushArrayT lvl ta))
-                                        :> (ProgramT lvl (PushArrayT lvl ta))
-                                        :> ProgramT lvl (PullArrayT ta)))
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in ("while",
+      TypeScheme [tva] [lvlVar] ((PullArrayT ta :> BoolT)
+                                 :> (PullArrayT ta :> ProgramT lvl (PushArrayT lvl ta))
+                                 :> (ProgramT lvl (PushArrayT lvl ta))
+                                 :> ProgramT lvl (PullArrayT ta)))
 
-opBlockSize :: TI (Identifier, TypeScheme Type)
-opBlockSize =
-  return (Identifier "#BlockSize",
-          TypeScheme [] [] IntT)
+opBlockSize :: (Identifier, TypeScheme)
+opBlockSize = ("#BlockSize", TypeScheme [] [] IntT)
 
-opReadIntCSV :: TI (Identifier, TypeScheme Type)
+opReadIntCSV :: (Identifier, TypeScheme)
 opReadIntCSV =
-  return (Identifier "readIntCSV",
-          TypeScheme [] [] (StringT :> ProgramT gridLevel (PullArrayT IntT)))
+  ("readIntCSV",
+   TypeScheme [] [] (StringT :> ProgramT gridLevel (PullArrayT IntT)))
 
-opForceAndPrint :: TI (Identifier, TypeScheme Type)
+opForceAndPrint :: (Identifier, TypeScheme)
 opForceAndPrint =
-  return (Identifier "forceAndPrint",
-          TypeScheme [] [] (IntT
-                            :> PushArrayT gridLevel IntT
-                            :> ProgramT gridLevel (PullArrayT IntT)))
+  ("forceAndPrint",
+   TypeScheme [] [] (IntT
+                     :> PushArrayT gridLevel IntT
+                     :> ProgramT gridLevel (PullArrayT IntT)))
 
-opBenchmark :: TI (Identifier, TypeScheme Type)
+opBenchmark :: (Identifier, TypeScheme)
 opBenchmark =
-  do tva <- newtv
-     let ta = VarT tva
-     return (Identifier "benchmark",
-             TypeScheme [tva] [] (IntT
-                                  :> ProgramT gridLevel ta
-                                  :> ProgramT gridLevel UnitT))
+  let tva = TyVar 0 Nothing
+      ta = VarT tva
+  in ("benchmark",
+      TypeScheme [tva] [] (IntT
+                           :> ProgramT gridLevel ta
+                           :> ProgramT gridLevel UnitT))

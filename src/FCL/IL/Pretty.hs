@@ -1,13 +1,11 @@
 module FCL.IL.Pretty (prettyIL, prettyExp) where
 
-import Text.PrettyPrint
+import Prelude hiding ((<$>))
+import Text.PrettyPrint.Leijen
 import FCL.IL.Syntax
 
-indent :: Doc -> Doc
-indent = nest 4
-
-angles :: Doc -> Doc
-angles p = char '<' <> p <> char '>'
+tabSize :: Int
+tabSize = 4
 
 ppLevel :: ILLevel -> Doc
 ppLevel Thread = text "thread"
@@ -29,7 +27,7 @@ ppExp (EInt i) = int i
 ppExp (EDouble d) = double d
 ppExp (EBool True) = text "true"
 ppExp (EBool False) = text "false"
-ppExp (EString s) = quotes (text s)
+ppExp (EString s) = dquotes (text s)
 ppExp (EVar var) = ppVar var
 ppExp (EIndex var e) = ppVar var <> (brackets (ppExp e))
 ppExp (EUnaryOp op e) = ppUnaryOp op e
@@ -85,58 +83,58 @@ ppStmt (AssignSub n e_idx e _) =
   ppVar n <> brackets (ppExp e_idx) <> text " := " <> ppExp e <> char ';'
 ppStmt (If e ss_true [] _) =
   text "if " <> parens (ppExp e) <> text " {"
-    $+$
-    indent (ppStmts ss_true)
-    $+$
+    <$>
+    indent tabSize (ppStmts ss_true)
+    <$>
   text "}"
 ppStmt (If e ss_true ss_false _) =
   text "if " <> parens (ppExp e) <> text " {"
-    $+$
-    indent (ppStmts ss_true)
-    $+$
+    <$>
+    indent tabSize (ppStmts ss_true)
+    <$>
   text "} else {" <> 
-    indent (ppStmts ss_false)
-    $+$
+    indent tabSize (ppStmts ss_false)
+    <$>
   text "}"
 ppStmt (Distribute lvl var e body _) =
   let v = ppVar var
   in (text "distribute" <> angles (ppLevel lvl)  <+> text "(int " <> v <> text " = 0; "
         <> v <> text " < " <> ppExp e <> text "; "
         <> v <> text "++) {")
-     $+$
-       indent (ppStmts body)
-     $+$
+     <$>
+       indent tabSize (ppStmts body)
+     <$>
      text "}"
 ppStmt (ParFor lvl var e body _) =
   let v = ppVar var
   in (text "forall" <> angles (ppLevel lvl)  <+> text "(int " <> v <> text " = 0; "
         <> v <> text " < " <> ppExp e <> text "; "
         <> v <> text "++) {")
-     $+$
-       indent (ppStmts body)
-     $+$
+     <$>
+       indent tabSize (ppStmts body)
+     <$>
      text "}"
 ppStmt (SeqFor var e body _) =
   let v = ppVar var
   in (text "for" <+> text "(int " <> v <> text " = 0; "
         <> v <> text " < " <> ppExp e <> text "; "
         <> v <> text "++) {")
-     $+$
-       indent (ppStmts body)
-     $+$
+     <$>
+       indent tabSize (ppStmts body)
+     <$>
      text "}"
 
 ppStmt (While e body _) =
      (text "while (" <> ppExp e <> text ") {")
-     $+$
-       indent (ppStmts body)
-     $+$
+     <$>
+       indent tabSize (ppStmts body)
+     <$>
      text "}"
 ppStmt (Benchmark e body _) =
      (text "benchmark (" <> ppExp e <> text ") {")
-     $+$
-       indent (ppStmts body)
-     $+$
+     <$>
+       indent tabSize (ppStmts body)
+     <$>
      text "}"
 ppStmt (Synchronize _) = text "synchronize;"
 
@@ -144,7 +142,7 @@ ppStmts :: [Stmt a] -> Doc
 ppStmts stmts = vcat (map ppStmt stmts)
 
 prettyIL :: [Stmt a] -> String
-prettyIL program = render (ppStmts program)
+prettyIL program = displayS (renderPretty 0.6 80 (ppStmts program)) ""
 
 prettyExp :: ILExp -> String
-prettyExp e = render (ppExp e)
+prettyExp e = displayS (renderPretty 0.6 80 (ppExp e)) ""
