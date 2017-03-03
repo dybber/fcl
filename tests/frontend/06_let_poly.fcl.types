@@ -1,0 +1,26 @@
+id : forall 'a. 'a -> 'a
+apply : forall 'a 'b. ('a -> 'b) -> 'a -> 'b
+testA : int
+testB : int
+testl3 : int
+testl4 : (int -> int) -> int
+testl4_b : (int -> int) -> int
+testl4_c : int -> int
+testl42 : int
+testl5 : (int -> int) -> int -> int
+testl61 : (int -> int) -> int
+testl62 : (int -> int) -> int -> int
+testl77 : int
+testl77_b : int
+testid : forall 'a. 'a -> 'a
+test2a : forall 'a 'b. ('b -> 'a) -> 'b -> 'a
+testl51 : forall 'a 'b. 'a -> ('a -> 'b) -> 'b
+testl52 : forall 'a. (int -> 'a) -> 'a
+testl63 : forall 'a. (int -> 'a) -> int -> 'a
+testl66 : (int -> int) -> int -> int
+testl69 : forall 'a 'b. ('b -> 'a) -> 'b -> 'b
+testl71 : forall 'a 'b. ('a -> 'b) -> 'a -> 'b
+testl72 : forall 'a 'b. ('a -> 'b) -> 'a -> 'b
+testl73 : forall 'a. 'a -> 'a
+testl75 : forall 'a. 'a -> 'a
+testl76 : forall 'a. 'a -> int

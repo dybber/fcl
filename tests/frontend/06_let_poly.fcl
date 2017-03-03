@@ -1,0 +1,109 @@
+-- Most tests are from from FLOLAC lecture notes
+-- by Oleg Kiselyov and Chung-Chieh Shan (TInfLetP.hs)
+
+val id = fn x => x
+
+val apply = fn x => fn y => x y
+
+val testA = id 1
+
+val testB = let a = fn x => x
+            in let b = a
+               in b 1
+
+val testl3 = let x <> = 1 in subi x x
+
+val testl4 = fn x => let x = x 1 in addi x 2
+
+val testl4_b = fn x => let y = x 1 in addi y 2
+
+val testl4_c = fn x => addi 2 x
+
+val testl42 = testl4 id
+
+val testl5 = fn x => let y = x 1 in fn x => addi y x
+
+val testl61 = fn x => let y = x 1 in (let z = addi y 2 in y)
+
+val testl62 = fn x => let y = x 1 in (let z = addi y 2 in x)
+
+val testl77 =
+  let x = fn y => 1
+  in let y = x
+     in (y 1) + (y id)
+
+val testl77_b = let f = fn y => 1
+                in f id
+
+val testid = id
+val test2a = apply
+
+-- ERR: y not bound
+-- val test61 = (fn x => 1) y
+
+-- ERR: occurs check
+-- val testd = fn y (y y)
+
+-- ERR: x not bound
+-- val testl1 = let x = x in x
+
+-- ERR: y not bound
+-- val testl2 = let x = y in 1
+
+-- ERR: Unification error
+-- val testl43 = testl4 apply
+
+val testl51 = fn x => let y = fn f => f x
+                      in y
+
+val testl52 = testl51 1
+
+val testl63 = fn x => let y = x 1
+                      in let z = 2
+                         in x
+
+val testl66 =
+  fn x => let y = x
+          in let z = y 1 + 2
+             in y
+
+-- ERR: unification error, cannot unify "int" and "a -> a"
+-- val testl67 =
+--   fn x => let y = x
+--           in (y 1) + (y id)
+
+val testl69 =
+  fn f =>
+    let g = fn x => (let y = f x in x)
+    in g
+
+-- ERR: occurs check
+-- val testl6a =
+--   fn f =>
+--     let g = fn x => (let y = f x in x)
+--     in g g
+
+val testl71 = let x = apply in x
+
+val testl72 =
+  let x = apply
+  in let y = x id
+     in let z = y 2
+        in x
+              
+val testl73 =
+  let x = apply
+  in let y = x id
+     in let z = y 2
+        in y
+
+val testl75 =
+  let x = apply
+  in let y = (let z = x id in z)
+     in y
+
+val testl76 =
+  let x = fn y => 1
+  in let y = x
+     in let z = (y 1) + 2
+        in y

@@ -1,4 +1,4 @@
-TESTS=00_scalar_bool 01_scalar_int 02_scalar_double 03_function_mono 04_function_poly
+TESTS=00_scalar_bool 01_scalar_int 02_scalar_double 03_function_mono 04_function_poly 06_let_poly
 
 FCLFILES=$(TESTS:%=%.fcl)
 TYPES=$(TESTS:%=%.fcl.types)
