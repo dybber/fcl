@@ -1,4 +1,4 @@
-test00 : ('a -> 'a)
+test00 : forall 'a. 'a -> 'a
 test01 : int
-test02 : ('a -> ('b -> 'a))
+test02 : forall 'a 'b. 'b -> 'a -> 'b
 test03 : int

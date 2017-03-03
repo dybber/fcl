@@ -2,15 +2,16 @@ sig copy : [int] -> Program <grid> [int]<grid>
 fun copy arr =
   splitUp 256 arr
    |> mapPull (fn arr => return <block> (push <block> arr))
-   |> concat 256
+   |> concat <block> 256
 
 
 sig example : Program <grid> [int]<grid>
-fun example = copy (generate (2048 * 2048) (fn i => i))
+val example = copy (generate (2048 * 2048) (fn i => i))
 
 sig main : Program <grid> unit
-fun main =
- do { arr <- example
-    ; forceAndPrint 100 arr
-    ; benchmark 10 (bind example force)
-    }
+val main =
+ do <grid>
+  { arr <- example
+  ; forceAndPrint 100 arr
+  ; benchmark 10 (bind <grid> example (force <grid>))
+  }

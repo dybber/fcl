@@ -1,9 +1,9 @@
-sig id : 'a -> 'a
+sig id : forall 'a. 'a -> 'a
 fun id x = x
 
-sig concat : int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
-fun concat n arr =
-  interleave n (fn sh => ((fst sh) * n) + (snd sh)) arr
+sig concat : forall 'a <lvl>. int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
+fun concat <lvl> n arr =
+  interleave <lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
 
 sig iota : int -> [int]
 fun iota n = generate n (fn x => x)
@@ -12,29 +12,29 @@ sig range : int -> int -> [int]
 fun range begin end =
   mapPull (fn x => begin + x) (iota (1 + (subi end begin)))
 
-sig zipWith : ('a -> 'b -> 'c) -> ['a] -> ['b] -> ['c]
+sig zipWith : forall 'a 'b 'c. ('a -> 'b -> 'c) -> ['a] -> ['b] -> ['c]
 fun zipWith f a1 a2 =
   generate (mini (lengthPull a1) (lengthPull a2))
     (fn ix => f (index a1 ix) (index a2 ix))
 
-sig backpermute : int -> (int -> (int, int)) -> [['a]] -> ['a]
+sig backpermute : forall 'a. int -> (int -> (int, int)) -> [['a]] -> ['a]
 fun backpermute totalSize f array =
   generate totalSize
     (fn ix => let ix0 = f ix
               in index (index array (fst ix0)) (snd ix0))
 
 -- Split an array at a given point
-sig splitAt : int -> ['a] -> (['a], ['a])
+sig splitAt : forall 'a. int -> ['a] -> (['a], ['a])
 fun splitAt n arr =
   (generate n (fn i => index arr i),
    generate (subi (lengthPull arr) n) (fn x => index arr (x + n)))
 
-sig halve : ['a] -> (['a], ['a])
+sig halve : forall 'a. ['a] -> (['a], ['a])
 fun halve arr = 
   let half = divi (lengthPull arr) 2
   in splitAt half arr
 
-sig evenOdds : ['a] -> (['a], ['a])
+sig evenOdds : forall 'a. ['a] -> (['a], ['a])
 fun evenOdds arr =
   let n  = lengthPull arr
   in let n2 = divi n 2
@@ -42,28 +42,28 @@ fun evenOdds arr =
      (generate (subi n n2) (fn ix => index arr (2 * ix)),
       generate n2     (fn ix => index arr ((2 * ix) + 1)))
 
-sig splitUp : int -> ['a] -> [['a]]
+sig splitUp : forall 'a. int -> ['a] -> [['a]]
 fun splitUp n arr =
   generate (divi (lengthPull arr) n)
     (fn i => generate n
        (fn j => index arr ((i * n) + j)))
 
-sig coalesce : int -> ['a] -> [['a]]
+sig coalesce : forall 'a. int -> ['a] -> [['a]]
 fun coalesce n arr =
   let s = divi (lengthPull arr) n
   in generate s (fn i =>
        generate n (fn j => index arr (i + (s * j))))
 
-sig concatMap : int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
-fun concatMap size f arr = concat size (mapPull f arr)
+sig concatMap : forall 'a 'b <lvl>. int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
+fun concatMap <lvl> size f arr = concat <lvl> size (mapPull f arr)
 
-sig take : int -> ['a] -> ['a]
+sig take : forall 'a. int -> ['a] -> ['a]
 fun take n arr = generate n (fn ix => index arr n)
 
-sig drop : int -> ['a] -> ['a]
+sig drop : forall 'a. int -> ['a] -> ['a]
 fun drop n arr = generate (subi (lengthPull arr) n) (fn i => index arr (i+n))
 
-sig last : ['a] -> 'a
+sig last : forall 'a. ['a] -> 'a
 fun last arr = index arr (lengthPull arr - 1)
 
 sig bit : int -> int
@@ -72,7 +72,7 @@ fun bit i = 1 << i
 sig testBit : int -> int -> bool
 fun testBit x i = (x & (bit i)) != 0
 
-sig foldl : ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
+sig foldl : forall 'a 'b. ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun foldl f b array =
   seqfor 1 (1 + (lengthPull array))
     (fn read => fn i =>
@@ -80,7 +80,7 @@ fun foldl f b array =
            then b
            else f (read 0) (index array (subi i 1))))
 
-sig scanl1 : ('a -> 'a -> 'a) -> ['a] -> ['a]<thread>
+sig scanl1 : forall 'a. ('a -> 'a -> 'a) -> ['a] -> ['a]<thread>
 fun scanl1 op array =
  let n = lengthPull array
  in seqfor n n
@@ -89,7 +89,7 @@ fun scanl1 op array =
               then index array i
               else op (read (subi i 1)) (index array i)))
 
-sig scanl : ('a -> 'a -> 'a) -> 'a -> ['a] -> ['a]<thread>
+sig scanl : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> ['a]<thread>
 fun scanl op b array =
  let n = lengthPull array
  in seqfor (1 + n) (1 + n)
@@ -99,7 +99,7 @@ fun scanl op b array =
               else op (read (subi i 1)) (index array (subi i 1))))
 
 -- Pad array with a neutral element
-sig pad : int -> 'a -> ['a] -> ['a]
+sig pad : forall 'a. int -> 'a -> ['a] -> ['a]
 fun pad divisor neutralElement arr =
   let n = lengthPull arr in
   let extension = subi divisor (n % divisor) in
@@ -109,8 +109,8 @@ fun pad divisor neutralElement arr =
                 then index arr i
                 else neutralElement)
 
-sig computeInSingleBlock : ['a] -> Program <grid> ['a]<grid>
+sig computeInSingleBlock : forall 'a. ['a] -> Program <grid> ['a]<grid>
 fun computeInSingleBlock arr =
   generate 1 (fn i => arr)
     |> mapPull (fn a => return <block> (push<block> a))
-    |> concat (lengthPull arr)
+    |> concat <block> (lengthPull arr)

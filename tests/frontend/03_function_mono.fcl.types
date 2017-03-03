@@ -1,10 +1,10 @@
-test00 : (int -> int)
-test01 : (int -> (int -> int))
-test02 : ((int, int) -> int)
-test03 : (int -> double)
-test04 : (int -> (int -> int))
-test05 : (int -> (int -> int))
-test06 : ((int -> int) -> (int -> int))
+test00 : int -> int
+test01 : int -> int -> int
+test02 : (int, int) -> int
+test03 : int -> double
+test04 : int -> int -> int
+test05 : int -> int -> int
+test06 : (int -> int) -> int -> int
 test07 : int
-test08 : ((int -> (int -> int)) -> (int -> (int -> int)))
+test08 : (int -> int -> int) -> int -> int -> int
 test09 : int

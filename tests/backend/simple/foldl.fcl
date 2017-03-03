@@ -3,16 +3,17 @@ fun foldBlock arr =
   splitUp 32 arr
    |> mapPull (foldl (fn a => fn b => a + b) 0)
    |> mapPull (return <thread>)
-   |> concat 1
+   |> concat <thread> 1
 
 sig runtest : Program <grid> [int]<grid>
-fun runtest =
+val runtest =
   generate 1 (fn i => (iota (32*32)))
    |> mapPull foldBlock
-   |> concat 32
+   |> concat <block> 32
 
 sig main : Program <grid> [int]
-fun main =
- do { a <- runtest
-    ; forceAndPrint 32 a
-    }
+val main =
+ do <grid>
+   { a <- runtest
+   ; forceAndPrint 32 a
+   }

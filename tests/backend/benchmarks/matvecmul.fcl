@@ -1,30 +1,31 @@
-sig reduceBlock : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
+sig reduceBlock : forall 'a <lvl>. ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
 fun reduceBlock <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
                        in return <lvl> (push <lvl> (zipWith f (fst x) (snd x)))
-  in do { a <- while cond step (step arr)
-        ; return <lvl> (push <lvl> a)
-        }
+  in do <lvl>
+      { a <- while <lvl> cond step (step arr)
+      ; return <lvl> (push <lvl> a)
+      }
 
 sig dotp : [int] -> [int] -> Program <block> [int]<block>
 fun dotp vec1 vec2 =
-  reduceBlock <block> (fn a => fn b => a + b) (zipWith (fn a => fn b => a * b) vec1 vec2)
+  reduceBlock <block> (fn a => fn b => a + b)
+                      (zipWith (fn a => fn b => a * b) vec1 vec2)
 
 sig matVecMul : [int] -> [int] -> int -> Program <grid> [int]<grid>
 fun matVecMul mat vec cols =
   splitUp cols mat -- split in rows
    |> mapPull (dotp vec)
-   |> concat 1 -- concatenate results
-
-
+   |> concat <block> 1 -- concatenate results
 
 sig example : Program <grid> [int]<grid>
-fun example = matVecMul (iota (32*32)) (iota 32) 32
+val example = matVecMul (iota (32*32)) (iota 32) 32
 
 sig main : Program <grid> unit
-fun main =
-  do { arr <- example
-     ; forceAndPrint 32 arr
-     ; benchmark 10 (bind example force)
-     }
+val main =
+  do <grid>
+   { arr <- example
+   ; forceAndPrint 32 arr
+   ; benchmark 10 (bind <grid> example (force <grid>))
+   }

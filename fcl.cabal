@@ -19,7 +19,7 @@ Library
 
   HS-source-dirs: src
 
-  exposed-modules: MiniFCL
+  exposed-modules: FCL
                    FCL.Core.Identifier
                    FCL.Core.Literal
                    FCL.Core.MonoLevel
@@ -82,7 +82,7 @@ Executable fcl
                  transformers >= 0.4.2 && < 0.5,
                  fcl
 
-  Main-is: cli/Main.hs
+  Main-is: cli/NewMain.hs
 
   Default-Language:   Haskell2010
   Ghc-Options:        -Wall

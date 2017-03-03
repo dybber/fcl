@@ -1,8 +1,9 @@
 sig runtest : int -> Program <grid> [int]<grid>
-fun runtest n = concatMap 32 (fn a => return <block> (push <block> (mapPull (fn x => x * 2) a))) (splitUp 32 (iota n))
+fun runtest n = concatMap <block> 32 (fn a => return <block> (push <block> (mapPull (fn x => x * 2) a))) (splitUp 32 (iota n))
 
 sig main : Program <grid> [int]
-fun main =
- do { a <- runtest 1024
-    ; forceAndPrint 1024 a
-    }
+val main =
+ do <grid>
+  { a <- runtest 1024
+  ; forceAndPrint 1024 a
+  }

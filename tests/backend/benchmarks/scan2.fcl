@@ -1,4 +1,4 @@
-sig appendPull : ['a] -> ['a] -> ['a]
+sig appendPull : forall 'a. ['a] -> ['a] -> ['a]
 fun appendPull a1 a2 =
   let n1 = lengthPull a1 in
   let n2 = lengthPull a2
@@ -7,7 +7,7 @@ fun appendPull a1 a2 =
                  then index a1 ix
                  else index a2 (ix - n1))
 
-sig fan : ('a -> 'a -> 'a) -> ['a] -> ['a]
+sig fan : forall 'a. ('a -> 'a -> 'a) -> ['a] -> ['a]
 fun fan op arr =
   let x = halve arr in
   let a1 = fst x in
@@ -26,18 +26,19 @@ fun binsplit2 n f iteration arr =
   in return <block> (push <block> (generate lt (fn i => index (f (generate m (fn j => (index arr (g i j))))) (h i))))
 
 -- block-level scan
-sig sklansky : int -> ('a -> 'a -> 'a) -> ['a] -> Program <block> ['a]<block>
+sig sklansky : forall 'a. int -> ('a -> 'a -> 'a) -> ['a] -> Program <block> ['a]<block>
 fun sklansky n op arr =
-  do { a <- power n (binsplit2 (subi n 1) (fan op)) (return <block> (push <block> arr))
-     ; return <block> (push <block> a)
-     }
+  do <block>
+   { a <- power <block> n (binsplit2 (subi n 1) (fan op)) (return <block> (push <block> arr))
+   ; return <block> (push <block> a)
+   }
 
-sig scanInChunks : int -> ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
+sig scanInChunks : forall 'a. int -> ('a -> 'a -> 'a) -> ['a] -> Program <grid> ['a]<grid>
 fun scanInChunks lgChunkSize op arr =
   let chunkSize = 1 << lgChunkSize
-  in concatMap chunkSize (sklansky lgChunkSize op) (splitUp chunkSize arr)
+  in concatMap <block> chunkSize (sklansky lgChunkSize op) (splitUp chunkSize arr)
 
-sig intermediateSums : int -> ['a] -> ['a]
+sig intermediateSums : forall 'a. int -> ['a] -> ['a]
 fun intermediateSums lgChunkSize arr =
   let chunkSize = 1 << lgChunkSize
   in mapPull last (splitUp chunkSize arr)
@@ -52,23 +53,24 @@ fun adjust lgChunkSize scans sums =
                      then 0
                      else index sums (subi i 1)))))
       |> mapPull (fn a => return <block> (push<block> a))
-      |> concat n
+      |> concat <block> n
 
 sig main : Program <grid> [int]
-fun main =
-  do { scans <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
+val main =
+  do <grid>
+     { scans <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
 --     ; scans' <- forceAndPrint 128 scans
-     ; scans' <- force scans
+     ; scans' <- force <grid> scans
                
      -- Intermediate sums: [496,1520,2544,3568]
      ; sums <- computeInSingleBlock (intermediateSums 5 scans')
 --     ; sums' <- forceAndPrint 4 sums
-     ; sums' <- force sums
+     ; sums' <- force <grid> sums
 
      -- Scan of intermediate sums: [496,2016,4560,8128]
      ; scanSums <- scanInChunks 2 (fn a => fn b => a + b) (intermediateSums 5 scans')
 --     ; scanSums' <- forceAndPrint 4 scanSums
-     ; scanSums' <- force scanSums
+     ; scanSums' <- force <grid> scanSums
 
      -- Add intermediate sums
      ; result <- adjust 5 scans' scanSums'

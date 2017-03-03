@@ -67,10 +67,10 @@ arrayOps =
    opBind,
    opInterleave,
    opSeqFor,
-   -- opPower,
-   -- opWhile,
-   -- opBlockSize,
-   -- opReadIntCSV,
+   opPower,
+   opWhile,
+   opBlockSize,
+   opReadIntCSV,
    opForceAndPrint,
    opBenchmark
   ]

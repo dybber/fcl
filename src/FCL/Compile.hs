@@ -1,6 +1,5 @@
 module FCL.Compile (compile) where
 
-import qualified Data.Map as Map
 import FCL.Core.Literal
 import FCL.Core.Monotyped
 
@@ -14,7 +13,7 @@ import FCL.IL.Program (runProgram)
 
 compile :: CompileConfig -> Exp -> [Stmt ()]
 compile _ e =
-  case compileExp emptyEnv e of
+  case compileExp defaultCompileEnvironment e of
     TagProgram p -> fst (runProgram p)
     _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
@@ -28,9 +27,10 @@ compileExp :: CompileEnv -> Exp -> Value
 compileExp _ (Literal l _) = compileLiteral l
 compileExp _ (Unit _)      = TagUnit
 compileExp env (App f e _) = app1 (compileExp env f) (compileExp env e)
-compileExp env (Lamb x e _) = TagFn (\v -> compileExp (Map.insert x (UserDefined v) env) e)
+compileExp env (Lamb x e _) = TagFn (\v -> compileExp (insertUserDefined x v env) e)
 compileExp env (Let x e0 e1 _)    =
-  compileExp (Map.insert x (UserDefined (compileExp env e0)) env) e1
+  let v = compileExp env e0
+  in compileExp (insertUserDefined x v env) e1
 compileExp env (Pair e0 e1 _)     = TagPair (compileExp env e0) (compileExp env e1)
 compileExp env (Symbol x ty) =
   case lookupSymbol x ty env of
