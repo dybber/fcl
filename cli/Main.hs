@@ -14,22 +14,22 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Reader
 
 import Paths_fcl
-
 import FCL
--- import qualified FCL.External.Syntax as E
---import qualified FCL.Core.Syntax as C
+
+
+import qualified FCL.Core.Polytyped as Poly
+import qualified FCL.External.Syntax as E
 
 ---------------
 ---- Monad ----
 ---------------
-type CLI = ReaderT Options (ExceptT CompilerError IO)
 
-data CompilerError = IOError IOError
-                   | ParseError ParseError
-                   | TypeError TypeError
-                   | EvalError String
+data CompilerError = FCLError FCLError
+                   | IOError IOError
                    | CLIError String
   deriving Show
+
+type CLI = ReaderT Options (ExceptT CompilerError IO)
 
 exitErr :: String -> IO a
 exitErr msg = do
@@ -50,16 +50,13 @@ liftEither _ (Right r) = return r
 throw :: CompilerError -> CLI a
 throw err = lift (throwE err)
 
-data Command = ParserTest
+data Command = ParseOnly
              | Typecheck
-             | Eval
              | Compile
              | Help
-             | DumpAST
-             | DumpASTUntyped
-             | DumpASTInlined
-             | DumpASTDesugared
-             | DumpASTSimplified
+             | DumpDesugared
+             | DumpTyped
+             | DumpMonomorphed
              | DumpIL
              | DumpILOptimised
   deriving Eq
@@ -89,16 +86,14 @@ optionDescriptions =
   [ Option "h" ["help"]             (NoArg (\opt -> opt {fclCommand = Help})) "Show help for this command"
   , Option []  ["no-prelude"]   (NoArg (\opt -> opt {fclNoPrelude = True})) "Do not include the FCL prelude"
   , Option "t" ["typecheck"]        (NoArg (\opt -> opt {fclCommand = Typecheck})) "Type check and print top-level types"
-  , Option []  ["eval"]             (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
+--  , Option []  ["eval"]             (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
   , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
-  , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
-  , Option []  ["dump-ast-untyped"] (NoArg (\opt -> opt {fclCommand = DumpASTUntyped})) "Dump AST after parsing"
-  , Option []  ["dump-ast-inlined"] (NoArg (\opt -> opt {fclCommand = DumpASTInlined})) "Dump AST after parsing and inlining"
-  , Option []  ["dump-ast-desugared"] (NoArg (\opt -> opt {fclCommand = DumpASTDesugared})) "Dump AST after desugaring"
-  , Option []  ["dump-ast-simplified"] (NoArg (\opt -> opt {fclCommand = DumpASTSimplified})) "Dump AST after parsing, inlining and simplifications."
+--  , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
+  , Option []  ["dump-desugared"]     (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse, desugar."
+  , Option []  ["dump-typed"] (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing"
+  , Option []  ["dump-monomorphed"] (NoArg (\opt -> opt {fclCommand = DumpMonomorphed})) "Dump AST after monomorphization."
   , Option []  ["dump-il"]          (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
   , Option []  ["dump-il-optimised"] (NoArg (\opt -> opt {fclCommand = DumpILOptimised})) "Dump intermediate representation."
-  , Option []  ["dump-ast"]         (NoArg (\opt -> opt {fclCommand = DumpAST})) "Dump AST after typechecking"
   , Option "v" ["verbose"]      (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
   , Option "d" ["debug"]        (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
   ]
@@ -157,16 +152,16 @@ writeFileChecked filename contents = do
   status <- liftIO (tryIOError (writeFile filename contents))
   liftEither IOError status
 
-parseFile :: String -> CLI [E.Definition E.Untyped]
+parseFile :: String -> CLI E.Program
 parseFile fname = do
   contents <- readFileChecked fname
   logInfo ("Parsing " ++ fname ++ ".")
-  liftEither ParseError (parseTopLevel fname contents)
+  liftEither FCLError (parse fname contents)
 
-parseFiles :: [String] -> CLI [E.Definition E.Untyped]
+parseFiles :: [String] -> CLI E.Program
 parseFiles files = do
-  definitions <- mapM parseFile files
-  return (concat definitions)
+  definitions <- concat <$> mapM parseFile files
+  return definitions
 
 --------------
 -- Commands --
@@ -179,43 +174,13 @@ showUsageAndExit =
        putStr (usageInfo heading optionDescriptions)
        exitFailure
 
-printTypes :: [E.Definition Type] -> CLI ()
-printTypes ast = mapM_ (message . showType) ast
-
-pp :: [E.Definition a] -> CLI ()
-pp ast = message (prettyPrint ast)
-
-evalAndPrint :: [C.Definition C.Type] -> CLI ()
-evalAndPrint ast =
-  do v <- liftEither EvalError (return (eval ast))
-     liftIO (print v)
-
-parserTest :: [FilePath] -> CLI ()
-parserTest filenames =
- let checkfile filename =
-       do logInfo "Testing parser."
-          logDebug "Input:"
-          contents <- readFileChecked filename
-          logDebug contents
-
-          ast <- parseFile filename
-          logInfo "Pretty printing."          
-          let pp1 = prettyPrint ast
-
-          logInfo "Parsing again."
-          result <- liftEither ParseError (parseTopLevel "<<input>>" pp1)
-          let pp2 = prettyPrint result
-
-          if pp1 == pp2
-            then message ("Parser test of '" ++ filename ++ "': OK.")
-            else do message ("Parser test of '" ++ filename ++ "': ERROR. Pretty printed output differed after second parse.")
-                    message "After first parse:"
-                    message pp1
-                    message "After second parse:"
-                    message pp2
-     
-                    liftIO exitFailure
- in mapM_ checkfile filenames
+printTypes :: Poly.Exp -> CLI ()
+printTypes ast =
+  case ast of
+    Poly.Let ident tysc _ _ body _ ->
+      do message (ident ++ " : " ++ display tysc)
+         printTypes body
+    _ -> return ()
 
 ----------------------
 -- Main entry point --
@@ -244,7 +209,7 @@ dispatch filenames opts =
      when (any (/= "fcl") extensions)
           (throw (CLIError "I can only handle .fcl files."))
 
-     onCommand ParserTest (parserTest filenames)
+     -- onCommand ParserTest (parserTest filenames)
 
      prelude  <- liftIO (getDataFileName "lib/prelude.fcl")
      let files = if fclNoPrelude opts
@@ -252,52 +217,40 @@ dispatch filenames opts =
                    else prelude : filenames
 
      ast <- parseFiles files
-     onCommand DumpASTUntyped (dumpAST ast)
+     onCommand ParseOnly (message (show ast))
+
+     logInfo "Desugaring."
+     desugared <- liftEither FCLError (desugar ast)
+     onCommand DumpDesugared (message (displayTopLevelUntyped desugared))
      
---      logInfo "Typechecking."
---      typed_ast <- liftEither TypeError (typeinfer ast)
---      onCommand DumpAST     (dumpAST typed_ast)
---      onCommand PrettyPrint (pp typed_ast)
---      onCommand Typecheck   (printTypes typed_ast)
+     logInfo "Typechecking."
+     (_, typed_ast) <- liftEither FCLError (infer initialTypeEnvironment desugared)
+     onCommand Typecheck   (printTypes typed_ast)
 
---      logInfo "Typechecking again."
---      inlined_typed <- liftEither TypeError (typeinfer [inlined])
---      let desugared_ast = map desugarDefinition inlined_typed
---      desugared_typed <- liftEither TypeErrorCore (typeinferCore desugared_ast)
-     
---      onCommand DumpASTDesugared (message (show desugared_typed))
-     
---      -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
-     
---      -- logInfo "Simplifying."
---      -- let simpl = simplify defaultCompileConfig (head typed_ast2)
-     
---      -- logInfo "Typechecking again."
---      -- typed_ast3 <- liftEither TypeErrorCore (typeinferCore [simpl])
---      -- -- mapM_ (logInfo . (" " ++) . showType) typed_ast3
+     onCommand DumpTyped (message (displayTopLevelPoly typed_ast))
 
--- --     onCommand DumpASTSimplified (message (show [desugared_ast]))
---      onCommand Eval        (evalAndPrint desugared_typed)
+     monomorphed <- liftEither FCLError (monomorph initialTypeEnvironment typed_ast)
+     onCommand DumpMonomorphed (message (displayTopLevelMono monomorphed))
 
---      logInfo "Compiling."
---      optIter <- asks fclOptimizeIterations
---      verbosity <- asks fclVerbosity
---      outputFile <- asks fclOutputFile
---      let cfile = outputFile ++ ".c"
---          kernelsFile = outputFile ++ ".cl"
---          cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
---                                     , configOptimizeIterations = optIter
---                                     , configVerbosity = verbosity
---                                     }
---          intermediate_prog = compile cfg desugared_typed
---      onCommand DumpIL (message (prettyIL intermediate_prog))
+     logInfo "Compiling."
+     optIter <- asks fclOptimizeIterations
+     verbosity <- asks fclVerbosity
+     outputFile <- asks fclOutputFile
+     let cfile = outputFile ++ ".c"
+         kernelsFile = outputFile ++ ".cl"
+         cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
+                                    , configOptimizeIterations = optIter
+                                    , configVerbosity = verbosity
+                                    }
+         intermediate_prog = compile cfg monomorphed
+     onCommand DumpIL (message (prettyIL intermediate_prog))
 
---      let optimised = optimise optIter intermediate_prog
+     let optimised = optimise optIter intermediate_prog
 
---      onCommand DumpILOptimised (message (prettyIL optimised))
+     onCommand DumpILOptimised (message (prettyIL optimised))
 
---      onCommand Compile $
---        do let (main_, kernels) = codeGen cfg optimised
---           writeFileChecked cfile main_
---           writeFileChecked kernelsFile kernels
+     onCommand Compile $
+       do let (main_, kernels) = codeGen cfg optimised
+          writeFileChecked cfile main_
+          writeFileChecked kernelsFile kernels
 

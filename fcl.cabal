@@ -82,7 +82,7 @@ Executable fcl
                  transformers >= 0.4.2 && < 0.5,
                  fcl
 
-  Main-is: cli/NewMain.hs
+  Main-is: cli/Main.hs
 
   Default-Language:   Haskell2010
   Ghc-Options:        -Wall
