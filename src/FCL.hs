@@ -1,22 +1,23 @@
 module FCL
- (parse,
+ (
+  -- Frontend
+  parse,
   desugar,
   infer,
   Infer.initialTypeEnvironment,
   monomorph,
---  eval,
 
--- backend
+  --  eval,
+
+  -- Backend
   compile, optimise, codeGen, 
+  CompileConfig(..), defaultCompileConfig,
 
-  -- pretty printing
+  -- Pretty printers
   prettyIL, prettyC,
   display, displayTopLevelUntyped, displayTopLevelPoly, displayTopLevelMono,
   
---  Definition, Untyped, Type,
 
-  CompileConfig(..), defaultCompileConfig,
-  
   FCLError(..)
  )
 where
@@ -35,10 +36,8 @@ import FCL.Compile         (compile)
 import FCL.IL.Optimise     (optimise)
 import FCL.IL.CodeGen      (codeGen)
 import FCL.IL.Pretty       (prettyIL)
---import FCL.Core.Syntax     (Definition, Type, Untyped)
 import FCL.Compile.Config  (CompileConfig(..), defaultCompileConfig)
 
-import Text.PrettyPrint.Leijen
 import FCL.Pretty
 --import FCL.Eval            (eval)
 import qualified CGen                (pretty)
@@ -64,17 +63,5 @@ infer env e = liftEither TypeError (Infer.typeinfer env e)
 
 monomorph :: Infer.TypeEnvironment -> Poly.Exp -> Either FCLError Mono.Exp
 monomorph env e = liftEither MonomorphError (Monomorph.monomorph (Monomorph.mkInitEnv env) e)
-
-display :: Pretty a => a -> String
-display x = displayS (renderPretty 0.4 80 (pretty x)) ""
-
-displayTopLevelUntyped :: Untyped.Exp -> String
-displayTopLevelUntyped x = displayS (renderPretty 0.6 80 (prettyTopLevelUntyped x)) ""
-
-displayTopLevelPoly :: Poly.Exp -> String
-displayTopLevelPoly x = displayS (renderPretty 0.6 80 (prettyTopLevel x)) ""
-
-displayTopLevelMono :: Mono.Exp -> String
-displayTopLevelMono x = displayS (renderPretty 0.6 80 (prettyTopLevelMono x)) ""
 
 prettyC = CGen.pretty

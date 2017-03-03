@@ -6,12 +6,29 @@ import qualified Data.Map as Map
 import Text.PrettyPrint.Leijen
 
 import FCL.Core.Literal
-import qualified FCL.Core.PolyLevel as Poly
-import qualified FCL.Core.Polytyped as Poly
+
+import qualified FCL.External.Syntax as Ext
 import qualified FCL.Core.Untyped   as Untyped
 import qualified FCL.Core.MonoLevel as Mono
 import qualified FCL.Core.Monotyped as Mono
+import qualified FCL.Core.PolyLevel as Poly
+import qualified FCL.Core.Polytyped as Poly
 import FCL.Substitution
+
+-------------------------
+-- Rendering as string --
+-------------------------
+display :: Pretty a => a -> String
+display x = displayS (renderPretty 0.4 80 (pretty x)) ""
+
+displayTopLevelUntyped :: Untyped.Exp -> String
+displayTopLevelUntyped x = displayS (renderPretty 0.6 80 (prettyTopLevelUntyped x)) ""
+
+displayTopLevelPoly :: Poly.Exp -> String
+displayTopLevelPoly x = displayS (renderPretty 0.6 80 (prettyTopLevel x)) ""
+
+displayTopLevelMono :: Mono.Exp -> String
+displayTopLevelMono x = displayS (renderPretty 0.6 80 (prettyTopLevelMono x)) ""
 
 ------------
 -- Common --
@@ -34,6 +51,108 @@ instance Pretty Literal where
   pretty (LiteralBool True) = text "true"
   pretty (LiteralBool False) = text "false"
   pretty (LiteralString d) = dquotes (text d)
+
+------------------
+-- External AST --
+------------------
+
+prettyParensExt :: Ext.Exp -> Doc
+prettyParensExt e =
+  case e of
+    Ext.App _ _        -> parens (pretty e)
+    Ext.Symbol _ []    -> pretty e
+    Ext.Symbol _ _     -> parens (pretty e)
+    Ext.Lamb _ _       -> parens (pretty e)
+    Ext.Cond _ _ _     -> parens (pretty e)
+    Ext.Let _ _ _ _ _  -> parens (pretty e)
+    Ext.UnaryOp _ _    -> parens (pretty e)
+    Ext.BinaryOp _ _ _ -> parens (pretty e)
+    Ext.Do _ _         -> parens (pretty e)
+    _                  -> pretty e
+
+instance Pretty Ext.UnaryOperator where
+  pretty Ext.NegateI = text "~"
+  pretty Ext.Not = text "!"
+
+instance Pretty Ext.BinaryOperator where
+  pretty Ext.AddI = text "+"
+  pretty Ext.SubI = text "-"
+  pretty Ext.MulI = text "*"
+  pretty Ext.DivI = text "/"
+  pretty Ext.ModI = text "%"
+  pretty Ext.EqI = text "=="
+  pretty Ext.NeqI = text "!="
+  pretty Ext.AndI = text "&"
+  pretty Ext.OrI = text "|"
+  pretty Ext.XorI = text "|"
+  pretty Ext.ShiftLI = text "<<"
+  pretty Ext.ShiftRI = text ">>"
+
+
+instance Pretty Ext.Exp where
+  pretty e =
+    case e of
+      Ext.Literal l                   -> pretty l
+      Ext.Unit                        -> text "()"
+      Ext.Symbol x []                 -> text x
+      Ext.Symbol x lvls               -> text x <+> ppLvls lvls
+      Ext.Lamb x ebody                -> text "fn" <+> text x <+> text "=>" <+> pretty ebody
+      Ext.App e1@(Ext.App _ _) e2 -> pretty e1 <+> prettyParensExt e2
+      Ext.App e1@(Ext.Symbol _ _) e2 -> pretty e1 <+> prettyParensExt e2
+      Ext.App e1 e2                   -> prettyParensExt e1 <+> prettyParensExt e2
+      Ext.Pair e1 e2                  -> parens (align (pretty e1 <> comma </> pretty e2))
+      Ext.Cond e1 e2 e3 ->
+        text "if" <+> pretty e1 <+>
+        text "then" <+> pretty e2 <+>
+        text "else" <+> pretty e3
+      Ext.Let x anno [] e1 e2 ->
+        line <>
+        text "let" <+> text x <> prettyAnnotation anno <+> text "="
+        <> nest nestDepth (softline <> pretty e1) <+> text "in"
+        </> pretty e2 
+      Ext.Let x anno lvls e1 e2 ->
+        line <>
+        text "let" <+> text x <+>
+        ppLvls lvls <> prettyAnnotation anno <+> text "="
+        <> nest nestDepth (softline <> pretty e1) <+> text "in"
+        </> pretty e2 
+      Ext.UnaryOp op e1 -> pretty op <+> pretty e1
+      Ext.BinaryOp op e1 e2 -> pretty op <+> pretty e1 <+> pretty e2
+      Ext.Do lvl stmt ->
+        text "do" <+> angles (pretty lvl) </>
+          indent 2 (braces (cat (punctuate (char ';' <> softline) (map pretty stmt))))
+
+instance Pretty Ext.DoStmt where
+  pretty (Ext.DoExp e) = pretty e
+  pretty (Ext.DoBind ident e) = text ident <+> text "<-" <+> pretty e
+
+instance Pretty Ext.FunctionDefinition where
+  pretty (Ext.FunctionDefinition
+           { Ext.funName = name
+           , Ext.funSignature = sig
+           , Ext.funQuantifiedLevelVariables = lvlvars
+           , Ext.funParameters = params
+           , Ext.funBody = expr
+           }) =
+    let ppSignature =
+           case sig of
+             Nothing -> empty
+             Just tysc -> text "sig" <+> text name <+> colon <+> pretty tysc <> line
+    in
+      ppSignature
+      <> text "fun" <+> text name
+      <> (if null lvlvars
+          then empty
+          else space <> angles (cat (punctuate comma (map pretty lvlvars))))
+      <> (if null params
+          then empty
+          else space <> hsep (map text params))
+      <+> text "="
+      <+> pretty expr     
+
+instance Pretty Ext.Program where
+  pretty (Ext.Program defs) = cat (punctuate (line <> line) (map pretty defs))
+
 -------------------
 -- Untyped AST --
 -------------------
@@ -100,7 +219,8 @@ instance Pretty Untyped.Exp where
 -- Polymorph AST --
 -------------------
 instance Pretty Poly.LvlVar where
-  pretty (Poly.LvlVar i) = char 'l' <> int i
+  pretty (Poly.LvlVar i Nothing) = char 'l' <> int i
+  pretty (Poly.LvlVar _ (Just name)) = char 'l' <> text name
   
 instance Pretty Poly.Level where
   pretty Poly.Zero                         = text "thread"

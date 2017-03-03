@@ -59,6 +59,7 @@ data Command = ParseOnly
              | DumpMonomorphed
              | DumpIL
              | DumpILOptimised
+             | TestParser
   deriving Eq
 
 ----------------------------
@@ -83,19 +84,19 @@ defaultOptions =
 
 optionDescriptions :: [OptDescr (Options -> Options)]
 optionDescriptions = 
-  [ Option "h" ["help"]             (NoArg (\opt -> opt {fclCommand = Help})) "Show help for this command"
-  , Option []  ["no-prelude"]   (NoArg (\opt -> opt {fclNoPrelude = True})) "Do not include the FCL prelude"
-  , Option "t" ["typecheck"]        (NoArg (\opt -> opt {fclCommand = Typecheck})) "Type check and print top-level types"
---  , Option []  ["eval"]             (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
-  , Option "o" ["output"]           (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
---  , Option []  ["test-parser"]     (NoArg (\opt -> opt {fclCommand = ParserTest})) "Parse, pretty print, parse again, check for equality."
-  , Option []  ["dump-desugared"]     (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse, desugar."
-  , Option []  ["dump-typed"] (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing"
-  , Option []  ["dump-monomorphed"] (NoArg (\opt -> opt {fclCommand = DumpMonomorphed})) "Dump AST after monomorphization."
-  , Option []  ["dump-il"]          (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
+  [ Option "h" ["help"]              (NoArg (\opt -> opt {fclCommand = Help})) "Show help for this command"
+  , Option []  ["no-prelude"]        (NoArg (\opt -> opt {fclNoPrelude = True})) "Do not include the FCL prelude"
+  , Option "t" ["typecheck"]         (NoArg (\opt -> opt {fclCommand = Typecheck})) "Type check and print top-level types"
+--  , Option []  ["eval"]              (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
+  , Option "o" ["output"]            (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
+  , Option []  ["test-parser"]       (NoArg (\opt -> opt {fclCommand = TestParser})) "Parse, pretty print, parse again, check for equality."
+  , Option []  ["dump-desugared"]    (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse, desugar."
+  , Option []  ["dump-typed"]        (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing"
+  , Option []  ["dump-monomorphed"]  (NoArg (\opt -> opt {fclCommand = DumpMonomorphed})) "Dump AST after monomorphization."
+  , Option []  ["dump-il"]           (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
   , Option []  ["dump-il-optimised"] (NoArg (\opt -> opt {fclCommand = DumpILOptimised})) "Dump intermediate representation."
-  , Option "v" ["verbose"]      (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
-  , Option "d" ["debug"]        (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
+  , Option "v" ["verbose"]           (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
+  , Option "d" ["debug"]             (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
   ]
 
 parseOptions :: [String] -> Either [String] ([String], Options)
@@ -160,7 +161,7 @@ parseFile fname = do
 
 parseFiles :: [String] -> CLI E.Program
 parseFiles files = do
-  definitions <- concat <$> mapM parseFile files
+  definitions <- E.concatPrograms <$> mapM parseFile files
   return definitions
 
 --------------
@@ -181,6 +182,33 @@ printTypes ast =
       do message (ident ++ " : " ++ display tysc)
          printTypes body
     _ -> return ()
+
+testParser :: [FilePath] -> CLI ()
+testParser filenames =
+ let checkfile filename =
+       do logInfo "Testing parser."
+          logDebug "Input:"
+          contents <- readFileChecked filename
+          logDebug contents
+
+          ast <- parseFile filename
+          logInfo "Pretty printing."          
+          let pp1 = display ast
+
+          logInfo "Parsing again."
+          result <- liftEither FCLError (parse "<<input>>" pp1)
+          let pp2 = display result
+
+          if pp1 == pp2
+            then message ("Parser test of '" ++ filename ++ "': OK.")
+            else do message ("Parser test of '" ++ filename ++ "': ERROR. Pretty printed output differed after second parse.")
+                    message "After first parse:"
+                    message pp1
+                    message "After second parse:"
+                    message pp2
+     
+                    liftIO exitFailure
+ in mapM_ checkfile filenames
 
 ----------------------
 -- Main entry point --
@@ -209,7 +237,7 @@ dispatch filenames opts =
      when (any (/= "fcl") extensions)
           (throw (CLIError "I can only handle .fcl files."))
 
-     -- onCommand ParserTest (parserTest filenames)
+     onCommand TestParser (testParser filenames)
 
      prelude  <- liftIO (getDataFileName "lib/prelude.fcl")
      let files = if fclNoPrelude opts
@@ -217,7 +245,7 @@ dispatch filenames opts =
                    else prelude : filenames
 
      ast <- parseFiles files
-     onCommand ParseOnly (message (show ast))
+     onCommand ParseOnly (message (display ast))
 
      logInfo "Desugaring."
      desugared <- liftEither FCLError (desugar ast)

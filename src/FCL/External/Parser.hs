@@ -7,7 +7,6 @@ import Text.Parsec hiding (Empty)
 import Text.Parsec.Expr
 import Text.Parsec.String (Parser)
 
-import FCL.Core.Literal
 import FCL.External.Syntax
 import FCL.External.Lexer
 
@@ -27,7 +26,7 @@ program =
   do whitespace
      prog <- many1 declaration
      eof
-     return prog
+     return (Program prog)
 
 declaration :: Parser FunctionDefinition
 declaration = do
@@ -240,7 +239,11 @@ expr =
     table = [ [application],
               [Infix (binOp "*" MulI) AssocLeft, Infix (binOp "/" DivI) AssocLeft, Infix (binOp "%" ModI) AssocLeft],
               [Infix (binOp "+" AddI) AssocLeft, Infix (binOp "-" SubI) AssocLeft],
-              [Infix (binOp "<<" ShiftLI) AssocLeft, Infix (binOp ">>" ShiftRI) AssocLeft, Infix (binOp "&" AndI) AssocLeft],
+              [Infix (binOp "<<" ShiftLI) AssocLeft,
+               Infix (binOp ">>" ShiftRI) AssocLeft,
+               Infix (binOp "&" AndI) AssocLeft-- ,
+               -- Infix (binOp "|" OrI) AssocLeft
+              ],
               [Infix (binOp "==" EqI) AssocLeft, Infix (binOp "!=" NeqI) AssocLeft],
               [pipeForward]
             ]
@@ -252,9 +255,9 @@ expr =
 level :: Parser Level
 level = (do char 'Z'
             return Zero)
-    <|> (reserved "thread" >> return Thread)
-    <|> (reserved "block" >> return Block)
-    <|> (reserved "grid" >> return Grid)
+    <|> (reserved "thread" >> return Zero)
+    <|> (reserved "block" >> return (Step Zero))
+    <|> (reserved "grid" >> return (Step (Step Zero)))
     <|> (do char '1'
             reservedOp "+"
             lvl <- level
@@ -262,7 +265,7 @@ level = (do char 'Z'
     <|> (VarL <$> lvlVar)
 
 lvlVar :: Parser LvlVar
-lvlVar = LvlVar <$> identifier
+lvlVar = LvlVar 0 . Just <$> identifier
 
 lvlVars :: Parser [LvlVar]
 lvlVars =
@@ -337,4 +340,4 @@ tupleType =
 
 tyVar :: Parser TyVar
 tyVar =
-  char '\'' >> identifier >>= return . TyVar
+  char '\'' >> identifier >>= return . TyVar 0 . Just

@@ -88,7 +88,7 @@ newLvlVar :: TI LvlVar
 newLvlVar = do
  (TVE i s) <- get
  put (TVE (i+1) s)
- return (LvlVar i)
+ return (LvlVar i Nothing)
 
 lvlVarExt :: (LvlVar,Level) -> TI ()
 lvlVarExt (lvlVar,lvl) = do

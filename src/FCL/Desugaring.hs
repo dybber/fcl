@@ -50,7 +50,7 @@ fresh =
 freshLvlVar :: Ext.LvlVar -> Desugar LvlVar
 freshLvlVar _ =
   do i <- fresh
-     return (LvlVar i)
+     return (LvlVar i Nothing)
 
 freshTyVar :: Ext.TyVar -> Desugar TyVar
 freshTyVar _ =
@@ -71,11 +71,11 @@ withTyVars tys tyvars =
   local (\env -> env { tyEnv = Map.union (tyEnv env) (Map.fromList (zip tys tyvars)) })
 
 desugar :: Ext.Program -> Either DesugarError Untyped.Exp
-desugar p =
+desugar (Ext.Program p) =
   do (me, _, _) <- runExcept (runRWST (desugarProgram False p) initEnv initState)
      return me
 
-desugarProgram :: Bool -> Ext.Program -> Desugar Untyped.Exp
+desugarProgram :: Bool -> [Ext.FunctionDefinition] -> Desugar Untyped.Exp
 desugarProgram True [] = return (Untyped.Symbol "main" [])
 desugarProgram False [] = return Untyped.Unit
 desugarProgram hasMain (f:fs) =
@@ -102,9 +102,6 @@ desugarLvl :: Ext.Level -> Desugar Level
 desugarLvl lvl =
   case lvl of
     Ext.Zero -> return Zero
-    Ext.Thread -> return Zero
-    Ext.Block -> return (Step Zero)
-    Ext.Grid -> return (Step (Step Zero))
     (Ext.Step l) -> Step <$> desugarLvl l
     Ext.VarL x ->
       do env <- asks lvlEnv
@@ -115,12 +112,8 @@ desugarLvl lvl =
 desugarUnaryOp :: Ext.UnaryOperator -> Untyped.Exp
 desugarUnaryOp op =
   case op of
-    Ext.AbsI    -> Untyped.Symbol ("absi")    []
-    Ext.SignI   -> Untyped.Symbol ("signi")   []
     Ext.NegateI -> Untyped.Symbol ("negatei") []
     Ext.Not     -> Untyped.Symbol ("not")     []
-    Ext.B2I     -> Untyped.Symbol ("b2i")     []
-    Ext.CLZ     -> Untyped.Symbol ("clz")     []
 
 desugarBinaryOp :: Ext.BinaryOperator -> Untyped.Exp
 desugarBinaryOp op =
@@ -137,10 +130,6 @@ desugarBinaryOp op =
     Ext.XorI    -> Untyped.Symbol ("xori") []
     Ext.ShiftLI -> Untyped.Symbol ("sll")  []
     Ext.ShiftRI -> Untyped.Symbol ("srl")  []
-    Ext.PowI    -> Untyped.Symbol ("powi") []
-    Ext.DivR    -> Untyped.Symbol ("divr") []
-    Ext.AddR    -> Untyped.Symbol ("addr") []
-    Ext.PowR    -> Untyped.Symbol ("powr") []
 
 bind :: Level -> Untyped.Exp -> Untyped.Exp -> Untyped.Exp
 bind lvl e1 e2 = Untyped.App (Untyped.App (Untyped.Symbol "bind" [lvl])  e1) e2

@@ -134,7 +134,7 @@ opLengthPull =
 opLengthPush :: (Identifier, TypeScheme)
 opLengthPush =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
   in ("lengthPush",
       TypeScheme [tva] [lvlVar] (PushArrayT (VarL lvlVar) (VarT tva) :> IntT))
 
@@ -162,7 +162,7 @@ opMapPush :: (Identifier, TypeScheme)
 opMapPush =
   let tva = TyVar 0 Nothing
       tvb = TyVar 1 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       tb = VarT tvb
       lvl = VarL lvlVar
@@ -174,7 +174,7 @@ opMapPush =
 opForce :: (Identifier, TypeScheme)
 opForce =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       lvl = VarL lvlVar
   in ("force",
@@ -184,7 +184,7 @@ opForce =
 opPush :: (Identifier, TypeScheme)
 opPush =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       lvl = VarL lvlVar
   in  ("push",
@@ -194,7 +194,7 @@ opPush =
 opReturn :: (Identifier, TypeScheme)
 opReturn =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       lvl = VarL lvlVar
   in  ("return",
@@ -205,7 +205,7 @@ opBind :: (Identifier, TypeScheme)
 opBind =
   let tva = TyVar 0 Nothing
       tvb = TyVar 1 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       tb = VarT tvb
       lvl = VarL lvlVar
@@ -217,7 +217,7 @@ opBind =
 opInterleave :: (Identifier, TypeScheme)
 opInterleave =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       lvl = VarL lvlVar
   in ("interleave",
@@ -238,7 +238,7 @@ opSeqFor =
 opPower :: (Identifier, TypeScheme)
 opPower =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ty = VarT tva
       lvl = VarL lvlVar
   in ("power",
@@ -250,7 +250,7 @@ opPower =
 opWhile :: (Identifier, TypeScheme)
 opWhile =
   let tva = TyVar 0 Nothing
-      lvlVar = LvlVar 0
+      lvlVar = LvlVar 0 Nothing
       ta = VarT tva
       lvl = VarL lvlVar
   in ("while",

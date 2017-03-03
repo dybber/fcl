@@ -35,7 +35,9 @@ reservedOps =
    "==",
    "<<",
    ">>",
-   "<-"]
+   "<-",
+   "|",
+   "&"]
 
 fclDef :: Monad m => Token.GenLanguageDef String u m
 fclDef =

@@ -1,6 +1,8 @@
 module FCL.Core.PolyLevel where
-  
-newtype LvlVar = LvlVar Int
+
+import FCL.Core.Identifier
+
+data LvlVar = LvlVar Int (Maybe Identifier)
   deriving (Eq, Ord, Show)
 
 data Level = Zero | Step Level | VarL LvlVar
