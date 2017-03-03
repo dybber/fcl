@@ -1,7 +1,7 @@
 -- Test parsing and typechecking of simple integer expressions
 val test00 = 17
 
-val test01 = ~17
+val test01 = -17
 
 val test02 = 40 + 2
 
@@ -13,8 +13,8 @@ val test05 = 16 / 4
 
 val test06 = 16 / 4 / 2
 
-val test07 = maxi ~2 10
+val test07 = maxi -2 10
 
-val test08 = mini ~2 10
+val test08 = mini -2 10
 
 val main = test00 + test01 + test02 + test03 + test04 + test05 + test06 + test07

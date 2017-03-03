@@ -96,7 +96,7 @@ var =
      return (Symbol ident lvls)
 
 sign :: Num a => Parser (a -> a)
-sign = (oneOf "~" >> return negate)
+sign = (oneOf "-" >> return negate)
        <|> (char '+' >> return id)
        <|> return id
 

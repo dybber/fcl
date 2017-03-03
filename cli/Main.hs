@@ -50,10 +50,10 @@ liftEither _ (Right r) = return r
 throw :: CompilerError -> CLI a
 throw err = lift (throwE err)
 
-data Command = ParseOnly
-             | Typecheck
+data Command = Typecheck
              | Compile
              | Help
+             | DumpParsed
              | DumpDesugared
              | DumpTyped
              | DumpMonomorphed
@@ -90,7 +90,8 @@ optionDescriptions =
 --  , Option []  ["eval"]              (NoArg (\opt -> opt {fclCommand = Eval})) "Run interpreter (entry-point: main)"
   , Option "o" ["output"]            (ReqArg (\out -> (\opt -> opt {fclOutputFile = out})) "FILE") "Specify stem of output files. Writes files <name>.c and <name>.cl)"
   , Option []  ["test-parser"]       (NoArg (\opt -> opt {fclCommand = TestParser})) "Parse, pretty print, parse again, check for equality."
-  , Option []  ["dump-desugared"]    (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse, desugar."
+  , Option []  ["dump-parsed"]    (NoArg (\opt -> opt {fclCommand = DumpParsed})) "Parse. Print."
+  , Option []  ["dump-desugared"]    (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse. Desugar. Print."
   , Option []  ["dump-typed"]        (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing"
   , Option []  ["dump-monomorphed"]  (NoArg (\opt -> opt {fclCommand = DumpMonomorphed})) "Dump AST after monomorphization."
   , Option []  ["dump-il"]           (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
@@ -245,7 +246,7 @@ dispatch filenames opts =
                    else prelude : filenames
 
      ast <- parseFiles files
-     onCommand ParseOnly (message (display ast))
+     onCommand DumpParsed (message (display ast))
 
      logInfo "Desugaring."
      desugared <- liftEither FCLError (desugar ast)

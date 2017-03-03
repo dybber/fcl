@@ -71,7 +71,6 @@ prettyParensExt e =
     _                  -> pretty e
 
 instance Pretty Ext.UnaryOperator where
-  pretty Ext.NegateI = text "~"
   pretty Ext.Not = text "!"
 
 instance Pretty Ext.BinaryOperator where
@@ -117,7 +116,7 @@ instance Pretty Ext.Exp where
         <> nest nestDepth (softline <> pretty e1) <+> text "in"
         </> pretty e2 
       Ext.UnaryOp op e1 -> pretty op <+> pretty e1
-      Ext.BinaryOp op e1 e2 -> pretty op <+> pretty e1 <+> pretty e2
+      Ext.BinaryOp op e1 e2 -> pretty e1 <+> pretty op <+> pretty e2
       Ext.Do lvl stmt ->
         text "do" <+> angles (pretty lvl) </>
           indent 2 (braces (cat (punctuate (char ';' <> softline) (map pretty stmt))))
@@ -140,7 +139,10 @@ instance Pretty Ext.FunctionDefinition where
              Just tysc -> text "sig" <+> text name <+> colon <+> pretty tysc <> line
     in
       ppSignature
-      <> text "fun" <+> text name
+      <> (if null params
+         then text "val"
+         else text "fun")
+      <+> text name
       <> (if null lvlvars
           then empty
           else space <> angles (cat (punctuate comma (map pretty lvlvars))))
@@ -151,7 +153,7 @@ instance Pretty Ext.FunctionDefinition where
       <+> pretty expr     
 
 instance Pretty Ext.Program where
-  pretty (Ext.Program defs) = cat (punctuate (line <> line) (map pretty defs))
+  pretty (Ext.Program defs) = vcat (punctuate line (map pretty defs))
 
 -------------------
 -- Untyped AST --

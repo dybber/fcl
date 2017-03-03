@@ -2,7 +2,7 @@
 
 val test00 = 1.0
 
-val test01 = ~1.0
+val test01 = -1.0
 
 val test02 = test00
 

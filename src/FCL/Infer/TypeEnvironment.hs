@@ -21,7 +21,9 @@ basicOps = [opFst, opSnd]
   
 unaryOps :: [(Identifier, TypeScheme)]
 unaryOps =
-  [i2i "absi",
+  [i2i "negatei",
+   d2d "negated",
+   i2i "absi",
    i2i "signi",
    i2d "i2d",
    b2i "b2i"
@@ -96,6 +98,10 @@ opSnd =
 i2i :: String -> (Identifier, TypeScheme)
 i2i op = (op,
           TypeScheme [] [] (IntT :> IntT))
+
+d2d :: String -> (Identifier, TypeScheme)
+d2d op = (op,
+          TypeScheme [] [] (DoubleT :> DoubleT))
 
 i2d :: String -> (Identifier, TypeScheme)
 i2d op = (op,

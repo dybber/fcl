@@ -38,7 +38,7 @@ data DoStmt =
   | DoBind Identifier Exp
   deriving Show
 
-data UnaryOperator = NegateI | Not
+data UnaryOperator = Not
   deriving (Eq, Show)
 
 data BinaryOperator = AddI | SubI | MulI | DivI | ModI

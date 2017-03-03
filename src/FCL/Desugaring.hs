@@ -112,7 +112,6 @@ desugarLvl lvl =
 desugarUnaryOp :: Ext.UnaryOperator -> Untyped.Exp
 desugarUnaryOp op =
   case op of
-    Ext.NegateI -> Untyped.Symbol ("negatei") []
     Ext.Not     -> Untyped.Symbol ("not")     []
 
 desugarBinaryOp :: Ext.BinaryOperator -> Untyped.Exp
