@@ -25,7 +25,7 @@ data TypeError = UnificationError Type Type
                | LevelUnificationError Level Level
                | LevelOccursCheckFailed LvlVar Level
                | NotFullyLevelApplied Identifier
-               | SignatureMismatch Type Type
+               | SignatureMismatch TypeScheme TypeScheme
  deriving Eq
 
 typeEnvLookup :: TypeEnvironment -> Identifier -> TI TypeScheme

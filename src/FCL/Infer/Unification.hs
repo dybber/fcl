@@ -44,11 +44,11 @@ unify' t1 t2 =
 
 -- TODO check that the right variables are quantified
 checkAnnotation :: TypeScheme -> TypeScheme -> TI ()
-checkAnnotation (TypeScheme _ _ ty)
-                (TypeScheme _ _ tyanno) =
+checkAnnotation tysc@(TypeScheme _ _ ty)
+                tysc_anno@(TypeScheme _ _ tyanno) =
   if evalState (checkAnno ty tyanno) (Map.empty, Map.empty)
     then return ()
-    else throwError (SignatureMismatch ty tyanno)
+    else throwError (SignatureMismatch tysc tysc_anno)
 
 
 type Check a = State (Map.Map TyVar TyVar, Map.Map LvlVar LvlVar) a

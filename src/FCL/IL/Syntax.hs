@@ -30,7 +30,6 @@ isVar :: ILExp -> Bool
 isVar (EVar _)  = True
 isVar _         = False
 
-
 data BinOp =
     AddI | SubI | MulI | DivI | ModI |
     AddD | SubD | MulD | DivD |
