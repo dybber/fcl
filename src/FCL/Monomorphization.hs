@@ -19,7 +19,6 @@ data MonomorphError =
    | MonomorphInstantiateError InstantiateError
    | UnexpectedPolyType Poly.Type
    | UnexpectedPolyLevel PolyLevel.Level
- deriving Show
 
 data Binding =
     Predefined Identifier Poly.TypeScheme

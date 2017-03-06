@@ -5,3 +5,5 @@ val test01 = test00 5
 fun test02 x y = x
 
 val test03 = test02 5 7
+
+fun test04 a b = a+1

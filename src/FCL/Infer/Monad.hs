@@ -18,7 +18,6 @@ data TVE = TVE Int Subst
 type TI x = StateT TVE (Except TypeError) x
 
 data TypeError = UnificationError Type Type
-               | NotImplementedError String
                | UnexpectedPolymorphicVariable Identifier
                | UnboundVariableError Identifier
                | UnboundTypeVariableError Identifier
@@ -26,28 +25,8 @@ data TypeError = UnificationError Type Type
                | LevelUnificationError Level Level
                | LevelOccursCheckFailed LvlVar Level
                | NotFullyLevelApplied Identifier
+               | SignatureMismatch Type Type
  deriving Eq
-
-instance Show TypeError where
-  show (UnificationError ty0 ty1) =
-    concat ["Unification error.\n",
-            "Cannot unify types: ",
-            show ty0,
-            " and ",
-            show ty1]
-  show (NotImplementedError msg) = "Not implemented: " ++ msg
-  show (UnexpectedPolymorphicVariable ident) = "Unexpected polymorphic variable: " ++ show ident
-  show (UnboundVariableError ident) = "Variable: " ++ show ident ++ " not defined."
-  show (UnboundTypeVariableError ident) = "Type variable: " ++ show ident ++ " not defined."
-  show (OccursCheckFailed tyvar ty) = "Occurs check failed. " ++ show (VarT tyvar) ++ " found in " ++ show ty
-  show (LevelUnificationError l0 l1) =
-    concat ["Unification error.\n",
-            "Cannot unify levels: ",
-            show l0,
-            " and ",
-            show l1]
-  show (LevelOccursCheckFailed lvlvar l) = "Occurs check failed. " ++ show (VarL lvlvar) ++ " found in " ++ show l
-  show (NotFullyLevelApplied ident) = "Function " ++ show ident ++ " is not applied to right number of level parameters."
 
 typeEnvLookup :: TypeEnvironment -> Identifier -> TI TypeScheme
 typeEnvLookup (TypeEnvironment env) x =

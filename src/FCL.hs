@@ -16,8 +16,6 @@ module FCL
   -- Pretty printers
   prettyIL, prettyC,
   display, displayTopLevelUntyped, displayTopLevelPoly, displayTopLevelMono,
-  
-
   FCLError(..)
  )
 where
@@ -37,16 +35,11 @@ import FCL.IL.Optimise     (optimise)
 import FCL.IL.CodeGen      (codeGen)
 import FCL.IL.Pretty       (prettyIL)
 import FCL.Compile.Config  (CompileConfig(..), defaultCompileConfig)
-
+import FCL.Error (FCLError(..))
 import FCL.Pretty
+
 --import FCL.Eval            (eval)
 import qualified CGen                (pretty)
-
-data FCLError = ParseError Parse.ParseError
-              | DesugarError Desugar.DesugarError
-              | TypeError Infer.TypeError
-              | MonomorphError Monomorph.MonomorphError
-  deriving Show
 
 liftEither :: (err -> FCLError) -> Either err a -> Either FCLError a
 liftEither f (Left l) = Left (f l)

@@ -33,7 +33,7 @@ Library
                    FCL.External.Parser
 
                    FCL.Pretty
-                   
+                   FCL.Error
                    FCL.Desugaring
 
                    FCL.Instantiate

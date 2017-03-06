@@ -72,7 +72,7 @@ fun bit i = 1 << i
 sig testBit : int -> int -> bool
 fun testBit x i = (x & (bit i)) != 0
 
-sig foldl : forall 'a 'b. ('a -> 'a -> 'a) -> 'a -> ['b] -> ['a]<thread>
+sig foldl : forall 'a 'b. ('a -> 'b -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun foldl f b array =
   seqfor 1 (1 + (lengthPull array))
     (fn read => fn i =>
@@ -89,7 +89,7 @@ fun scanl1 op array =
               then index array i
               else op (read (subi i 1)) (index array i)))
 
-sig scanl : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> ['a]<thread>
+sig scanl : forall 'a 'b. ('a -> 'b -> 'a) -> 'a -> ['b] -> ['a]<thread>
 fun scanl op b array =
  let n = lengthPull array
  in seqfor (1 + n) (1 + n)

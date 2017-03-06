@@ -97,7 +97,6 @@ var =
 
 sign :: Num a => Parser (a -> a)
 sign = (oneOf "-" >> return negate)
-       <|> (char '+' >> return id)
        <|> return id
 
 integer :: Parser Exp

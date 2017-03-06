@@ -27,20 +27,25 @@ import qualified FCL.External.Syntax as E
 data CompilerError = FCLError FCLError
                    | IOError IOError
                    | CLIError String
-  deriving Show
+
 
 type CLI = ReaderT Options (ExceptT CompilerError IO)
 
-exitErr :: String -> IO a
-exitErr msg = do
-  hPutStrLn stderr ("Error: " ++ msg)
-  exitFailure
+exitErr :: CompilerError -> IO a
+exitErr err =
+  let msg =
+        case err of
+          FCLError e -> display e
+          IOError e -> show e
+          CLIError m -> m
+  in do hPutStrLn stderr msg
+        exitFailure
 
 runCLI :: Options -> CLI a -> IO a
 runCLI opts m = do
   result <- runExceptT (runReaderT m opts)
   case result of
-    Left err -> exitErr (show err)
+    Left err -> exitErr err
     Right r -> return r
 
 liftEither :: (err -> CompilerError) -> Either err a -> CLI a

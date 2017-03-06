@@ -56,7 +56,9 @@ infer env (Untyped.Let x anno lvls e1 e2) =
   do e1' <- infer env e1
      -- create function type
      tysc <- generalize env lvls (Poly.typeOf e1')
-     -- unifyAnnotation (Poly.typeOf e1') anno     
+     case anno of
+       Just anno_tysc -> checkAnnotation tysc anno_tysc
+       Nothing -> return ()
      e2' <- infer (ext env (x, tysc)) e2
      return (Poly.Let x tysc lvls e1' e2' (Poly.typeOf e2'))
 infer env (Untyped.Symbol x lvls) =

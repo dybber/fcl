@@ -1,9 +1,10 @@
 module FCL.Infer.Unification
   (unify, unifyAll,
-   unifyAnnotation,
+   checkAnnotation,
    unifyLvlVar, occurs)
 where
 
+import qualified Data.Map as Map
 import Control.Monad.Trans.State
 
 import FCL.Core.Polytyped
@@ -41,9 +42,72 @@ unify' t1 t2 =
     (t1', VarT v2) -> unify_fv v2 t1'
     (t1', t2') -> throwError (UnificationError t1' t2')
 
-unifyAnnotation :: Type -> Maybe TypeScheme -> TI ()
-unifyAnnotation _ Nothing = return ()
-unifyAnnotation ty (Just (TypeScheme _ _ tyanno)) = return () --unify ty tyanno
+-- TODO check that the right variables are quantified
+checkAnnotation :: TypeScheme -> TypeScheme -> TI ()
+checkAnnotation (TypeScheme _ _ ty)
+                (TypeScheme _ _ tyanno) =
+  if evalState (checkAnno ty tyanno) (Map.empty, Map.empty)
+    then return ()
+    else throwError (SignatureMismatch ty tyanno)
+
+
+type Check a = State (Map.Map TyVar TyVar, Map.Map LvlVar LvlVar) a
+
+checkAnno :: Type -> Type -> Check Bool
+checkAnno ty1 ty2 =
+  case (ty1, ty2) of
+    (IntT, IntT)       -> return True
+    (DoubleT, DoubleT) -> return True
+    (BoolT, BoolT)     -> return True
+    (StringT, StringT) -> return True
+    (VarT tv1, VarT tv2) ->
+      do (env, envlvls) <- get
+         case Map.lookup tv1 env of
+           Just tv2' ->
+             if tv2' == tv2
+               then return True
+               else return False
+           Nothing ->
+             if tv2 `elem` (Map.elems env) -- TODO bad, please optimize
+               then return False
+               else do put (Map.insert tv1 tv2 env, envlvls)
+                       return True
+    (UnitT, UnitT) -> return True
+    (t1a :> t1r, t2a :> t2r) ->
+      do ca <- checkAnno t1a t2a
+         cr <- checkAnno t1r t2r
+         return (ca && cr)
+    (t1a :*: t1r, t2a :*: t2r) ->
+      do ca <- checkAnno t1a t2a
+         cr <- checkAnno t1r t2r
+         return (ca && cr)
+    (PullArrayT t1, PullArrayT t2) -> checkAnno t1 t2
+    (PushArrayT lvl1 t1, PushArrayT lvl2 t2) ->
+      do cl <- checkLevels lvl1 lvl2
+         c <- checkAnno t1 t2
+         return (cl && c)
+    (ProgramT lvl1 t1, ProgramT lvl2 t2) ->
+      do cl <- checkLevels lvl1 lvl2
+         c <- checkAnno t1 t2
+         return (cl && c)
+    (_,_) -> return False
+
+checkLevels :: Level -> Level -> Check Bool
+checkLevels Zero Zero = return True
+checkLevels (Step lvl1) (Step lvl2) = checkLevels lvl1 lvl2
+checkLevels (VarL lv1) (VarL lv2) =
+  do (env, envlvls) <- get
+     case Map.lookup lv1 envlvls of
+       Just lv2' ->
+         if lv2' == lv2
+           then return True
+           else return False
+       Nothing ->
+         if lv2 `elem` (Map.elems envlvls) -- TODO bad, please optimize
+           then return False
+           else do put (env, Map.insert lv1 lv2 envlvls)
+                   return True
+checkLevels _ _ = return False
 
 unify_fv :: TyVar -> Type -> TI ()
 unify_fv tv t@(VarT tv') | tv == tv'   = return ()

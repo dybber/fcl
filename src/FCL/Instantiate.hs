@@ -12,7 +12,6 @@ import FCL.Substitution
 -------------------
 data InstantiateError = TypeMismatch Type Type
                       | LevelMismatch Level Level
-                      | SubstitutionFailed TyVar [TyVar]
                       deriving (Show, Eq)
 
 getLvlSubstitutions :: Level -> Level -> Either InstantiateError Subst
