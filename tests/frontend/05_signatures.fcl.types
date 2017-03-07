@@ -1,0 +1,44 @@
+sig test00 : int
+val test00 = 1
+
+sig test01 : double
+val test01 = 1.0
+
+sig test02 : bool
+val test02 = true
+
+sig test03 : bool
+val test03 = false
+
+sig test04 : int -> int
+fun test04 x = x*2
+
+sig test05 : int -> int -> int
+fun test05 x y = x+y
+
+sig test06 : int -> int -> int
+fun test06 x y = test04 x + y
+
+sig test07 : forall 'a. 'a -> 'a
+fun test07 x = x
+
+
+sig test08 : forall 'a 'b. ('a -> 'b) -> 'a -> 'b
+fun test08 x y = x y
+
+sig f : forall 'b. int -> 'b -> int
+fun f a b = a + 1
+
+sig len : forall 'b. ['b] -> int
+fun len array = lengthPull array
+
+sig repeat : forall 'a 'b. 'a -> ['b] -> ['a]
+fun repeat x array = generate (lengthPull array) (fn i => x)
+
+sig foldl : forall 'a 'b. ('a -> 'b -> 'a) -> 'a -> ['b] -> ['a]<thread>
+fun foldl f b array =
+  seqfor 1 (1 + (lengthPull array))
+    (fn read => fn i =>
+       (0, if i == 0
+           then b
+           else f (read 0) (index array (subi i 1))))
