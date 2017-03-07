@@ -5,6 +5,7 @@ import qualified Data.Set as Set
 import Control.Monad.Trans.RWS
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
+import Control.Applicative
 
 import FCL.Core.Identifier
 import qualified FCL.Core.PolyLevel as PolyLevel

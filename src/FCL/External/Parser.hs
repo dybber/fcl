@@ -2,6 +2,7 @@
 module FCL.External.Parser (parseProgram, parseExpr, ParseError) where
 
 import Data.Functor.Identity (Identity)
+import Control.Applicative ((<$>))
 
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Expr

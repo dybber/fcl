@@ -1,6 +1,7 @@
 module FCL.IL.Pretty (prettyIL, prettyExp) where
 
 import Prelude hiding ((<$>))
+import Control.Applicative
 import Text.PrettyPrint.Leijen
 import FCL.IL.Syntax
 

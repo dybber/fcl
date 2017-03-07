@@ -120,7 +120,7 @@ unify_fv tv t =
        else tvext (tv, t)
 
 unifyAll :: [Type] -> TI Type
-unifyAll [] = VarT <$> newtv
+unifyAll [] = VarT `fmap` newtv
 unifyAll [t] = return t
 unifyAll (t1 : t2 : ts) =
   do unify t1 t2

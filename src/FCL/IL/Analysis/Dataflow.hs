@@ -9,6 +9,7 @@ import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List
+import Control.Applicative
 
 import FCL.IL.Syntax
 import FCL.IL.Analysis.Graph
