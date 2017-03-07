@@ -1,0 +1,16 @@
+resolver: lts-8.4
+
+packages:
+- '.'
+- location:
+    git: https://github.com/dybber/cgen
+    commit: e630d1958fc07770ec408861169f6a0bc80a009c
+  extra-dep: true
+  
+extra-deps: []
+flags: {}
+extra-package-dbs: []
+
+# Extra directories used by stack for building
+# extra-include-dirs: [/path/to/dir]
+# extra-lib-dirs: [/path/to/dir]
