@@ -8,6 +8,7 @@ where
 import qualified Data.Set as Set
 import Control.Monad.Trans.State (get)
 import Control.Monad (when)
+import Control.Applicative
 
 import FCL.Core.Identifier
 import FCL.Core.PolyLevel
