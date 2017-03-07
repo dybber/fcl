@@ -78,7 +78,7 @@ fun transposeChunked splitSize width height elems =
                             })
      |> concatGrid <block> splitSize tileSize groupsWidth height
 
-sig transposeChunked16 : int -> int -> [int] -> Program <grid> [int]<grid>
+sig transposeChunked16 : forall 'a. int -> int -> ['a] -> Program <grid> ['a]<grid>
 val transposeChunked16 = transposeChunked 16
 
 --- Testing

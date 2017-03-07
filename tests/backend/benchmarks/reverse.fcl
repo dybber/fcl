@@ -19,5 +19,5 @@ val main =
   do <grid>
    { arr <- example
    ; forceAndPrint 10 arr
-   -- ; benchmark 10 (bind <grid> example (force <grid>))
+   ; benchmark 10 (bind <grid> example (force <grid>))
    }

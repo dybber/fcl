@@ -15,7 +15,7 @@ fun fan op arr =
   let c = index a1 (lengthPull a1 - 1)
   in appendPull a1 (mapPull (op c) a2)
 
-sig binsplit2 : int -> ([int] -> [int]) -> int -> [int] -> Program <block> [int]<block>
+sig binsplit2 : forall 'a 'b. int -> (['a] -> ['b]) -> int -> ['a] -> Program <block> ['b]<block>
 fun binsplit2 n f iteration arr =
   let c  = 1 << (subi n iteration) in -- number of blocks
   let m  = divi (lengthPull arr) c in -- size of each block

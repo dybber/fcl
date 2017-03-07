@@ -1,4 +1,4 @@
-sig copy : [int] -> Program <grid> [int]<grid>
+sig copy : forall 'a. ['a] -> Program <grid> ['a]<grid>
 fun copy arr =
   splitUp 256 arr
    |> mapPull (fn arr => return <block> (push <block> arr))
