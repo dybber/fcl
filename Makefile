@@ -1,10 +1,14 @@
-install:
+install: microcl cgen
 	cabal install
 
-all:
-	$(MAKE) -C ../cgen/ install
+microcl/libmcl.a:
 	$(MAKE) -C microcl all
-	cabal install
+
+microcl: microcl/libmcl.a
+
+cgen:
+	$(MAKE) -C ../cgen/ install
+
 
 build:
 	$(MAKE) -C microcl all
