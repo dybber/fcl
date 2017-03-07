@@ -168,8 +168,7 @@ parseFile fname = do
 parseFiles :: [String] -> CLI E.Program
 parseFiles files = do
   asts <- mapM parseFile files
-  definitions <- E.concatPrograms asts
-  return definitions
+  return (E.concatPrograms asts)
 
 --------------
 -- Commands --
