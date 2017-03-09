@@ -617,10 +617,10 @@ createMain :: Statements -> String
 createMain body = pretty (includes ++ [function int32_t [] "main" body])
 
 includes :: [TopLevel]
-includes = [includeSys "stdio.h",
+includes = [includeSys "fcl.h",
+            includeSys "stdio.h",
             includeSys "sys/time.h",
-            includeSys "mcl.h",
-            includeSys "fcl.h"]
+            includeSys "mcl.h"]
                   
 codeGen :: CompileConfig -> ILProgram a -> (String, String)
 codeGen cfg program =
