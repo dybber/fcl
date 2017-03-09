@@ -1,8 +1,3 @@
--- TODO IL
---- move optimization to IL from CGen
---- typechecker
---- parser
-
 module FCL.IL.CodeGen (codeGen) where
 
 import qualified Data.Set as Set
@@ -20,6 +15,7 @@ import FCL.IL.Syntax
 
 data Kernel =
   Kernel
+    Int -- number of shared memory arrays
     [ILName]  -- parameters, bound in host-code
     TopLevel  -- kernel declaration
 --    ClKernel  -- kernel handle in hostcode
@@ -114,29 +110,35 @@ addKernel name k =
 -----------------------------
 type ILKernel a = CGen KernelState a
 
-sharedMemPtrName :: VarName
-sharedMemPtrName = ("sbase", pointer_t [attrLocal] uint8_t)
+-- sharedMemPtrName :: VarName
+-- sharedMemPtrName = ("sbase", pointer_t [attrLocal] uint8_t)
 
 data KernelState =
-  KernelState { allocPtrOffset :: CExp
-              , sharedMemPointer :: VarName
+  KernelState { -- allocPtrOffset :: CExp
+              -- , sharedMemPointer :: VarName
+              -- , 
+                allocations :: [VarName]
               }
 
 initKernelState :: KernelState
 initKernelState =
-  KernelState { allocPtrOffset = constant (0 :: Int)
-              , sharedMemPointer = sharedMemPtrName
+  KernelState { -- allocPtrOffset = constant (0 :: Int)
+              -- , sharedMemPointer = sharedMemPtrName
+              -- , 
+                allocations = []
               }
 
 allocateKernel :: CType -> CExp -> ILKernel VarName
 allocateKernel cty n =
-  do offset <- getsState allocPtrOffset
-     sbase <- getsState sharedMemPointer
+  do -- offset <- getsState allocPtrOffset
+     -- sbase <- getsState sharedMemPointer
      let aty = pointer_t [attrLocal] cty
-     v <- letVar "arr" aty (cast aty (var sbase `addPtr` offset))
-     let bytes = n `muli` (sizeOf cty)
-     modifyState (\s -> s { allocPtrOffset = offset `addi` bytes })
-     return v
+     -- v <- letVar "arr" aty (cast aty (var sbase `addPtr` offset))
+     -- let bytes = n `muli` (sizeOf cty)
+     -- modifyState (\s -> s { allocPtrOffset = offset `addi` bytes })
+     v1 <- newVar aty "shared"
+     modifyState (\s -> s { allocations = v1 : allocations s })
+     return v1
 
 ----------------------------------------------
 -- Compiling expressions - both host/kernel --
@@ -457,13 +459,13 @@ distribute cfg ctx env loopVar loopBound stmts =
            Nothing -> error "variable not found"
 
     callKernel :: String -> Kernel -> ILHost ()
-    callKernel kernelName (Kernel params _) =
+    callKernel kernelName (Kernel i params _) =
       do -- set shared memoryp
-         let smarg = ArgSharedMemory (constant (configSharedMemory cfg))
+         let smarg = replicate i (ArgSharedMemory (constant (configSharedMemory cfg)))
          -- set input parameters: map over kernel list, lookup allocations in environment
          args <- mapM createArgument params
          let kernelHandle = ClKernel (kernelName, kernelCType)
-         invokeKernel ctx kernelHandle (smarg : args)
+         invokeKernel ctx kernelHandle (smarg ++ args)
                                        (muli (constant (configBlockSize cfg)) (constant (configNumWorkGroups cfg)))
                                        (constant (configBlockSize cfg))
   in do kernelName <- newName "kernel"
@@ -487,10 +489,10 @@ mkKernel cfg env kernelName loopVar loopBound stmts =
       
   in do args <- mkArgumentList params
         let kernelEnv = Map.fromList (zip params args)
-        (kernelBody, _, _) <- embed (mkKernelBody cfg kernelEnv loopVar loopBound stmts) initKernelState
-        
-        let fndef = kernel kernelName (sharedMemPtrName : map getVarName args) kernelBody
-        return (Kernel params fndef)
+        (kernelBody, _, finalKernelState) <- embed (mkKernelBody cfg kernelEnv loopVar loopBound stmts) initKernelState
+        let allocs = allocations finalKernelState
+            fndef = kernel kernelName (allocs ++ map getVarName args) kernelBody
+        return (Kernel (length allocs) params fndef)
 
 allocate :: ClContext -> ILType -> Value -> ILHost Var
 allocate ctx elemty size =
@@ -609,7 +611,7 @@ releaseAllDeviceArrays =
 --      mapM_ releaseKernel (Map.map (\(Kernel _ _ handle) -> handle) kernelMap)
 
 prettyKernels :: KernelMap -> String
-prettyKernels kernelMap = pretty (map (\(Kernel _ s) -> s) (Map.elems kernelMap))
+prettyKernels kernelMap = pretty (map (\(Kernel _ _ s) -> s) (Map.elems kernelMap))
 
 createMain :: Statements -> String
 createMain body = pretty (includes ++ [function int32_t [] "main" body])
