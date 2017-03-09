@@ -89,7 +89,7 @@ type KernelMap = Map String Kernel
 data HostState =
   HostState
     { kernels :: KernelMap
-    , deviceAllocations :: Map ClDeviceBuffer (CExp, ILType)
+    , deviceAllocations :: Map ClDeviceBuffer (CExp, CType)
     , hostAllocations :: Set VarName
     }
 
@@ -497,7 +497,7 @@ mkKernel cfg env kernelName loopVar loopBound stmts =
 allocate :: ClContext -> ILType -> Value -> ILHost Var
 allocate ctx elemty size =
   do buf <- allocDevice ctx ReadWrite (unInt size) (convertType elemty)
-     modifyState (\s -> s { deviceAllocations = Map.insert buf (unInt size, elemty) (deviceAllocations s) })
+     modifyState (\s -> s { deviceAllocations = Map.insert buf (unInt size, convertType elemty) (deviceAllocations s) })
      return (VarHostBuffer elemty buf)
 
 readCSVFile :: CType -> Value -> ILHost (VarName, VarName)
@@ -522,7 +522,7 @@ readCSVFile _ _ = error "Can only read CSV files of doubles or integers"
 copyToDevice :: ClContext -> ILType -> CExp -> CExp -> ILHost Var
 copyToDevice ctx elemty n hostptr =
   do buf <- dataToDevice ctx ReadWrite n (convertType elemty) hostptr
-     modifyState (\s -> s { deviceAllocations = Map.insert buf (n, elemty) (deviceAllocations s) })
+     modifyState (\s -> s { deviceAllocations = Map.insert buf (n, convertType elemty) (deviceAllocations s) })
      return (VarHostBuffer elemty buf)
 
 printArray :: ClContext -> Value -> Value -> ILHost ()
@@ -552,12 +552,19 @@ benchmark (VInt n) body =
              do body
                 -- deallocate everything before exiting the loop
                 releaseAllDeviceArrays)
+     allocsAfter <- getsState deviceAllocations
+     let sizes = map (\(k,cty) -> k `muli` sizeOf cty) (Map.elems allocsAfter)
+     let totalTransferredData = foldl addi (constant (0 :: Int)) sizes
+     -- reset allocations
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
-     let formatString = "Benchmark (%i repetitions): %f ms per run\\n"
-         stderr = (definedConst "stderr" (CCustom "File" Nothing))
+     let stderr = (definedConst "stderr" (CCustom "File" Nothing))
+         formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
+         formatString2 = "Throughput (%i repetitions): %.4f Gigabyte/s, total transferred data: %ld\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
-     exec void_t "fprintf" [stderr, string formatString, n, milliseconds_per_iter]
+         throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1000.0 :: Double))
+     exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
+     exec void_t "fprintf" [stderr, string formatString2, n, throughput, totalTransferredData]
 benchmark _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
