@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module FCL.Infer
  (typeinfer,
   initialTypeEnvironment, 
@@ -8,7 +9,9 @@ where
 import qualified Data.Set as Set
 import Control.Monad.Trans.State (get)
 import Control.Monad (when)
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 
 import FCL.Core.Identifier
 import FCL.Core.PolyLevel
@@ -70,7 +73,7 @@ infer env (Untyped.Symbol x lvls) =
      return (Poly.Symbol x lvls tv)
      
 instantiate :: Identifier -> Poly.TypeScheme -> [Level] -> TI Poly.Type
-instantiate x (Poly.TypeScheme tyvars lvlvars t) lvls =
+instantiate x (Poly.TypeScheme lvlvars tyvars t) lvls =
   let mkFreshvars :: [Poly.TyVar] -> TI Subst
       mkFreshvars [] = return emptySubst
       mkFreshvars (tv:tvs) =
@@ -91,7 +94,7 @@ generalize env lvls t =
      let t' = apply s1 t
      let env' = apply s1 env
      let qs = Set.toList (ftv t' `Set.difference` ftv env')
-     return (Poly.TypeScheme qs lvls t')
+     return (Poly.TypeScheme lvls qs t')
 
 typeinfer :: TypeEnvironment -> Untyped.Exp -> Either TypeError (Poly.TypeScheme, Poly.Exp)
 typeinfer env e =

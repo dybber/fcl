@@ -33,7 +33,7 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
 -- Second argument @tileSize must be === splitSize*splitSize
 -- Third argument @groupsPerRow is the width of the outer array
 -- Total number of elements is thus splitSize*splitSize*groupsPerRow*groupsPerRow
-sig concatGrid : forall 'a <lvl>. int -> int -> int -> int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
+sig concatGrid : forall <lvl> 'a. int -> int -> int -> int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
 fun concatGrid <lvl>
                splitSize  -- width&height of inner array (2)
                tileSize

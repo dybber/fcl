@@ -1,10 +1,13 @@
+{-# LANGUAGE CPP #-}
 module FCL.Desugaring where
 
 import qualified Data.Map as Map
 import Control.Monad.Trans.RWS
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 
 import FCL.Core.Identifier
 import FCL.Core.PolyLevel
@@ -136,12 +139,12 @@ bind lvl e1 e2 = Untyped.App (Untyped.App (Untyped.Symbol "bind" [lvl])  e1) e2
 
 desugarTypeScheme :: Maybe Ext.TypeScheme -> Desugar (Maybe TypeScheme)
 desugarTypeScheme Nothing = return Nothing
-desugarTypeScheme (Just (Ext.TypeScheme tys lvls ty)) =
-  do tyvars <- mapM freshTyVar tys
-     lvlvars <- mapM freshLvlVar lvls
+desugarTypeScheme (Just (Ext.TypeScheme lvls tys ty)) =
+  do lvlvars <- mapM freshLvlVar lvls
+     tyvars <- mapM freshTyVar tys
      ty' <- withLvlVars lvls lvlvars
               (withTyVars tys tyvars (desugarType ty))
-     return (Just (TypeScheme tyvars lvlvars ty'))
+     return (Just (TypeScheme lvlvars tyvars ty'))
 
 desugarType :: Ext.Type -> Desugar Type
 desugarType Ext.IntT     = return IntT

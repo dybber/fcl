@@ -25,7 +25,7 @@ build/%.c: %.fcl
 	fcl -o build/$* $*.fcl 
 
 build/%.exe: build/%.c
-	gcc -Wall -O2 -D_DEBUG -I../../../microcl/ -I../../../include/ -I/usr/local/cuda/include/ -L../../../microcl/ -o $@ $< -lmcl -lOpenCL
+	gcc -Wall -O2 -D_DEBUG -std=c99 -I../../../microcl/ -I../../../include/ -I/usr/local/cuda/include/ -L../../../microcl/ -o $@ $< -lmcl -lOpenCL
 
 results/%.out: build/%.exe
 	$< > $@

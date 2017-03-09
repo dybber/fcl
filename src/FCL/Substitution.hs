@@ -113,12 +113,12 @@ instance Substitutable Exp where
         Let x (apply s tysc) lvlparams (apply s e0) (apply s e1) (apply s ty)
 
 instance Substitutable TypeScheme where
-  apply (Subst s slvl) (TypeScheme qs lvls t) =
+  apply (Subst s slvl) (TypeScheme lvls qs t) =
     let s' = Subst (foldr Map.delete s qs) (foldr Map.delete slvl lvls)
-    in TypeScheme qs lvls (apply s' t)
+    in TypeScheme lvls qs (apply s' t)
 
 instance FTV TypeScheme where
-  ftv (TypeScheme qs _ t) = ftv t `Set.difference` (Set.fromList qs)
+  ftv (TypeScheme _ qs t) = ftv t `Set.difference` (Set.fromList qs)
 
 instance Substitutable TypeEnvironment where
   apply s (TypeEnvironment env) = TypeEnvironment (Map.map (apply s) env)

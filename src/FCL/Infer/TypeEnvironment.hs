@@ -84,7 +84,7 @@ opFst =
       ta = VarT tva
       tb = VarT tvb
   in ("fst",
-      TypeScheme [tva,tvb] [] ((ta :*: tb) :> ta))
+      TypeScheme [] [tva,tvb] ((ta :*: tb) :> ta))
 
 opSnd :: (Identifier, TypeScheme)
 opSnd =
@@ -93,7 +93,7 @@ opSnd =
       ta = VarT tva
       tb = VarT tvb
   in ("snd",
-      TypeScheme [tva,tvb] [] ((ta :*: tb) :> tb))
+      TypeScheme [] [tva,tvb] ((ta :*: tb) :> tb))
 
 i2i :: String -> (Identifier, TypeScheme)
 i2i op = (op,
@@ -129,27 +129,27 @@ opIndex =
   let tva = TyVar 0 Nothing
       ta = VarT tva
   in ("index",
-      TypeScheme [tva] [] (PullArrayT ta :> IntT :> ta))
+      TypeScheme [] [tva] (PullArrayT ta :> IntT :> ta))
 
 opLengthPull :: (Identifier, TypeScheme)
 opLengthPull =
   let tva = TyVar 0 Nothing
   in ("lengthPull",
-      TypeScheme [tva] [] (PullArrayT (VarT tva) :> IntT))
+      TypeScheme [] [tva] (PullArrayT (VarT tva) :> IntT))
 
 opLengthPush :: (Identifier, TypeScheme)
 opLengthPush =
   let tva = TyVar 0 Nothing
       lvlVar = LvlVar 0 Nothing
   in ("lengthPush",
-      TypeScheme [tva] [lvlVar] (PushArrayT (VarL lvlVar) (VarT tva) :> IntT))
+      TypeScheme [lvlVar] [tva] (PushArrayT (VarL lvlVar) (VarT tva) :> IntT))
 
 opGenerate :: (Identifier, TypeScheme)
 opGenerate =
   let tva = TyVar 0 Nothing
       ta = VarT tva
   in ("generate",
-      TypeScheme [tva] [] (IntT
+      TypeScheme [] [tva] (IntT
                            :> (IntT :> ta)
                            :> PullArrayT ta))
 
@@ -160,7 +160,7 @@ opMapPull =
       ta = VarT tva
       tb = VarT tvb
   in ("mapPull",
-      TypeScheme [tva,tvb] [] ((ta :> tb)
+      TypeScheme [] [tva,tvb] ((ta :> tb)
                                :> PullArrayT ta
                                :> PullArrayT tb))
 
@@ -173,7 +173,7 @@ opMapPush =
       tb = VarT tvb
       lvl = VarL lvlVar
   in  ("mapPush",
-       TypeScheme [tva,tvb] [lvlVar] ((ta :> tb)
+       TypeScheme [lvlVar] [tva,tvb] ((ta :> tb)
                                       :> PushArrayT lvl ta
                                       :> PushArrayT lvl tb))
 
@@ -184,7 +184,7 @@ opForce =
       ta = VarT tva
       lvl = VarL lvlVar
   in ("force",
-      TypeScheme [tva] [lvlVar] (PushArrayT lvl ta
+      TypeScheme [lvlVar] [tva] (PushArrayT lvl ta
                                  :> ProgramT lvl (PullArrayT ta)))
 
 opPush :: (Identifier, TypeScheme)
@@ -194,7 +194,7 @@ opPush =
       ta = VarT tva
       lvl = VarL lvlVar
   in  ("push",
-       TypeScheme [tva] [lvlVar] (PullArrayT ta
+       TypeScheme [lvlVar] [tva] (PullArrayT ta
                                   :> PushArrayT lvl ta))
 
 opReturn :: (Identifier, TypeScheme)
@@ -204,7 +204,7 @@ opReturn =
       ta = VarT tva
       lvl = VarL lvlVar
   in  ("return",
-       TypeScheme [tva] [lvlVar] (ta
+       TypeScheme [lvlVar] [tva] (ta
                                   :> ProgramT lvl ta))
 
 opBind :: (Identifier, TypeScheme)
@@ -216,7 +216,7 @@ opBind =
       tb = VarT tvb
       lvl = VarL lvlVar
   in  ("bind",
-       TypeScheme [tva,tvb] [lvlVar] (ProgramT lvl ta
+       TypeScheme [lvlVar] [tva,tvb] (ProgramT lvl ta
                                       :> (ta :> ProgramT lvl tb)
                                       :> ProgramT lvl tb))
 
@@ -227,7 +227,7 @@ opInterleave =
       ta = VarT tva
       lvl = VarL lvlVar
   in ("interleave",
-      TypeScheme [tva] [lvlVar] (IntT
+      TypeScheme [lvlVar] [tva] (IntT
                                  :> ((IntT :*: IntT) :> IntT)
                                  :> PullArrayT (ProgramT lvl (PushArrayT lvl ta))
                                  :> ProgramT (Step lvl) (PushArrayT (Step lvl) ta)))
@@ -236,7 +236,7 @@ opSeqFor :: (Identifier, TypeScheme)
 opSeqFor =
   let tva = TyVar 0 Nothing
   in  ("seqfor",
-       TypeScheme [tva] [] (IntT
+       TypeScheme [] [tva] (IntT
                             :> IntT
                             :> ((IntT :> VarT tva) :> (IntT :> (IntT :*: VarT tva)))
                             :> PushArrayT Zero (VarT tva)))
@@ -248,7 +248,7 @@ opPower =
       ty = VarT tva
       lvl = VarL lvlVar
   in ("power",
-      TypeScheme [tva] [lvlVar] (IntT
+      TypeScheme [lvlVar] [tva] (IntT
                                  :> (IntT :> (PullArrayT ty :> ProgramT lvl (PushArrayT lvl ty)))
                                  :> (ProgramT lvl (PushArrayT lvl ty))
                                  :> ProgramT lvl (PullArrayT ty)))
@@ -260,7 +260,7 @@ opWhile =
       ta = VarT tva
       lvl = VarL lvlVar
   in ("while",
-      TypeScheme [tva] [lvlVar] ((PullArrayT ta :> BoolT)
+      TypeScheme [lvlVar] [tva] ((PullArrayT ta :> BoolT)
                                  :> (PullArrayT ta :> ProgramT lvl (PushArrayT lvl ta))
                                  :> (ProgramT lvl (PushArrayT lvl ta))
                                  :> ProgramT lvl (PullArrayT ta)))
@@ -285,6 +285,6 @@ opBenchmark =
   let tva = TyVar 0 Nothing
       ta = VarT tva
   in ("benchmark",
-      TypeScheme [tva] [] (IntT
+      TypeScheme [] [tva] (IntT
                            :> ProgramT gridLevel ta
                            :> ProgramT gridLevel UnitT))

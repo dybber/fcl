@@ -260,7 +260,7 @@ instance Pretty Poly.TypeScheme where
   pretty (Poly.TypeScheme [] [] ty) = pretty ty
   pretty tysc =
     case renameTyVars tysc of
-      Poly.TypeScheme tyvars lvlvars ty ->
+      Poly.TypeScheme lvlvars tyvars ty ->
         text "forall"
          <+> hsep (map pretty tyvars)
          <> (if null lvlvars
@@ -270,10 +270,10 @@ instance Pretty Poly.TypeScheme where
          <+> pretty ty
 
 renameTyVars :: Poly.TypeScheme -> Poly.TypeScheme
-renameTyVars (Poly.TypeScheme tyvars lvls ty) =
+renameTyVars (Poly.TypeScheme lvls tyvars ty) =
   let newTyVars = zipWith rename tyvars nameSource
       subst = Subst (Map.fromList (zip tyvars (map Poly.VarT newTyVars))) Map.empty
-  in Poly.TypeScheme newTyVars lvls (apply subst ty)
+  in Poly.TypeScheme lvls newTyVars (apply subst ty)
 
 rename :: Poly.TyVar -> String -> Poly.TyVar
 rename (Poly.TyVar i _) name = Poly.TyVar i (Just name)

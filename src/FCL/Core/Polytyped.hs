@@ -23,7 +23,7 @@ infixr 9 :>
 data TyVar = TyVar Int (Maybe Identifier)
   deriving (Eq, Ord, Show)
 
-data TypeScheme = TypeScheme [TyVar] [LvlVar] Type
+data TypeScheme = TypeScheme [LvlVar] [TyVar] Type
   deriving (Eq, Ord, Show)
 
 data Exp =

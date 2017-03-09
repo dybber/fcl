@@ -1,9 +1,9 @@
 sig id : forall 'a. 'a -> 'a
 fun id x = x
 
-sig concat : forall 'a <lvl>. int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
-fun concat <lvl> n arr =
-  interleave <lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
+sig concat : forall <lvl> 'a. int -> [Program<lvl> ['a]<lvl>] -> Program<1+lvl> ['a]<1+lvl>
+fun concat<lvl> n arr =
+  interleave<lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
 
 sig iota : int -> [int]
 fun iota n = generate n (fn x => x)
@@ -54,8 +54,8 @@ fun coalesce n arr =
   in generate s (fn i =>
        generate n (fn j => index arr (i + (s * j))))
 
-sig concatMap : forall 'a 'b <lvl>. int -> ('a -> Program <lvl> ['b]<lvl>) -> ['a] -> Program <1+lvl> ['b]<1+lvl>
-fun concatMap <lvl> size f arr = concat <lvl> size (mapPull f arr)
+sig concatMap : forall <lvl> 'a 'b. int -> ('a -> Program<lvl> ['b]<lvl>) -> ['a] -> Program<1+lvl> ['b]<1+lvl>
+fun concatMap<lvl> size f arr = concat<lvl> size (mapPull f arr)
 
 sig take : forall 'a. int -> ['a] -> ['a]
 fun take n arr = generate n (fn ix => index arr n)
@@ -109,8 +109,8 @@ fun pad divisor neutralElement arr =
                 then index arr i
                 else neutralElement)
 
-sig computeInSingleBlock : forall 'a. ['a] -> Program <grid> ['a]<grid>
+sig computeInSingleBlock : forall 'a. ['a] -> Program<grid> ['a]<grid>
 fun computeInSingleBlock arr =
   generate 1 (fn i => arr)
-    |> mapPull (fn a => return <block> (push<block> a))
-    |> concat <block> (lengthPull arr)
+    |> mapPull (fn a => return<block> (push<block> a))
+    |> concat<block> (lengthPull arr)

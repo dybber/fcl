@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module FCL.IL.Analysis.Dataflow
  (Label(..), makeFlowGraph, addLabels, forwardAnalysis, backwardAnalysis)
 where
@@ -9,7 +10,10 @@ import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List
+
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 
 import FCL.IL.Syntax
 import FCL.IL.Analysis.Graph

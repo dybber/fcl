@@ -1,8 +1,11 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module FCL.External.Parser (parseProgram, parseExpr, ParseError) where
 
 import Data.Functor.Identity (Identity)
-import Control.Applicative ((<$>))
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Expr
@@ -278,12 +281,12 @@ lvlVars =
 typescheme :: Parser TypeScheme
 typescheme =
   try (do reservedOp "forall"
-          tyvars <- many tyVar
           lvlvars <- lvlVars
+          tyvars <- many tyVar
           char '.'
           whitespace
           t <- type'
-          return (TypeScheme tyvars lvlvars t))
+          return (TypeScheme lvlvars tyvars t))
    <|> (TypeScheme [] [] <$> type')
 
 type' :: Parser Type

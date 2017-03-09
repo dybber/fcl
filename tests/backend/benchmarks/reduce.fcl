@@ -6,33 +6,33 @@ fun evenOdds arr =
   in (generate (n-n2) (fn ix => index arr (2*ix)),
       generate n2     (fn ix => index arr (2*ix + 1)))
 
-sig reduceBlockNoncommutative : forall 'a <lvl>. ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
+sig reduceBlockNoncommutative : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
 fun reduceBlockNoncommutative <lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = evenOdds arr
-                       in return <lvl> (push <lvl> (zipWith f (fst x) (snd x)))
+                       in return<lvl> (push<lvl> (zipWith f (fst x) (snd x)))
   in do <lvl>
-      { a <- while <lvl> cond step (step arr)
-      ; return <lvl> (push <lvl> a)
+      { a <- while<lvl> cond step (step arr)
+      ; return <lvl> (push<lvl> a)
       }
 
 -- Reduce 2: halve. Assumes commutativity + associativity.
-sig reduceBlock : forall 'a <lvl>. ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
-fun reduceBlock <lvl> f arr =
+sig reduceBlock : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
+fun reduceBlock<lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
-                       in return <lvl> (push <lvl> (zipWith f (fst x) (snd x)))
+                       in return<lvl> (push<lvl> (zipWith f (fst x) (snd x)))
   in do <lvl>
-      { a <- while <lvl> cond step (step arr)
-      ; return <lvl> (push <lvl> a)
+      { a <- while<lvl> cond step (step arr)
+      ; return<lvl> (push<lvl> a)
       }
 
 -- Reduce array partially by one kernel invocation
-sig reducePart : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]<grid>
+sig reducePart : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program<grid> ['a]<grid>
 fun reducePart f neutralElement arr =
  let workPerBlock = 2 * 256 in
  let paddedArray = pad workPerBlock neutralElement arr     
- in concatMap <block> 1 (reduceBlock <block> f) (splitUp workPerBlock paddedArray)
+ in concatMap<block> 1 (reduceBlock<block> f) (splitUp workPerBlock paddedArray)
 
 sig example1 : Program <grid> [int]<grid>
 val example1 = reducePart (fn a => fn b => a + b) 0 (generate (2048*2048) (fn i => i))
@@ -43,20 +43,20 @@ sig reduce : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> 'a
 fun reduce f neutralElement arr =
   let cond = fn arr => 1 != lengthPull arr
   in do <grid>
-      { a <- while <grid> cond (reducePart f neutralElement) (reducePart f neutralElement arr)
-      ; return <grid> (index a 0)
+      { a <- while<grid> cond (reducePart f neutralElement) (reducePart f neutralElement arr)
+      ; return<grid> (index a 0)
       }
 
-sig example2 : Program <grid> int
+sig example2 : Program<grid> int
 val example2 = reduce (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => 1))
 
-sig main : Program <grid> unit
+sig main : Program<grid> unit
 val main =
-  do <grid>
+  do<grid>
    { arr1 <- example1
    ; forceAndPrint 100 arr1
    ;  i <- example2
 --   ; printInt i
-   ; benchmark 10 (bind <grid> example1 (force <grid>))
+   ; benchmark 10 (bind<grid> example1 (force<grid>))
    ; benchmark 10 example2
    }

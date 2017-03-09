@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module FCL.Monomorphization where
 
 import qualified Data.Map as Map
@@ -5,7 +6,9 @@ import qualified Data.Set as Set
 import Control.Monad.Trans.RWS
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class (lift)
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 710
 import Control.Applicative
+#endif
 
 import FCL.Core.Identifier
 import qualified FCL.Core.PolyLevel as PolyLevel

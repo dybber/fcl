@@ -342,8 +342,8 @@ compKernelBody cfg env stmts =
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILKernel ()
 mkKernelBody cfg env loopVar loopBound body =
-  do let ub = compExp env loopBound
-     distrParBlock cfg (unInt ub) (\i ->
+  let ub = compExp env loopBound
+  in distrParBlock cfg (unInt ub) (\i ->
        do i' <- lett "ub" (VInt i)
           compKernelBody cfg (Map.insert loopVar i' env) body)
   
@@ -625,11 +625,3 @@ codeGen cfg program =
  let (mainBody, _, kernels') = evalCGen () (compProgram cfg program)
  in (createMain mainBody,
      prettyKernels kernels')
-
-compileAndOutput :: CompileConfig -> ILProgram a -> FilePath -> IO ()
-compileAndOutput cfg program path =
-  let (main, kernelsfile) = codeGen cfg program
-      mainPath = path ++ "/main.c"
-      kernelPath = path ++ "/kernels.cl"
-  in do writeFile mainPath main
-        writeFile kernelPath kernelsfile
