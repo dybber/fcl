@@ -551,6 +551,7 @@ benchmark ctx (VInt n) body =
      body
      finish ctx
      releaseAllDeviceArrays
+     finish ctx
      -- detect the allocations done in the kernel
      modifyState (\s -> s { deviceAllocations = Map.empty })
      for n (\_ ->
