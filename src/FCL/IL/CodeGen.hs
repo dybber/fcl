@@ -401,7 +401,7 @@ compHost cfg ctx env stmts =
          compHost cfg ctx env ss
     (Benchmark iterations ss0 _ : ss) ->
       do let n = compExp env iterations
-         benchmark n (compHost cfg ctx env ss0 >> finish ctx)
+         benchmark ctx n (compHost cfg ctx env ss0)
          compHost cfg ctx env ss
     (Declare (x,ty) e _ : ss) ->
       do let v = compExp env e
@@ -542,14 +542,20 @@ now x =
   do v <- eval x int32_t "now" []
      return (var v)
 
-benchmark :: Value -> ILHost () -> ILHost ()
-benchmark (VInt n) body =
+benchmark :: ClContext -> Value -> ILHost () -> ILHost ()
+benchmark ctx (VInt n) body =
   do t0 <- now "t0"
      allocs <- getsState deviceAllocations
+     -- warm up run
+     modifyState (\s -> s { deviceAllocations = Map.empty })
+     body
+     finish ctx
+     releaseAllDeviceArrays
      -- detect the allocations done in the kernel
      modifyState (\s -> s { deviceAllocations = Map.empty })
      for n (\_ ->
              do body
+                finish ctx
                 -- deallocate everything before exiting the loop
                 releaseAllDeviceArrays)
      allocsAfter <- getsState deviceAllocations
@@ -565,7 +571,7 @@ benchmark (VInt n) body =
          throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1000000.0 :: Double))
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
      exec void_t "fprintf" [stderr, string formatString2, n, throughput, totalTransferredData]
-benchmark _ _ = error "Benchmark expects int as first argument (number of iterations)."
+benchmark _ _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
 -- Compile program --
