@@ -35,7 +35,7 @@ fun reducePart f neutralElement arr =
  in concatMap<block> 1 (reduceBlock<block> f) (splitUp workPerBlock paddedArray)
 
 sig example1 : Program <grid> [int]<grid>
-val example1 = reducePart (fn a => fn b => a + b) 0 (generate (2048*2048) (fn i => i))
+val example1 = reducePart (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => i))
 
 -- Full reduction
 
@@ -57,6 +57,6 @@ val main =
    ; forceAndPrint 100 arr1
    ;  i <- example2
 --   ; printInt i
-   ; benchmark 10 (bind<grid> example1 (force<grid>))
-   ; benchmark 10 example2
+   ; benchmark 100 (bind<grid> example1 (force<grid>))
+   ; benchmark 100 example2
    }

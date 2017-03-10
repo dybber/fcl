@@ -87,12 +87,12 @@ fun make_NxN_Matrix n = generate (n / n) (fn i => i)
 
 
 sig example : Program <grid> [int]<grid>
-val example = transposeChunked 16 2048 2048 (make_NxN_Matrix 2048)
+val example = transposeChunked 16 4096 4096 (make_NxN_Matrix 4096)
 
 sig main : Program <grid> unit
 val main =
   do <grid>
    { arr <- example
-   ; forceAndPrint 2048 arr
-   ; benchmark 10 (bind <grid> example (force <grid>))
+   ; forceAndPrint 100 arr
+   ; benchmark 100 (bind <grid> example (force <grid>))
    }

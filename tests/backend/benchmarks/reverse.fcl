@@ -12,12 +12,12 @@ fun simpleReverse splitSize arr =
 
 
 sig example : Program <grid> [int]<grid>
-val example = simpleReverse 256 (generate (2048 * 2048) (fn i => i))
+val example = simpleReverse 256 (generate (4096 * 4096) (fn i => i))
 
 sig main : Program <grid> unit
 val main =
   do <grid>
    { arr <- example
    ; forceAndPrint 10 arr
-   ; benchmark 10 (bind <grid> example (force <grid>))
+   ; benchmark 100 (bind <grid> example (force <grid>))
    }
