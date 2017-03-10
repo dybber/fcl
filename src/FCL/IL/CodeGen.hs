@@ -567,7 +567,7 @@ benchmark ctx (VInt n) body =
      t1 <- now "t1"
      let stderr = (definedConst "stderr" (CCustom "File" Nothing))
          formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
-         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %ld MiB\\n"
+         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %.4f MiB\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
          throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1024.0*1024.0 :: Double))
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
