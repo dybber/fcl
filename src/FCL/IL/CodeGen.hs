@@ -567,11 +567,11 @@ benchmark ctx (VInt n) body =
      t1 <- now "t1"
      let stderr = (definedConst "stderr" (CCustom "File" Nothing))
          formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
-         formatString2 = "Throughput (%i repetitions): %.4f Gigabyte/s, total transferred data: %ld\\n"
+         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %ld MiB\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
-         throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1000000.0 :: Double))
+         throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1024.0*1024.0 :: Double))
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
-     exec void_t "fprintf" [stderr, string formatString2, n, throughput, totalTransferredData]
+     exec void_t "fprintf" [stderr, string formatString2, n, throughput, totalTransferredData `divd` (constant (1024.0*1024.0 :: Double))]
 benchmark _ _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
