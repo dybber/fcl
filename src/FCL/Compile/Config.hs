@@ -9,6 +9,7 @@ data CompileConfig =
     , configOptimizeIterations :: Int
     , configKernelsFilename :: FilePath
     , configVerbosity :: Int
+    , configProfile :: Bool
     }
   deriving (Show, Eq)
 
@@ -22,4 +23,5 @@ defaultCompileConfig =
     , configOptimizeIterations = 20
     , configKernelsFilename = "kernels.cl"
     , configVerbosity = 0
+    , configProfile = False
     }

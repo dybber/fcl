@@ -16,13 +16,13 @@ void initializeTimer() {
 }
 
 // return time since process start in milliseconds
-int now () {
+long int now () {
   struct timeval tv_check;
   gettimeofday(&tv_check, NULL);
   long int usec = tv_check.tv_usec - tv_init.tv_usec;
   long int sec = tv_check.tv_sec - tv_init.tv_sec;
   long int msec = usec / 1000;
-  return (int)(sec*1000+msec);
+  return (sec*1000+msec);
 }
 
 

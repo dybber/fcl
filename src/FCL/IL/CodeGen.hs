@@ -278,7 +278,7 @@ compThread cfg env stmts =
     (Distribute _ _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
     (ReadIntCSV _ _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
     (PrintIntArray _ _ _ : _)  -> error "Printing not possible at thread level."
-    (Benchmark _ _ _ : _)  -> error "Benchmarking not possible at thread level."
+    (Benchmark _ _ _ : _)      -> error "Benchmarking not possible at thread level."
 
 ------------------------
 -- Kernel compilation --
@@ -340,7 +340,7 @@ compKernelBody cfg env stmts =
     (SeqFor _ _ _ _ : _)      -> error "seqfor: Only available at thread-level"
     (ReadIntCSV _ _ _ _ : _)  -> error "Reading input-data is not possible at block level"
     (PrintIntArray _ _ _ : _) -> error "Printing not possible at block level"
-    (Benchmark _ _ _ : _) -> error "Benchmarking not possible at block level"
+    (Benchmark _ _ _ : _)     -> error "Benchmarking not possible at block level"
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILKernel ()
 mkKernelBody cfg env loopVar loopBound body =
@@ -471,7 +471,20 @@ distribute cfg ctx env loopVar loopBound stmts =
   in do kernelName <- newName "kernel"
         k <- mkKernel cfg env kernelName loopVar loopBound stmts
         addKernel kernelName k -- save in monad state, to be able to free it in the end
-        callKernel kernelName k
+        if configProfile cfg
+          then profile ctx kernelName (callKernel kernelName k)
+          else callKernel kernelName k
+
+profile :: ClContext -> String -> ILHost () -> ILHost ()
+profile ctx name c = do
+  t0 <- now "t0"
+  c
+  finish ctx
+  t1 <- now "t1"
+  let milliseconds = subi t1 t0
+      formatString = "Kernel %s timing: %ld ms\\n"
+      stderr = definedConst "stderr" (CCustom "File" Nothing)
+  exec void_t "fprintf" [stderr, string formatString, string name, milliseconds]
 
 -- create parameter list (newVar)
 -- create VarEnv mapping free variables to the parameter names
@@ -539,7 +552,7 @@ printArray _ _ _ = error "Print array expects array"
 
 now :: String -> ILHost CExp
 now x =
-  do v <- eval x int32_t "now" []
+  do v <- eval x uint64_t "now" []
      return (var v)
 
 benchmark :: ClContext -> Value -> ILHost () -> ILHost ()
@@ -565,7 +578,7 @@ benchmark ctx (VInt n) body =
      -- reset allocations
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
-     let stderr = (definedConst "stderr" (CCustom "File" Nothing))
+     let stderr = definedConst "stderr" (CCustom "File" Nothing)
          formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
          formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %.4f MiB\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)

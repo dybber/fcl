@@ -176,7 +176,7 @@ bindFn v0 v1 =
     (TagProgram m0, TagFn f) ->
        TagProgram (do m0' <- m0
                       case f m0' of
-                        TagProgram m1 -> m1
+                        TagProgram m1 -> m1 -- TODO create binding, if m1 is scalar
                         _ -> error "expected Program as result of second argument to Bind")
     _ -> error "program and function returning program as arguments to bind"
 

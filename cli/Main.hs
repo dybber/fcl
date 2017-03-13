@@ -76,6 +76,7 @@ data Options =
           , fclNoPrelude :: Bool
           , fclCommand :: Command
           , fclOutputFile :: String
+          , fclProfile :: Bool
           }
 
 defaultOptions :: Options
@@ -85,6 +86,7 @@ defaultOptions =
           , fclNoPrelude = False
           , fclCommand = Compile
           , fclOutputFile = "main"
+          , fclProfile = False
           }
 
 optionDescriptions :: [OptDescr (Options -> Options)]
@@ -97,12 +99,13 @@ optionDescriptions =
   , Option []  ["test-parser"]       (NoArg (\opt -> opt {fclCommand = TestParser})) "Parse, pretty print, parse again, check for equality."
   , Option []  ["dump-parsed"]    (NoArg (\opt -> opt {fclCommand = DumpParsed})) "Parse. Print."
   , Option []  ["dump-desugared"]    (NoArg (\opt -> opt {fclCommand = DumpDesugared})) "Parse. Desugar. Print."
-  , Option []  ["dump-typed"]        (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing"
+  , Option []  ["dump-typed"]        (NoArg (\opt -> opt {fclCommand = DumpTyped})) "Dump AST after typing."
   , Option []  ["dump-monomorphed"]  (NoArg (\opt -> opt {fclCommand = DumpMonomorphed})) "Dump AST after monomorphization."
   , Option []  ["dump-il"]           (NoArg (\opt -> opt {fclCommand = DumpIL})) "Dump intermediate representation."
   , Option []  ["dump-il-optimised"] (NoArg (\opt -> opt {fclCommand = DumpILOptimised})) "Dump intermediate representation."
   , Option "v" ["verbose"]           (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
-  , Option "d" ["debug"]             (NoArg (\opt -> opt {fclVerbosity = 3})) "Debug output"
+  , Option "d" ["debug"]             (NoArg (\opt -> opt {fclVerbosity = 3})) "Debugging output"
+  , Option "p" ["profile"]           (NoArg (\opt -> opt {fclProfile = True})) "Profile kernel calls & data transfers."
   ]
 
 parseOptions :: [String] -> Either [String] ([String], Options)
@@ -267,21 +270,25 @@ dispatch filenames opts =
      onCommand DumpMonomorphed (message (displayTopLevelMono monomorphed))
 
      logInfo "Compiling."
+
+     let intermediate_prog = compile monomorphed
+     onCommand DumpIL (message (prettyIL intermediate_prog))
+
      optIter <- asks fclOptimizeIterations
+     let optimised = optimise optIter intermediate_prog
+
+     onCommand DumpILOptimised (message (prettyIL optimised))
+
      verbosity <- asks fclVerbosity
      outputFile <- asks fclOutputFile
+     profile <- asks fclProfile
      let cfile = outputFile ++ ".c"
          kernelsFile = outputFile ++ ".cl"
          cfg = defaultCompileConfig { configKernelsFilename = kernelsFile
                                     , configOptimizeIterations = optIter
                                     , configVerbosity = verbosity
+                                    , configProfile = profile
                                     }
-         intermediate_prog = compile cfg monomorphed
-     onCommand DumpIL (message (prettyIL intermediate_prog))
-
-     let optimised = optimise optIter intermediate_prog
-
-     onCommand DumpILOptimised (message (prettyIL optimised))
 
      onCommand Compile $
        do let (main_, kernels) = codeGen cfg optimised

@@ -5,14 +5,13 @@ import FCL.Core.Monotyped
 
 import FCL.Compile.Value
 import FCL.Compile.CompileEnvironment
-import FCL.Compile.Config
 
 import FCL.IL.Cons
 import FCL.IL.Syntax (Stmt)
 import FCL.IL.Program (runProgram)
 
-compile :: CompileConfig -> Exp -> [Stmt ()]
-compile _ e =
+compile :: Exp -> [Stmt ()]
+compile e =
   case compileExp defaultCompileEnvironment e of
     TagProgram p -> fst (runProgram p)
     _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
