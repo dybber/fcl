@@ -461,7 +461,7 @@ distribute cfg ctx env loopVar loopBound stmts =
 
     callKernel :: String -> Kernel -> ILHost ()
     callKernel kernelName (Kernel i params _) =
-      do -- set shared memoryp
+      do -- set shared memory
          let smarg = replicate i (ArgSharedMemory (constant (configSharedMemory cfg)))
          -- set input parameters: map over kernel list, lookup allocations in environment
          args <- mapM createArgument params
@@ -469,24 +469,28 @@ distribute cfg ctx env loopVar loopBound stmts =
          invokeKernel ctx kernelHandle (smarg ++ args)
                                        (muli (constant (configBlockSize cfg)) (constant (configNumWorkGroups cfg)))
                                        (constant (configBlockSize cfg))
+
+    profile :: String -> Kernel -> ILHost ()
+    profile kernelName (Kernel i params _) =
+      do -- set shared memoryp
+         let smarg = replicate i (ArgSharedMemory (constant (configSharedMemory cfg)))
+         -- set input parameters: map over kernel list, lookup allocations in environment
+         args <- mapM createArgument params
+         let kernelHandle = ClKernel (kernelName, kernelCType)
+         tdiff <- profileKernel ctx kernelHandle (smarg ++ args)
+                                                 (muli (constant (configBlockSize cfg)) (constant (configNumWorkGroups cfg)))
+                                                 (constant (configBlockSize cfg))
+         let psum = (kernelName ++ "_sum_ms", CDouble)
+             counter = (kernelName ++ "_counter", CWord64)
+         assign psum (var psum `addi` ((i2d (var tdiff)) `divd` (constant (1000000.0 :: Double))))
+         assign counter (var counter `addi` (constant (1 :: Int)))
+
   in do kernelName <- newName "kernel"
         k <- mkKernel cfg env kernelName loopVar loopBound stmts
         addKernel kernelName k -- save in monad state, to be able to free it in the end
         if configProfile cfg
-          then profile ctx kernelName (callKernel kernelName k)
+          then profile kernelName k
           else callKernel kernelName k
-
-profile :: ClContext -> String -> ILHost () -> ILHost ()
-profile ctx kernelName c = do
-  t0 <- now (kernelName ++ "t0")
-  c
-  finish ctx
-  t1 <- now (kernelName ++ "t1")
-  let milliseconds = subi t1 t0
-      psum = (kernelName ++ "_sum_ms", CInt32)
-      counter = (kernelName ++ "_counter", CInt32)
-  assign psum (var psum `addi` milliseconds)
-  assign counter (var counter `addi` (constant (1 :: Int)))
 
 -- create parameter list (newVar)
 -- create VarEnv mapping free variables to the parameter names
