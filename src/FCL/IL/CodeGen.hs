@@ -6,6 +6,7 @@ import Data.Set (Set)
 import Data.Map (Map)
 
 import CGen hiding (freeVars)
+import CGen.Syntax (Statement(Decl))
 import CGen.OpenCL.HostCode
 
 import FCL.IL.Analysis.Liveness
@@ -476,15 +477,16 @@ distribute cfg ctx env loopVar loopBound stmts =
           else callKernel kernelName k
 
 profile :: ClContext -> String -> ILHost () -> ILHost ()
-profile ctx name c = do
-  t0 <- now "t0"
+profile ctx kernelName c = do
+  t0 <- now (kernelName ++ "t0")
   c
   finish ctx
-  t1 <- now "t1"
+  t1 <- now (kernelName ++ "t1")
   let milliseconds = subi t1 t0
-      formatString = "Kernel %s timing: %ld ms\\n"
-      stderr = definedConst "stderr" (CCustom "File" Nothing)
-  exec void_t "fprintf" [stderr, string formatString, string name, milliseconds]
+      psum = (kernelName ++ "_sum_ms", CInt32)
+      counter = (kernelName ++ "_counter", CInt32)
+  assign psum (var psum `addi` milliseconds)
+  assign counter (var counter `addi` (constant (1 :: Int)))
 
 -- create parameter list (newVar)
 -- create VarEnv mapping free variables to the parameter names
@@ -555,6 +557,8 @@ now x =
   do v <- eval x uint64_t "now" []
      return (var v)
 
+stderr = definedConst "stderr" (CCustom "File" Nothing)
+
 benchmark :: ClContext -> Value -> ILHost () -> ILHost ()
 benchmark ctx (VInt n) body =
   do t0 <- now "t0"
@@ -578,8 +582,7 @@ benchmark ctx (VInt n) body =
      -- reset allocations
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
-     let stderr = definedConst "stderr" (CCustom "File" Nothing)
-         formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
+     let formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
          formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %.4f MiB\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
          throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1024.0*1024.0 :: Double))
@@ -590,6 +593,23 @@ benchmark _ _ _ = error "Benchmark expects int as first argument (number of iter
 ---------------------
 -- Compile program --
 ---------------------
+
+
+initializeCounter :: String -> CGen () ()
+initializeCounter kernelName =
+  do let psum = (kernelName ++ "_sum_ms", CInt32)
+         counter = (kernelName ++ "_counter", CInt32)
+     addStmt (Decl psum (constant (0 :: Int)) ())
+     addStmt (Decl counter (constant (0 :: Int)) ())
+
+printCounter :: String -> CGen () ()
+printCounter kernelName =
+  do let formatString = "Kernel %s timing: %f ms per execution (%d executions)\\n"
+         psum = var (kernelName ++ "_sum_ms", CInt32)
+         counter = var (kernelName ++ "_counter", CInt32)
+         milliseconds = (i2d psum) `divd` (i2d counter)
+     exec void_t "fprintf" [stderr, string formatString, string kernelName, milliseconds, counter]
+
 compProgram :: CompileConfig -> [Stmt a] -> CGen () KernelMap
 compProgram cfg program =
   -- compile body
@@ -603,39 +623,25 @@ compProgram cfg program =
   in
     do initializeContext ctxVar (configVerbosity cfg)
        exec void_t "initializeTimer" []
+       if configProfile cfg
+          then mapM_ initializeCounter (Map.keys kernels')
+          else return ()
        buildProgram ctxVar pVar (configKernelsFilename cfg)
        kernelHandles <- mapM (createKernel pVar) (Map.keys kernels')
        addStmts stmts
+       if configProfile cfg
+          then mapM_ printCounter (Map.keys kernels')
+          else return ()
        mapM_ releaseDeviceData (Map.keys allocs)
        mapM_ releaseKernel kernelHandles
        releaseProgram pVar
        releaseContext ctxVar
        return kernels'
-  -- create ctx and program variables and store in state-monad
-  -- compile host-code
-  -- run monad
-  -- final monad state contains kernel-names and statements
-  -- prepend initialization and kernel compilation statements
-  -- append release statements
-  
---   do ctx <- initializeContext (configVerbosity cfg)
---      exec void_t "initializeTimer" []
---      p <- buildProgram ctx (configKernelsFilename cfg)
---      compHost cfg ctx p Map.empty program
--- --     releaseAllDeviceArrays
--- --     releaseAllKernels
---      releaseProgram p
---      releaseContext ctx
 
 releaseAllDeviceArrays :: ILHost ()
 releaseAllDeviceArrays =
   do allocs <- getsState deviceAllocations
      mapM_ releaseDeviceData (Map.keys allocs)
-
--- releaseAllKernels :: ILHost ()
--- releaseAllKernels =
---   do kernelMap <- getsState kernels
---      mapM_ releaseKernel (Map.map (\(Kernel _ _ handle) -> handle) kernelMap)
 
 prettyKernels :: KernelMap -> String
 prettyKernels kernelMap = pretty (map (\(Kernel _ _ s) -> s) (Map.elems kernelMap))
