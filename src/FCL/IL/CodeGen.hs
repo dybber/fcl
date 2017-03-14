@@ -601,17 +601,17 @@ benchmark _ _ _ = error "Benchmark expects int as first argument (number of iter
 
 initializeCounter :: String -> CGen () ()
 initializeCounter kernelName =
-  do let psum = (kernelName ++ "_sum_ms", CInt32)
+  do let psum = (kernelName ++ "_sum_ms", CDouble)
          counter = (kernelName ++ "_counter", CInt32)
-     addStmt (Decl psum (constant (0 :: Int)) ())
+     addStmt (Decl psum (constant (0 :: Double)) ())
      addStmt (Decl counter (constant (0 :: Int)) ())
 
 printCounter :: String -> CGen () ()
 printCounter kernelName =
   do let formatString = "Kernel %s timing: %f ms per execution (%d executions)\\n"
-         psum = var (kernelName ++ "_sum_ms", CInt32)
+         psum = var (kernelName ++ "_sum_ms", CDouble)
          counter = var (kernelName ++ "_counter", CInt32)
-         milliseconds = (i2d psum) `divd` (i2d counter)
+         milliseconds = psum `divd` (i2d counter)
      exec void_t "fprintf" [stderr, string formatString, string kernelName, milliseconds, counter]
 
 compProgram :: CompileConfig -> [Stmt a] -> CGen () KernelMap
