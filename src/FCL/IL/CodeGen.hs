@@ -505,7 +505,7 @@ mkKernel cfg env kernelName loopVar loopBound stmts =
   let params = Set.toList (Set.delete loopVar (freeVars stmts `Set.union` liveInExp loopBound))
       mkArgumentList :: [ILName] -> ILHost [Var]
       mkArgumentList = mapM (hostVarToKernelVar env)
-      
+
   in do args <- mkArgumentList params
         let kernelEnv = Map.fromList (zip params args)
         (kernelBody, _, finalKernelState) <- embed (mkKernelBody cfg kernelEnv loopVar loopBound stmts) initKernelState
@@ -587,7 +587,7 @@ benchmark ctx (VInt n) body =
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
      let formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
-         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, total transferred data: %.4f MiB\\n"
+         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, data transferred per run: %.4f MiB\\n"
          milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
          throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1024.0*1024.0 :: Double))
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
