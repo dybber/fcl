@@ -10,7 +10,7 @@ module FCL
   --  eval,
 
   -- Backend
-  compile, optimise, codeGen, 
+  compile, optimise, codeGen, typecheckIL,
   CompileConfig(..), defaultCompileConfig,
 
   -- Pretty printers
@@ -33,6 +33,8 @@ import qualified FCL.Monomorphization as Monomorph
 import FCL.Compile         (compile)
 import FCL.IL.Optimise     (optimise)
 import FCL.IL.CodeGen      (codeGen)
+import qualified FCL.IL.TypeCheck as IL  (typecheck, TypeEnv)
+import FCL.IL.Syntax       (ILProgram)
 import FCL.IL.Pretty       (prettyIL)
 import FCL.Compile.Config  (CompileConfig(..), defaultCompileConfig)
 import FCL.Error (FCLError(..))
@@ -58,3 +60,7 @@ monomorph :: Infer.TypeEnvironment -> Poly.Exp -> Either FCLError Mono.Exp
 monomorph env e = liftEither MonomorphError (Monomorph.monomorph (Monomorph.mkInitEnv env) e)
 
 prettyC = CGen.pretty
+
+
+typecheckIL :: ILProgram a -> Either FCLError IL.TypeEnv
+typecheckIL prog = liftEither TypeErrorIL (IL.typecheck prog)

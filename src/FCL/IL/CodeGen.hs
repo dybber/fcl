@@ -13,11 +13,12 @@ import FCL.IL.Analysis.Liveness
 import FCL.IL.Analysis.FreeVars
 import FCL.Compile.Config
 import FCL.IL.Syntax
+import FCL.IL.TypeCheck
 
 data Kernel =
   Kernel
     Int -- number of shared memory arrays
-    [ILName]  -- parameters, bound in host-code
+    [(ILName, ILType)]  -- parameters, bound in host-code
     TopLevel  -- kernel declaration
 --    ClKernel  -- kernel handle in hostcode
 
@@ -69,15 +70,15 @@ convertType ILString = string_t
 convertType (ILArray ty) = pointer_t [] (convertType ty)
 
 hostVarToKernelVar :: VarEnv -> ILName -> CGen a Var
-hostVarToKernelVar env v@(x,_) =
-  case Map.lookup v env of
-    Just (VarInt _) -> VarInt `fmap` (newVar int32_t x)
-    Just (VarBool _) -> VarBool `fmap` (newVar bool_t x)
-    Just (VarDouble _) -> VarDouble `fmap` (newVar double_t x)
-    Just (VarHostBuffer elemty _) -> VarKernelArray elemty `fmap` (newVar (pointer_t [attrGlobal] (convertType elemty)) x)
+hostVarToKernelVar env x =
+  case Map.lookup x env of
+    Just (VarInt _) -> VarInt `fmap` (newVar int32_t (show x))
+    Just (VarBool _) -> VarBool `fmap` (newVar bool_t (show x))
+    Just (VarDouble _) -> VarDouble `fmap` (newVar double_t (show x))
+    Just (VarHostBuffer elemty _) -> VarKernelArray elemty `fmap` (newVar (pointer_t [attrGlobal] (convertType elemty)) (show x))
     Just (VarString _) -> error "string"
     Just (VarKernelArray _ _) -> error "kernel array"
-    Nothing -> error ("not defined: " ++ x)
+    Nothing -> error ("not defined: " ++ show x)
 
 ---------------------------
 -- Host generation monad --
@@ -92,14 +93,16 @@ data HostState =
     { kernels :: KernelMap
     , deviceAllocations :: Map ClDeviceBuffer (CExp, CType)
     , hostAllocations :: Set VarName
+    , typeEnv :: TypeEnv
     }
 
-initHostState :: HostState
-initHostState =
+initHostState :: TypeEnv -> HostState
+initHostState env =
   HostState
     { kernels = Map.empty
     , deviceAllocations = Map.empty
     , hostAllocations = Set.empty
+    , typeEnv = env
     }
 
 addKernel :: String -> Kernel -> ILHost ()
@@ -234,11 +237,11 @@ compThread :: CompileConfig -> VarEnv -> [Stmt a] -> ILKernel ()
 compThread cfg env stmts =
   case stmts of
     [] -> return ()
-    (Declare (x,ty) e _ : ss) ->
+    (Declare x _z e _ : ss) ->
       do let v = compExp env e
-         v' <- lett x v
-         compThread cfg (Map.insert (x,ty) v' env) ss
-    (Alloc (x,ty) elemty e _ : ss) ->
+         v' <- lett (show x) v
+         compThread cfg (Map.insert x v' env) ss
+    (Alloc x elemty e _ : ss) ->
        do let size = compExp env e
           sizeVar <- letVar "size" int32_t (constant (configBlockSize cfg)) --(muli (unInt size) (constant (configBlockSize cfg)))
           let cty = convertType elemty
@@ -246,7 +249,7 @@ compThread cfg env stmts =
           let offset = addi (var ptr) (muli localID (unInt size))
           ptr' <- letVar "threadLocal" (snd ptr) offset
           v <- lett "arr" (VKernelArray elemty ptr')
-          compThread cfg (Map.insert (x,ty) v env) ss
+          compThread cfg (Map.insert x v env) ss
     (SeqFor loopVar loopBound body _ : ss) ->
       do let ub = compExp env loopBound
          for (unInt ub)
@@ -288,19 +291,19 @@ compKernelBody :: CompileConfig -> VarEnv -> [Stmt a] -> ILKernel ()
 compKernelBody cfg env stmts =
   case stmts of
     [] -> return ()
-    (Declare (x,ty) e _ : ss) ->
+    (Declare x _ e _ : ss) ->
       do let v = compExp env e
-         v' <- lett x v
-         compKernelBody cfg (Map.insert (x,ty) v' env) ss
+         v' <- lett (show x) v
+         compKernelBody cfg (Map.insert x v' env) ss
 
     -- allocate shared memory
-    (Alloc (x,ty) elemty e _ : ss) ->
+    (Alloc x elemty e _ : ss) ->
        do let size = compExp env e
           sizeVar <- letVar "size" int32_t (unInt size)
           let cty = convertType elemty
           ptr <- allocateKernel cty (var sizeVar)
           v <- lett "arr" (VKernelArray elemty ptr)
-          compKernelBody cfg (Map.insert (x,ty) v env) ss
+          compKernelBody cfg (Map.insert x v env) ss
 
     -- lift a thread-level computation to block level
     (ParFor _ loopVar loopBound body _ : ss) ->
@@ -404,10 +407,10 @@ compHost cfg ctx env stmts =
       do let n = compExp env iterations
          benchmark ctx n (compHost cfg ctx env ss0)
          compHost cfg ctx env ss
-    (Declare (x,ty) e _ : ss) ->
+    (Declare x ty e _ : ss) ->
       do let v = compExp env e
-         v' <- lett x v
-         compHost cfg ctx (Map.insert (x,ty) v' env) ss
+         v' <- lett (show x) v
+         compHost cfg ctx (Map.insert x v' env) ss
     (Distribute _ x e stmts' _ : ss) -> -- use level for something? Only for type check?
       do distribute cfg ctx env x e stmts'
          compHost cfg ctx env ss
@@ -415,15 +418,15 @@ compHost cfg ctx env stmts =
     (Synchronize _ : ss) ->
       do finish ctx
          compHost cfg ctx env ss
-    (ReadIntCSV (x,ty) xlen e _ : ss) ->
+    (ReadIntCSV x xlen e _ : ss) ->
       do let filename = compExp env e
          (valuesRead, hostPtr) <- readCSVFile int32_t filename
          v <- copyToDevice ctx ILInt (var valuesRead) (var hostPtr)
-         compHost cfg ctx (Map.insert xlen (VarInt valuesRead) (Map.insert (x,ty) v env)) ss
-    (Alloc (x,ty) elemty e _ : ss) ->
+         compHost cfg ctx (Map.insert xlen (VarInt valuesRead) (Map.insert x v env)) ss
+    (Alloc x elemty e _ : ss) ->
       do let size = compExp env e
          v <- allocate ctx elemty size
-         compHost cfg ctx (Map.insert (x,ty) v env) ss
+         compHost cfg ctx (Map.insert x v env) ss
     (Assign x e _ : ss) ->
       do let e' = compExp env e
          assignVar env x e'
@@ -448,9 +451,9 @@ compHost cfg ctx env stmts =
 distribute :: CompileConfig -> ClContext -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILHost ()
 distribute cfg ctx env loopVar loopBound stmts =
   let
-    createArgument :: ILName -> ILHost KernelArg
+    createArgument :: (ILName, ILType) -> ILHost KernelArg
     createArgument (x, ty) =
-      do case Map.lookup (x,ty) env of
+      do case Map.lookup x env of
            Just (VarInt v) -> return (ArgScalar (convertType ty) (var v))
            Just (VarBool v) -> return (ArgScalar (convertType ty) (var v))
            Just (VarDouble v) -> return (ArgScalar (convertType ty) (var v))
@@ -507,11 +510,13 @@ mkKernel cfg env kernelName loopVar loopBound stmts =
       mkArgumentList = mapM (hostVarToKernelVar env)
 
   in do args <- mkArgumentList params
+        tyenv <- getsState typeEnv
+        let param_tys = map (\k -> maybe (error "not found") id (Map.lookup k tyenv)) params
         let kernelEnv = Map.fromList (zip params args)
         (kernelBody, _, finalKernelState) <- embed (mkKernelBody cfg kernelEnv loopVar loopBound stmts) initKernelState
         let allocs = allocations finalKernelState
             fndef = kernel kernelName (allocs ++ map getVarName args) kernelBody
-        return (Kernel (length allocs) params fndef)
+        return (Kernel (length allocs) (zip params param_tys) fndef)
 
 allocate :: ClContext -> ILType -> Value -> ILHost Var
 allocate ctx elemty size =
@@ -561,6 +566,7 @@ now x =
   do v <- eval x uint64_t "now" []
      return (var v)
 
+stderr :: CExp
 stderr = definedConst "stderr" (CCustom "File" Nothing)
 
 benchmark :: ClContext -> Value -> ILHost () -> ILHost ()
@@ -597,8 +603,6 @@ benchmark _ _ _ = error "Benchmark expects int as first argument (number of iter
 ---------------------
 -- Compile program --
 ---------------------
-
-
 initializeCounter :: String -> CGen () ()
 initializeCounter kernelName =
   do let psum = (kernelName ++ "_sum_ms", CDouble)
@@ -614,13 +618,13 @@ printCounter kernelName =
          milliseconds = psum `divd` (i2d counter)
      exec void_t "fprintf" [stderr, string formatString, string kernelName, milliseconds, counter]
 
-compProgram :: CompileConfig -> [Stmt a] -> CGen () KernelMap
-compProgram cfg program =
+compProgram :: CompileConfig -> TypeEnv -> [Stmt a] -> CGen () KernelMap
+compProgram cfg env program =
   -- compile body
   let ctxVar = ClContext ("ctx", contextCType)
       pVar = ClProgram ("program", programCType)
       body = compHost cfg ctxVar Map.empty program
-      (stmts, _, _, finalState) = runCGen initHostState body
+      (stmts, _, _, finalState) = runCGen (initHostState env) body
       -- collect the generated kernels
       kernels' = kernels finalState
       allocs = deviceAllocations finalState
@@ -659,8 +663,8 @@ includes = [includeSys "fcl.h",
             includeSys "sys/time.h",
             includeSys "mcl.h"]
                   
-codeGen :: CompileConfig -> ILProgram a -> (String, String)
-codeGen cfg program =
- let (mainBody, _, kernels') = evalCGen () (compProgram cfg program)
+codeGen :: CompileConfig -> TypeEnv -> ILProgram a -> (String, String)
+codeGen cfg env program =
+ let (mainBody, _, kernels') = evalCGen () (compProgram cfg env program)
  in (createMain mainBody,
      prettyKernels kernels')

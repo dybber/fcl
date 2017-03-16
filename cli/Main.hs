@@ -23,7 +23,6 @@ import qualified FCL.External.Syntax as E
 ---------------
 ---- Monad ----
 ---------------
-
 data CompilerError = FCLError FCLError
                    | IOError IOError
                    | CLIError String
@@ -55,6 +54,9 @@ liftEither _ (Right r) = return r
 throw :: CompilerError -> CLI a
 throw err = lift (throwE err)
 
+----------------------------
+-- Command line arguments --
+----------------------------
 data Command = Typecheck
              | Compile
              | Help
@@ -67,9 +69,7 @@ data Command = Typecheck
              | TestParser
   deriving Eq
 
-----------------------------
--- Command line arguments --
-----------------------------
+
 data Options =
   Options { fclVerbosity :: Int
           , fclOptimizeIterations :: Int
@@ -279,6 +279,9 @@ dispatch filenames opts =
 
      onCommand DumpILOptimised (message (prettyIL optimised))
 
+     logInfo "Typechecking IL."
+     type_env <- liftEither FCLError (typecheckIL optimised)
+
      verbosity <- asks fclVerbosity
      outputFile <- asks fclOutputFile
      profile <- asks fclProfile
@@ -291,7 +294,7 @@ dispatch filenames opts =
                                     }
 
      onCommand Compile $
-       do let (main_, kernels) = codeGen cfg optimised
+       do let (main_, kernels) = codeGen cfg type_env optimised
           writeFileChecked cfile main_
           writeFileChecked kernelsFile kernels
 

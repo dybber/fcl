@@ -53,14 +53,14 @@ import FCL.IL.Program
 -- w. initialiser and passes it on
 let_ :: String -> ILType -> ILExp -> Program ILExp
 let_ name ty e = do
-  v <- newVar ty name
-  addStmt (Declare v e ())
+  v <- newVar name
+  addStmt (Declare v ty e ())
   return (EVar v)
 
 letVar :: String -> ILType -> ILExp -> Program ILName
 letVar name ty e = do
-  v <- newVar ty name
-  addStmt (Declare v e ())
+  v <- newVar name
+  addStmt (Declare v ty e ())
   return v
 
 var :: ILName -> ILExp
@@ -72,7 +72,7 @@ var v = EVar v
 
 allocate :: ILType -> ILExp -> Program ILName
 allocate elemty n =
-  do arr <- newVar elemty "arr"
+  do arr <- newVar "arr"
      addStmt (Alloc arr elemty n ())
      return arr
 
@@ -83,7 +83,7 @@ allocate elemty n =
 -- taking the index variable as parameter
 distribute :: ILLevel -> ILExp -> (ILExp -> Program ()) -> Program ()
 distribute lvl ub f = do
-  i <- newVar ILInt "i"
+  i <- newVar "i"
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
@@ -91,7 +91,7 @@ distribute lvl ub f = do
 
 parFor :: ILLevel -> ILExp -> (ILExp -> Program ()) -> Program ()
 parFor lvl ub f = do
-  i <- newVar ILInt "i"
+  i <- newVar "i"
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
@@ -99,7 +99,7 @@ parFor lvl ub f = do
 
 seqFor :: ILExp -> (ILExp -> Program ()) -> Program ()
 seqFor ub f = do
-  i <- newVar ILInt "i"
+  i <- newVar "i"
   let_ "ub" ILInt ub >>= (\upperbound -> do
     body <- run (f (EVar i))
                                -- TODO: Var count should be passed on!
@@ -136,8 +136,8 @@ printIntArray prefix arr = addStmt (PrintIntArray prefix arr ())
 
 readIntCSV :: ILExp -> Program (ILName, ILExp)
 readIntCSV file =
-  do arr <- newVar (ILArray ILInt) "arr"
-     len <- newVar ILInt "len"
+  do arr <- newVar "arr"
+     len <- newVar "len"
      addStmt (ReadIntCSV arr len file ())
      return (arr, var len)
 

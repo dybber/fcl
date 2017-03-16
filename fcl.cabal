@@ -73,6 +73,11 @@ Library
                    FCL.IL.Program
                    FCL.IL.Cons
 
+                   FCL.IL.Lexer
+                   FCL.IL.Parser
+                   FCL.IL.NumberVars
+                   FCL.IL.TypeCheck
+
   Default-Language: Haskell2010
   GHC-Options: -Wall
   GHC-prof-options: -fprof-auto
@@ -83,6 +88,16 @@ Executable fcl
                  fcl
 
   Main-is: cli/Main.hs
+
+  Default-Language:   Haskell2010
+  Ghc-Options:        -Wall
+
+Executable il
+  Build-depends: base >= 3 && < 5,
+                 transformers >= 0.4.3 && < 0.6,
+                 fcl
+
+  Main-is: cli/MainIL.hs
 
   Default-Language:   Haskell2010
   Ghc-Options:        -Wall

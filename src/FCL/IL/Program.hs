@@ -55,13 +55,13 @@ run m = do
 addStmt :: Stmt () -> Program ()
 addStmt stmt = tell [stmt]
 
-newILName :: String -> Program String
+newILName :: String -> Program ILName
 newILName name = do
   c <- lift (gets varCount)
   lift (modify (\s -> s { varCount = 1 + varCount s }))
-  return (name ++ "_" ++ show c) -- the underscore is important!
+  return (ILName name c)
 
-newVar :: ILType -> String -> Program ILName
-newVar ty name = do
+newVar :: String -> Program ILName
+newVar name = do
   x <- newILName name
-  return (x, ty)
+  return x

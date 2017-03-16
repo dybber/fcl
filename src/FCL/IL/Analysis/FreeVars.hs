@@ -16,8 +16,8 @@ freeVars stmts =
     fv :: Set ILName -> [Stmt a] -> Set ILName
     fv _ [] = empty
     -- binding forms
-    fv bound (Declare x e _ : ss) = freeInExp bound e `union` fv (insert x bound) ss
-    fv bound (Alloc x _ e _ : ss) = freeInExp bound e `union` fv (insert x bound) ss
+    fv bound (Declare x _ e _ : ss) = freeInExp bound e `union` fv (insert x bound) ss
+    fv bound (Alloc x _ e _ : ss)   = freeInExp bound e `union` fv (insert x bound) ss
     fv bound (ReadIntCSV x xlen e _ : ss) = freeInExp bound e `union` fv (insert xlen (insert x bound)) ss
     -- loops
     fv bound (Distribute _ x e body _ : ss) =

@@ -39,7 +39,7 @@ buildDefsMap stmt x =
     go (If _ ss0 ss1 _)          = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
     go (While _ ss _)            = foldl unionMaps Map.empty (map go ss)
     go (Assign v e lbl)          = singleton v (lbl, Just e)
-    go (Declare v e lbl)         = singleton v (lbl, Just e)
+    go (Declare v _ e lbl)       = singleton v (lbl, Just e)
 
     -- new
     go (Alloc v _ _ lbl)         = singleton v (lbl, Nothing)
@@ -66,7 +66,7 @@ gensReachDef stmts = foldl unionMaps Map.empty (map go stmts)
     go (If _ ss0 ss1 _)          = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
     go (While _ ss _)            = foldl unionMaps Map.empty (map go ss)
     go (Assign _ _ lbl)          = singleton lbl lbl
-    go (Declare _ _ lbl)         = singleton lbl lbl
+    go (Declare _ _ _ lbl)       = singleton lbl lbl
 --    go _                         = Map.empty
 
     go (Alloc _ _ _ lbl)         = singleton lbl lbl
@@ -88,7 +88,7 @@ killsReachDef defs stmts = foldl unionMaps Map.empty (map go stmts)
     go (If _ ss0 ss1 _)    = foldl unionMaps Map.empty (map go (ss0 ++ ss1))
     go (While _ ss _)      = foldl unionMaps Map.empty (map go ss)
     go (Assign v _ lbl)    = killSet v lbl
-    go (Declare v _ lbl)   = killSet v lbl
+    go (Declare v _ _ lbl) = killSet v lbl
 --    go _                   = Map.empty
 
     go (Alloc v _ _ lbl)         = killSet v lbl

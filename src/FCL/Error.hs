@@ -6,15 +6,17 @@ import Text.PrettyPrint.Leijen
 
 import FCL.Pretty ()
 import FCL.Desugaring (DesugarError(..))
-import FCL.Infer.Monad (TypeError(..))
+import FCL.Infer.Monad
 import FCL.Instantiate (InstantiateError(..))
 import FCL.Monomorphization (MonomorphError (..))
 import FCL.External.Parser (ParseError)
+import qualified FCL.IL.TypeCheck as IL (TypeError(..))
 
 data FCLError = ParseError ParseError
               | DesugarError DesugarError
               | TypeError TypeError
               | MonomorphError MonomorphError
+              | TypeErrorIL IL.TypeError
 
 ticks = enclose (char '`') (char '`')
 

@@ -46,7 +46,7 @@ constantProp stmts inSet defs =
 
     
     prop (Assign v e lbl)          = Assign v (rep lbl e) lbl
-    prop (Declare v e lbl)         = Declare v (rep lbl e) lbl
+    prop (Declare v ty e lbl)      = Declare v ty (rep lbl e) lbl
     prop (AssignSub v e0 e1 lbl)   = AssignSub v (rep lbl e0) (rep lbl e1) lbl
     prop (SeqFor v e ss lbl)       = SeqFor v (rep lbl e) (map prop ss) lbl
     prop (ParFor lvl v e ss lbl)   = ParFor lvl v (rep lbl e) (map prop ss) lbl

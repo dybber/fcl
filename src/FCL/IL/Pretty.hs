@@ -20,7 +20,7 @@ ppType ILString = text "string"
 ppType (ILArray ty) = text "Array" <> (brackets (ppType ty))
 
 ppVar :: ILName -> Doc
-ppVar (v,_) = text v
+ppVar (ILName v id) = text v <> char '_' <> int id
 
 ppExp :: ILExp -> Doc
 ppExp (EInt i) = int i
@@ -47,40 +47,40 @@ ppUnaryOp op e1 =
   in text opName <> parens (ppExp e1)
 
 ppBinaryOp :: BinOp -> ILExp -> ILExp -> Doc
+ppBinaryOp AddI e1 e2 = parens (ppExp e1 <+> text "+" <+> ppExp e2)
+ppBinaryOp SubI e1 e2 = parens (ppExp e1 <+> text "-" <+> ppExp e2)
+ppBinaryOp MulI e1 e2 = parens (ppExp e1 <+> text "*" <+> ppExp e2)
+ppBinaryOp DivI e1 e2 = parens (ppExp e1 <+> text "/" <+> ppExp e2)
+ppBinaryOp ModI e1 e2 = parens (ppExp e1 <+> text "%" <+> ppExp e2)
+ppBinaryOp EqI e1 e2 = parens (ppExp e1 <+> text "==" <+> ppExp e2)
+ppBinaryOp NeqI e1 e2 = parens (ppExp e1 <+> text "!=" <+> ppExp e2)
+ppBinaryOp Sll e1 e2 = parens (ppExp e1 <+> text "<<" <+> ppExp e2)
+ppBinaryOp Srl e1 e2 = parens (ppExp e1 <+> text ">>" <+> ppExp e2)
+ppBinaryOp Land e1 e2 = parens (ppExp e1 <+> text "&" <+> ppExp e2)
+ppBinaryOp Lor e1 e2 = parens (ppExp e1 <+> text "|" <+> ppExp e2)
 ppBinaryOp op e1 e2 =
   let opName =
         case op of
-          AddI -> "addi"
-          SubI -> "subi"
-          MulI -> "muli"
-          DivI -> "divi"
-          ModI -> "modi"
           AddD -> "addd"
-          EqI -> "eqi"
-          NeqI -> "neqi"
-          Land -> "and"
-          Lor -> "or"
           Xor -> "xor"
-          Sll -> "sll"
-          Srl -> "srl"
           DivD -> "divd"
   in text opName <> parens (ppExp e1 <> comma <> ppExp e2)
 
 ppStmt :: Stmt a -> Doc
-ppStmt (Declare (var, ty) e _) =
-  ppType ty <+> text var <+> char '=' <+> ppExp e <> char ';'
-ppStmt (Alloc (var,tyarr) tyelem en _) =
-  ppType tyarr <+> text var <+>
-    text "<- alloc" <+> parens (ppType tyelem <> comma <> ppExp en) <> char ';'
-ppStmt (ReadIntCSV (var,tyarr) (varlen,tylen) str _) =
-  parens (ppType tyarr <+> text var <> comma <> ppType tylen <+> text varlen)
-    <+> text "<- readIntCSV" <+> parens (ppExp str) <> char ';'
+ppStmt (Declare var ty e _) =
+  ppType ty <+> ppVar var <+> char '=' <+> ppExp e <> char ';'
+ppStmt (Alloc var tyelem en _) =
+  ppVar var <+>
+    text "= allocate" <> parens (ppType tyelem <> comma <> ppExp en) <> char ';'
+ppStmt (ReadIntCSV var varlen str _) =
+  parens (ppVar var <> comma <> ppVar varlen)
+    <+> text "= readIntCSV" <> parens (ppExp str) <> char ';'
 ppStmt (PrintIntArray e1 e2 _) =
-  text "printIntArray" <+> parens (ppExp e1 <> comma <+> ppExp e2) <> char ';'
+  text "printIntArray" <> parens (ppExp e1 <> comma <+> ppExp e2) <> char ';'
 ppStmt (Assign n e _) =
-  ppVar n <> text " := " <> ppExp e <> char ';'
+  ppVar n <+> text "=" <+> ppExp e <> char ';'
 ppStmt (AssignSub n e_idx e _) =
-  ppVar n <> brackets (ppExp e_idx) <> text " := " <> ppExp e <> char ';'
+  ppVar n <> brackets (ppExp e_idx) <+> text "=" <+> ppExp e <> char ';'
 ppStmt (If e ss_true [] _) =
   text "if " <> parens (ppExp e) <> text " {"
     <$>
@@ -97,41 +97,31 @@ ppStmt (If e ss_true ss_false _) =
     <$>
   text "}"
 ppStmt (Distribute lvl var e body _) =
-  let v = ppVar var
-  in (text "distribute" <> angles (ppLevel lvl)  <+> text "(int " <> v <> text " = 0; "
-        <> v <> text " < " <> ppExp e <> text "; "
-        <> v <> text "++) {")
-     <$>
-       indent tabSize (ppStmts body)
-     <$>
-     text "}"
+  text "distribute" <> angles (ppLevel lvl)  <+> parens (ppVar var <+> text "<" <+> ppExp e) <+> text "{"
+    <$>
+      indent tabSize (ppStmts body)
+    <$>
+    text "}"
 ppStmt (ParFor lvl var e body _) =
-  let v = ppVar var
-  in (text "forall" <> angles (ppLevel lvl)  <+> text "(int " <> v <> text " = 0; "
-        <> v <> text " < " <> ppExp e <> text "; "
-        <> v <> text "++) {")
+  text "parfor" <> angles (ppLevel lvl)  <+> parens (ppVar var <+> text "<" <+> ppExp e) <+> text "{"
      <$>
        indent tabSize (ppStmts body)
      <$>
      text "}"
 ppStmt (SeqFor var e body _) =
-  let v = ppVar var
-  in (text "for" <+> text "(int " <> v <> text " = 0; "
-        <> v <> text " < " <> ppExp e <> text "; "
-        <> v <> text "++) {")
+  text "seqfor" <+> parens (ppVar var <+> text "<" <+> ppExp e) <+> text "{"
      <$>
        indent tabSize (ppStmts body)
      <$>
      text "}"
-
 ppStmt (While e body _) =
-     (text "while (" <> ppExp e <> text ") {")
+     text "while" <> parens (ppExp e) <+> text "{"
      <$>
        indent tabSize (ppStmts body)
      <$>
      text "}"
 ppStmt (Benchmark e body _) =
-     (text "benchmark (" <> ppExp e <> text ") {")
+     text "benchmark" <> parens (ppExp e) <+> text "{"
      <$>
        indent tabSize (ppStmts body)
      <$>
