@@ -1,0 +1,28 @@
+BTYP ::= int | double | bool
+TYP ::= BTYP | string | [BTYP]
+LEVEL ::= thread | block | grid
+
+E ::= i | d | b | str
+  | x
+  | x[E]
+  | UNOP(E)
+  | BINOP(E,E)
+  | if E then E else E
+  | let x = E in E
+
+STMT ::=
+       TYP x = E;
+     | x = E;
+     | x[E] = E;
+     | allocate(x,TYP,E);
+     | readIntCSV(x,xlen,E);
+     | distribute<LEVEL>(0 <= x < E) STMTS
+     | parfor<LEVEL>(0 <= x < E) STMTS
+     | synchronize;
+     | if (E) then STMTS else STMTS
+     | while (E) STMTS
+     | seqfor (0 <= x < E) STMTS
+     | printIntArray(E,E);
+     | benchmark(E) STMTS
+  
+STMTS ::= STMT | { STMT* }
