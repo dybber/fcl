@@ -23,7 +23,7 @@ test: $(RESFILES)
 .PRECIOUS: results/%.out build/%.exe
 
 build/%.c: %.il
-	il -o build/$* $*.il
+	il --profile -o build/$* $*.il
 
 build/%.exe: build/%.c
 	gcc -Wall -Wno-unused-variable -O2 -D_DEBUG -std=c99 -I../../microcl/ -I../../include/ -I/usr/local/cuda/include/ -L../../microcl/ -L/usr/local/cuda/lib64 -o $@ $< -lmcl -lOpenCL

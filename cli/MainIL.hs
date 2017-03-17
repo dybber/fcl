@@ -174,8 +174,6 @@ showUsageAndExit =
        putStr (usageInfo heading optionDescriptions)
        exitFailure
 
-
-
 ----------------------
 -- Main entry point --
 ----------------------
@@ -211,10 +209,6 @@ dispatch filenames opts =
      
      logInfo "Typechecking."
      type_env <- liftEither TypeError (typecheck numbered)
-
-     message (prettyIL numbered)
-
-
 
      optIter <- asks ilOptimizeIterations
      let optimised = optimise optIter ast
