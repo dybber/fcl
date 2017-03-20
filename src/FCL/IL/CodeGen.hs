@@ -6,7 +6,7 @@ import Data.Set (Set)
 import Data.Map (Map)
 
 import CGen hiding (freeVars)
-import CGen.Syntax (Statement(Decl))
+import CGen.Syntax (Statement(Decl), CExp(Int32E))
 import CGen.OpenCL.HostCode
 
 import FCL.IL.Analysis.Liveness
@@ -354,6 +354,25 @@ mkKernelBody cfg env loopVar loopBound body =
           compKernelBody cfg (Map.insert loopVar i' env) body)
   
 distrParBlock :: CompileConfig -> CExp -> (CExp -> ILKernel ()) -> ILKernel ()
+distrParBlock cfg (Int32E ub) f =
+    do let workgroups = configNumWorkGroups cfg
+       let q = fromIntegral ub `div` workgroups
+       let r = fromIntegral ub `mod` workgroups
+       if q == 1
+         then do j <- let_ "j" int32_t (workgroupID `muli` constant q)
+                 f j
+         else if q > 1
+              then for (constant q)
+                     (\i ->
+                         do j <- let_ "j" int32_t ((workgroupID `muli` constant q) `addi` i)
+                            f j)
+              else return ()
+       if r > 0
+         then iff (workgroupID `lti` constant r)
+                  (do j <- let_ "wid" int32_t ((constant workgroups `muli` constant q) `addi` workgroupID)
+                      f j
+                  , return ())
+         else return ()
 distrParBlock cfg ub' f =
     do let workgroups = constant (configNumWorkGroups cfg)
        ub <- let_ "ub" int32_t ub'
@@ -370,6 +389,25 @@ distrParBlock cfg ub' f =
 -- a parallel map
 --  - evaluating "f j" for every j in [0..n-1]
 forAllBlock :: CompileConfig -> CExp -> (CExp -> ILKernel ()) -> ILKernel ()
+forAllBlock cfg (Int32E n) f =
+    do let blockSize = configBlockSize cfg
+       let q = fromIntegral n `div` blockSize
+       let r = fromIntegral n `mod` blockSize
+       if q == 1
+         then do j <- let_ "j" int32_t localID
+                 f j
+         else if q > 1
+              then for (constant q)
+                       (\i -> do j <- let_ "j" int32_t ((i `muli` constant blockSize) `addi` localID)
+                                 f j)
+              else return ()
+       if r > 0
+         then iff (localID `lti` constant r)
+                 (do j <- let_ "tid" int32_t ((constant q `muli` constant blockSize) `addi` localID)
+                     f j
+                 , return ())
+         else return ()
+       syncLocal
 forAllBlock cfg n f =
     do let blockSize = constant (configBlockSize cfg)
        ub <- let_ "ub" int32_t n
