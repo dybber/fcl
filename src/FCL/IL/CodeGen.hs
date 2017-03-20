@@ -483,9 +483,9 @@ distribute cfg ctx env loopVar loopBound stmts =
          tdiff <- profileKernel ctx kernelHandle (smarg ++ args)
                                                  (muli (constant (configBlockSize cfg)) (constant (configNumWorkGroups cfg)))
                                                  (constant (configBlockSize cfg))
-         let psum = (kernelName ++ "_sum_ms", CDouble)
+         let psum = (kernelName ++ "_sum_seconds", CDouble)
              counter = (kernelName ++ "_counter", CWord64)
-         assign psum (var psum `addi` ((i2d (var tdiff)) `divd` (constant (1000000.0 :: Double))))
+         assign psum (var psum `addi` ((i2d (var tdiff)) `divd` (constant (1000000000.0 :: Double))))
          assign counter (var counter `addi` (constant (1 :: Int)))
 
   in do kernelName <- newName "kernel"
@@ -588,16 +588,19 @@ benchmark ctx (VInt n) body =
                 releaseAllDeviceArrays)
      allocsAfter <- getsState deviceAllocations
      let sizes = map (\(k,cty) -> k `muli` sizeOf cty) (Map.elems allocsAfter)
-     let totalTransferredData = foldl addi (constant (0 :: Int)) sizes
+     let totalTransferredBytes = foldl addi (constant (0 :: Int)) sizes
      -- reset allocations
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
      let formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
          formatString2 = "Throughput (%i repetitions): %.4f GiB/s, data transferred per run: %.4f MiB\\n"
-         milliseconds_per_iter = divd (i2d (subi t1 t0)) (i2d n)
-         throughput = (totalTransferredData `divd` milliseconds_per_iter) `divd` (constant (1024.0*1024.0 :: Double))
+     milliseconds_per_iter <- let_ "ms" CDouble (divd (i2d (subi t1 t0)) (i2d n))
+     seconds <- let_ "seconds" CDouble (milliseconds_per_iter `divd` (constant (1000.0 :: Double)))
+     mebibytes <- let_ "mib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0 :: Double)))
+     gebibytes <- let_ "gib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0*1024.0 :: Double)))
+     throughput <- let_ "throughput" CDouble (gebibytes `divd` seconds)
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
-     exec void_t "fprintf" [stderr, string formatString2, n, throughput, totalTransferredData `divd` (constant (1024.0*1024.0 :: Double))]
+     exec void_t "fprintf" [stderr, string formatString2, n, throughput, gebibytes `divd` (constant (1024.0 :: Double))]
 benchmark _ _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
@@ -605,7 +608,7 @@ benchmark _ _ _ = error "Benchmark expects int as first argument (number of iter
 ---------------------
 initializeCounter :: String -> CGen () ()
 initializeCounter kernelName =
-  do let psum = (kernelName ++ "_sum_ms", CDouble)
+  do let psum = (kernelName ++ "_sum_seconds", CDouble)
          counter = (kernelName ++ "_counter", CInt32)
      addStmt (Decl psum (constant (0 :: Double)) ())
      addStmt (Decl counter (constant (0 :: Int)) ())
@@ -613,9 +616,9 @@ initializeCounter kernelName =
 printCounter :: String -> CGen () ()
 printCounter kernelName =
   do let formatString = "Kernel %s timing: %f ms per execution (%d executions)\\n"
-         psum = var (kernelName ++ "_sum_ms", CDouble)
+         psum = var (kernelName ++ "_sum_seconds", CDouble)
          counter = var (kernelName ++ "_counter", CInt32)
-         milliseconds = psum `divd` (i2d counter)
+     milliseconds <- let_ "ms" CDouble ((psum `muli` (constant (1000.0 :: Double))) `divd` (i2d counter))
      exec void_t "fprintf" [stderr, string formatString, string kernelName, milliseconds, counter]
 
 compProgram :: CompileConfig -> TypeEnv -> [Stmt a] -> CGen () KernelMap

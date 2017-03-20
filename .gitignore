@@ -13,6 +13,7 @@ cases/01_reverse/OpenCL/reverse
 cases/01_reverse/fcl/reverse
 cases/01_reverse/fcl/reverse.cl
 cases/02_transpose/OpenCL/transpose
+cases/02_transpose/OpenCL/transpose_profile
 cases/02_transpose/fcl/transpose
 cases/02_transpose/fcl/transpose.cl
 cases/03_reduce/OpenCL/reduce
