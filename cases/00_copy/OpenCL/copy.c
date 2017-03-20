@@ -84,10 +84,13 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM)
       gettimeofday(&end, NULL);
 
       double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
+      double seconds = time/1000;
+      double mebibytes = (2 * size_x * size_y * sizeof(float)) / (1024.0*1024.0);
+      double gebibytes = mebibytes / 1024;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %u integers, Workgroup = %u\n", kernelName,
-             (1.0e-9 * (double)(2 * size_x * size_y * sizeof(float))/time),
-             time, (size_x * size_y), BLOCK_DIM * BLOCK_DIM);
+      printf("Stats for %s, Throughput = %.4f GiB/s, Time = %.5f s, Size = %.5f MiB, Workgroup = %u\n", kernelName,
+             gebibytes / seconds,
+             time, gebibytes, BLOCK_DIM * BLOCK_DIM);
 
     }
 
