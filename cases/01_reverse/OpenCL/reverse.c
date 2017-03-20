@@ -12,7 +12,7 @@
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
-void reverse(mclContext ctx,
+cl_ulong reverse(mclContext ctx,
              cl_kernel kernel,
              mclDeviceData output,
              mclDeviceData input,
@@ -26,7 +26,7 @@ void reverse(mclContext ctx,
       mclSetKernelArg(kernel, 2, sizeof(cl_int)*BLOCK_SIZE, NULL); // local/shared memory
     }
 
-    mclInvokeKernel(ctx, kernel, num_elems, BLOCK_SIZE);
+    return mclProfileKernel(ctx, kernel, num_elems, BLOCK_SIZE);
 }
 
 int runReverse(mclContext ctx, cl_program p, char* kernelName, unsigned int num_elems, int useSM) {
@@ -69,20 +69,20 @@ int runReverse(mclContext ctx, cl_program p, char* kernelName, unsigned int num_
 
     mclUnmap(ctx, outbuf, out);
 
-    // Time 100 calls
-    struct timeval begin, end;
-    gettimeofday(&begin, NULL);
+    double secondstotal = 0.0;
     for (int i = 0; i < NUM_ITERATIONS; ++i) {
-      reverse(ctx, kernel, outbuf, buf, num_elems, useSM);
+      unsigned long tdelta = reverse(ctx, kernel, outbuf, buf, num_elems, useSM);
+      secondstotal += ((double)tdelta)/ 1.0e9;
     }
     mclFinish(ctx);
-    gettimeofday(&end, NULL);
-    double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
+    double seconds = secondstotal/(double)NUM_ITERATIONS;
+    double mebibytes = (num_elems * sizeof(int)) / (1024.0*1024.0);
+    double gebibytes = mebibytes / 1024.0;
 
     if (num_errors == 0) {
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %u fp32 elements, Workgroup = %u\n", kernelName,
-             (1.0e-9 * (double)(2 * num_elems * sizeof(int))/time),
-             time, num_elems, BLOCK_SIZE);
+      printf("Stats for %s, Throughput = %.4f GiB/s, Time = %.5f s, Size = %.2f MiB, Workgroup = %u\n", kernelName,
+             (2*gebibytes) / seconds,
+             seconds, mebibytes, BLOCK_SIZE);
 
     }
 

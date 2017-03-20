@@ -12,7 +12,7 @@
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
-void transpose(mclContext ctx,
+cl_ulong transpose(mclContext ctx,
                cl_kernel kernel,
                mclDeviceData output,
                mclDeviceData input,
@@ -26,8 +26,8 @@ void transpose(mclContext ctx,
     mclSetKernelArg(kernel, 3, sizeof(cl_int), &size_x);
     mclSetKernelArg(kernel, 4, sizeof(cl_int), &size_y);
     mclSetKernelArg(kernel, 5, sharedMemory, NULL); // local/shared memory
-    mclInvokeKernel2D(ctx, kernel, size_x, size_y, 
-                                   BLOCK_DIM, BLOCK_DIM);
+    return mclProfileKernel2D(ctx, kernel, size_x, size_y, 
+                              BLOCK_DIM, BLOCK_DIM);
 }
 
 int main() {
@@ -35,8 +35,8 @@ int main() {
     cl_program p = mclBuildProgram(ctx, "transpose.cl");
     cl_kernel transposeKernel = mclCreateKernel(p, "transpose");
 
-    const unsigned int size_x = 2048;
-    const unsigned int size_y = 2048;
+    const unsigned int size_x = 4096;
+    const unsigned int size_y = 4096;
 
     const size_t num_elems = size_x * size_y;
 
@@ -81,19 +81,20 @@ int main() {
 
     if (num_errors == 0) {
       printf("Timing on %d executions\n", NUM_ITERATIONS);
-      struct timeval begin, end;
-      gettimeofday(&begin, NULL);
+      double secondstotal = 0.0;
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-          transpose(ctx, transposeKernel, outbuf, buf, 0, size_x, size_y);
+        unsigned long tdelta = transpose(ctx, transposeKernel, outbuf, buf, 0, size_x, size_y);
+        secondstotal += (((double)tdelta) / 1.0e9);
       }
       mclFinish(ctx);
-      gettimeofday(&end, NULL);
 
-      double time = (timediff(begin, end))/(double)NUM_ITERATIONS;
+      double seconds = secondstotal/(double)NUM_ITERATIONS;
+      double mebibytes = (size_x * size_y * sizeof(int)) / (1024.0*1024.0);
+      double gebibytes = mebibytes / 1024.0;
 
-      printf("Stats for %s, Throughput = %.4f GB/s, Time = %.5f s, Size = %u fp32 elements, Workgroup = %u\n", "transpose",
-             (1.0e-9 * (double)(size_x * size_y * sizeof(float))/time),
-             time, (size_x * size_y), BLOCK_DIM * BLOCK_DIM);
+      printf("Stats for %s, Throughput = %.4f GiB/s, Time = %.5f s, Size = %.2f MiB, Workgroup = %u\n", "transpose",
+             (2 * gebibytes) / seconds,
+             seconds, mebibytes, BLOCK_DIM * BLOCK_DIM);
 
     }
 

@@ -13,7 +13,7 @@
 #define timediff(old, new) (((double)new.tv_sec + 1.0e-6 * (double)new.tv_usec) \
                             - ((double)old.tv_sec + 1.0e-6 * (double)old.tv_usec))
 
-void copy(mclContext ctx,
+cl_ulong copy(mclContext ctx,
           cl_kernel kernel,
           mclDeviceData output,
           mclDeviceData input,
@@ -30,8 +30,8 @@ void copy(mclContext ctx,
     if(useSM) {
       mclSetKernelArg(kernel, 5, sharedMemory, NULL); // local/shared memory
     }
-    mclInvokeKernel2D(ctx, kernel, size_x, size_y, 
-                                   BLOCK_DIM, BLOCK_DIM);
+    return mclProfileKernel2D(ctx, kernel, size_x, size_y, 
+                              BLOCK_DIM, BLOCK_DIM);
 }
 
 void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM) {
@@ -75,15 +75,14 @@ void test_copy_kernel(mclContext ctx, cl_program p, char* kernelName, int useSM)
 
     if (num_errors == 0) {
       printf("Timing on %d executions\n", NUM_ITERATIONS);
-      struct timeval begin, end;
-      gettimeofday(&begin, NULL);
+      double secondstotal = 0.0;
       for (int i = 0; i < NUM_ITERATIONS; ++i) {
-        copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y, useSM);
+        unsigned long tdelta = copy(ctx, copyKernel, outbuf, buf, 0, size_x, size_y, useSM);
+        secondstotal += (((double)tdelta) / 1.0e9);
       }
       mclFinish(ctx);
-      gettimeofday(&end, NULL);
 
-      double seconds = (timediff(begin, end))/(double)NUM_ITERATIONS;
+      double seconds = secondstotal/(double)NUM_ITERATIONS;
       double mebibytes = (size_x * size_y * sizeof(int)) / (1024.0*1024.0);
       double gebibytes = mebibytes / 1024.0;
 
