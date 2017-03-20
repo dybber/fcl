@@ -18,7 +18,7 @@ defaultCompileConfig =
   CompileConfig
     { configBlockSize = 256
     , configWarpSize = 32
-    , configNumWorkGroups = 2048
+    , configNumWorkGroups = 65536
     , configSharedMemory = 2048 -- bytes
     , configOptimizeIterations = 20
     , configKernelsFilename = "kernels.cl"
