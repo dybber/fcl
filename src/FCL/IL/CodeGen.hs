@@ -597,10 +597,10 @@ benchmark ctx (VInt n) body =
      milliseconds_per_iter <- let_ "ms" CDouble (divd (i2d (subi t1 t0)) (i2d n))
      seconds <- let_ "seconds" CDouble (milliseconds_per_iter `divd` (constant (1000.0 :: Double)))
      mebibytes <- let_ "mib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0 :: Double)))
-     gebibytes <- let_ "gib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0*1024.0 :: Double)))
+     gebibytes <- let_ "gib" CDouble (mebibytes `divd` (constant (1024.0 :: Double)))
      throughput <- let_ "throughput" CDouble (gebibytes `divd` seconds)
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
-     exec void_t "fprintf" [stderr, string formatString2, n, throughput, gebibytes `divd` (constant (1024.0 :: Double))]
+     exec void_t "fprintf" [stderr, string formatString2, n, throughput, mebibytes]
 benchmark _ _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------
