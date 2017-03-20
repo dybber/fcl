@@ -14,6 +14,7 @@ distribute<block> (i_1 < 65536) {
 }
 printIntArray(100, arr_0);
 benchmark(100) {
+    arr_1 = allocate(int,16777216);
     distribute<block> (i_1 < 65536) {
         arr_3 = allocate(int,256);
         int x = ((((i_1 & 255) * 256) + (i_1 >> 8)) & 255);
@@ -24,7 +25,7 @@ benchmark(100) {
         int c = ((i_1 & 255) * 16);
         int b = ((i_1 >> 8) * 16);
         parfor<block> (i_6 < 256) {
-            arr_0[(((c + (i_6 >> 4)) * 4096) + (b + (i_6 & 15)))] = arr_3[(((i_6 & 15) * 16) + (i_6 >> 4))];
+            arr_1[(((c + (i_6 >> 4)) * 4096) + (b + (i_6 & 15)))] = arr_3[(((i_6 & 15) * 16) + (i_6 >> 4))];
         }
     }
 }
