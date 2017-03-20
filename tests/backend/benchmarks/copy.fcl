@@ -1,24 +1,20 @@
-sig copy : forall 'a. ['a] -> Program <grid> ['a]<grid>
-fun copy arr =
-  splitUp 256 arr
-   |> mapPull (fn arr => return <block> (push <block> arr))
-   |> concat <block> 256
-
 sig genInput : Program <grid> [int]<grid>
 val genInput =
   splitUp 256 (generate (4096 * 4096) (fn i => i))
     |> mapPull (fn arr => return <block> (push <block> arr))
     |> concat <block> 256
 
-
-sig example : forall 'a. ['a] -> Program <grid> ['a]<grid>
-fun example input = copy input
+sig copy : forall 'a. ['a] -> Program <grid> ['a]<grid>
+fun copy arr =
+  splitUp 256 arr
+   |> mapPull (fn arr => return <block> (push <block> arr))
+   |> concat <block> 256
 
 sig main : Program <grid> unit
 val main =
  do <grid>
   { input <- (bind <grid> genInput (force <grid>))
-  ; arr <- example input
+  ; arr <- copy input
   ; forceAndPrint 100 arr
-  ; benchmark 100 (bind <grid> (example input) (force <grid>))
+  ; benchmark 100 (bind <grid> (copy input) (force <grid>))
   }
