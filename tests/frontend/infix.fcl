@@ -1,0 +1,7 @@
+let iota = fn n => generate n (fn x => x) in
+let range = fn begin => fn end =>
+  mapPull (fn x => begin + x)
+          (iota (1 + (end - begin))) in
+let mult1 = 2 * 3 + 1 in
+let mult2 = 2 + 3 * 1 in
+range 10

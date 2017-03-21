@@ -1,0 +1,36 @@
+-- Reduce in block. Assumes commutativity + associativity.
+sig reduceBlock : <lvl> -> ('a -> 'a -> 'a) -> ['a] -> Program <lvl> ['a]<lvl>
+fun reduceBlock <lvl> f arr =
+  let cond = fn arr => 1 != lengthPull arr in
+  let step = fn arr => let x = halve arr
+                       in return <lvl> (push <lvl> (zipWith f (fst x) (snd x)))
+  in do { a <- while cond step (step arr)
+        ; return <lvl> (push <lvl> a)
+        }
+
+-- Reduce array partially by one kernel invocation
+sig reducePart : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <Grid> ['a]<Grid>
+fun reducePart f neutralElement arr =
+ let workPerBlock = 2 * 256 in
+ let paddedArray = pad workPerBlock neutralElement arr     
+ in concatMap 1 (reduceBlock <Block> f) (splitUp workPerBlock paddedArray)
+
+-- Full reduction
+sig reduce : ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <Grid> 'a
+fun reduce f neutralElement arr =
+  let cond = fn arr => 1 != lengthPull arr
+  in do { a <- while cond (reducePart f neutralElement) (reducePart f neutralElement arr)
+        ; return <Grid> (index a 0)
+        }
+
+sig dotpBlock : [int] -> [int] -> Program <Block> [int]<Block>
+fun dotpBlock vec1 vec2 =
+  reduceBlock <Block> (fn a => fn b => a + b) (zipWith (fn a => fn b => a * b) vec1 vec2)
+
+
+sig dotpGrid : [int] -> [int] -> Program <Grid> [int]<Grid>
+fun dotpGrid vec1 vec2 =
+  reduce (fn a => fn b => a + b)
+         (zipWith (fn a => fn b => a * b) vec1 vec2)
+
+

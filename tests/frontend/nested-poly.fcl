@@ -1,0 +1,6 @@
+let f <l2> = let a = generate 100 (fn i => i) in
+             let x <l> = push <l> a in
+             let y <l> = x <l> in
+
+             y <l2>
+in f <thread>
