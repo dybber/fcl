@@ -1,0 +1,4 @@
+val test01 =
+  let id = fn x => x in
+  let f = fn y => 10
+  in f id

@@ -1,0 +1,4 @@
+sig sharedmem_array : [int]
+fun sharedmem_array = force (push <block> (generate 32 (fn i => i)))
+
+kernel blah = sharedmem_array

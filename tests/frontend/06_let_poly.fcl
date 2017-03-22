@@ -1,5 +1,5 @@
--- Most tests are from from FLOLAC lecture notes
--- by Oleg Kiselyov and Chung-Chieh Shan (TInfLetP.hs)
+-- Tests from FLOLAC lecture notes by Oleg Kiselyov and Chung-Chieh
+-- Shan (TInfLetP.hs)
 
 val id = fn x => x
 
