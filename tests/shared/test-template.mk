@@ -22,7 +22,7 @@ test: $(RESFILES)
 .PRECIOUS: results/%.out build/%.exe
 
 build/%.c: %.fcl
-	fcl --profile -o build/$* $*.fcl 
+	fcl --profile -o build/$* $(FCL_INCLUDE) $*.fcl 
 
 build/%.exe: build/%.c
 	gcc -Wall -Wno-unused-variable -O2 -D_DEBUG -std=c99 -I../../microcl/ -I../../include/ -I/usr/local/cuda/include/ -L../../microcl/ -L/usr/local/cuda/lib64 -o $@ $< -lmcl -lOpenCL

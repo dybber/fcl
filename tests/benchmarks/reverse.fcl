@@ -1,12 +1,3 @@
-sig n : int
-val n = 4096
-
-sig generateInput : Program <grid> [int]<grid>
-val generateInput =
-  splitUp 256 (generate (n * n) (fn i => i))
-    |> mapPull (fn arr => return <block> (push <block> arr))
-    |> concat <block> 256
-
 sig reverse : forall 'a. ['a] -> ['a]
 fun reverse arr =
   let n = lengthPull arr
@@ -15,15 +6,16 @@ fun reverse arr =
 sig simpleReverse : forall 'a. int -> ['a] -> Program <grid> ['a]<grid>
 fun simpleReverse splitSize arr =
   splitUp splitSize arr
-   |> mapPull (fn arr2 => return <block> (push <block> (reverse arr2)))
+   |> mapPull reverse
+   |> mapPull (pushM <block>)
    |> reverse
    |> concat <block> splitSize
 
 sig main : Program <grid> unit
 val main =
  do <grid>
-  { input <- (bind <grid> generateInput (force <grid>))
+  { input <- generateInput (4096*4096)
   ; arr <- simpleReverse 256 input
   ; forceAndPrint 100 arr
-  ; benchmark 100 (bind <grid> (simpleReverse 256 input) (force <grid>))
+  ; benchmark 100 (forceM<grid> (simpleReverse 256 input))
   }

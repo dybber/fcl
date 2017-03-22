@@ -1,30 +1,12 @@
--- Reduce 1: evenOdds. Assumes associativity.
-sig evenOdds : forall 'a. ['a] -> (['a], ['a])
-fun evenOdds arr =
-  let n = lengthPull arr in
-  let n2 = divi n 2
-  in (generate (n-n2) (fn ix => index arr (2*ix)),
-      generate n2     (fn ix => index arr (2*ix + 1)))
-
-sig reduceBlockNoncommutative : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
-fun reduceBlockNoncommutative <lvl> f arr =
-  let cond = fn arr => 1 != lengthPull arr in
-  let step = fn arr => let x = evenOdds arr
-                       in return<lvl> (push<lvl> (zipWith f (fst x) (snd x)))
-  in do <lvl>
-      { a <- while<lvl> cond step (step arr)
-      ; return <lvl> (push<lvl> a)
-      }
-
--- Reduce 2: halve. Assumes commutativity + associativity.
+-- Reduce 2: Assumes commutativity + associativity.
 sig reduceBlock : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
 fun reduceBlock<lvl> f arr =
   let cond = fn arr => 1 != lengthPull arr in
   let step = fn arr => let x = halve arr
-                       in return<lvl> (push<lvl> (zipWith f (fst x) (snd x)))
+                       in pushM<lvl> (zipWith f (fst x) (snd x))
   in do <lvl>
       { a <- while<lvl> cond step (step arr)
-      ; return<lvl> (push<lvl> a)
+      ; pushM<lvl> a
       }
 
 -- Reduce array partially by one kernel invocation
@@ -32,13 +14,10 @@ sig reducePart : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program<grid> ['a]
 fun reducePart f neutralElement arr =
  let workPerBlock = 2 * 256 in
  let paddedArray = pad workPerBlock neutralElement arr     
- in concatMap<block> 1 (reduceBlock<block> f) (splitUp workPerBlock paddedArray)
-
-sig example1 : Program <grid> [int]<grid>
-val example1 = reducePart (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => i))
+ in splitUp workPerBlock paddedArray
+     |> concatMap<block> 1 (reduceBlock<block> f) 
 
 -- Full reduction
-
 sig reduce : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> 'a
 fun reduce f neutralElement arr =
   let cond = fn arr => 1 != lengthPull arr
@@ -47,16 +26,22 @@ fun reduce f neutralElement arr =
       ; return<grid> (index a 0)
       }
 
-sig example2 : Program<grid> int
-val example2 = reduce (fn a => fn b => a + b) 0 (generate (4096*4096) (fn i => 1))
+------------------
+-- Benchmarking --
+------------------
+sig benchPartialReduction : [int] -> Program <grid> [int]<grid>
+fun benchPartialReduction input = reducePart (fn a => fn b => a + b) 0 input
+
+sig benchFullReduction : [int] -> Program<grid> int
+fun benchFullReduction input = reduce (fn a => fn b => a + b) 0 input
 
 sig main : Program<grid> unit
 val main =
   do<grid>
-   { arr1 <- example1
+   { input <- generateInput (4096*4096)
+   ; arr1 <- benchPartialReduction input
    ; forceAndPrint 100 arr1
-   ;  i <- example2
---   ; printInt i
-   ; benchmark 100 (bind<grid> example1 (force<grid>))
-   ; benchmark 100 example2
+   ; i <- benchFullReduction input
+   ; benchmark 100 (forceM<grid> (benchPartialReduction input))
+   ; benchmark 100 (benchFullReduction input)
    }

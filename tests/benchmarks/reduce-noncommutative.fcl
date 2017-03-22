@@ -1,0 +1,17 @@
+-- Reduce 1: Assumes associativity.
+sig evenOdds : forall 'a. ['a] -> (['a], ['a])
+fun evenOdds arr =
+  let n = lengthPull arr in
+  let n2 = divi n 2
+  in (generate (n-n2) (fn ix => index arr (2*ix)),
+      generate n2     (fn ix => index arr (2*ix + 1)))
+
+sig reduceBlockNoncommutative : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
+fun reduceBlockNoncommutative <lvl> f arr =
+  let cond = fn arr => 1 != lengthPull arr in
+  let step = fn arr => let x = evenOdds arr
+                       in pushM<lvl> (zipWith f (fst x) (snd x))
+  in do <lvl>
+      { a <- while<lvl> cond step (step arr)
+      ; pushM<lvl> a
+      }
