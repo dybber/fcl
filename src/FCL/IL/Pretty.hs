@@ -20,7 +20,7 @@ ppType ILString = text "string"
 ppType (ILArray ty) = text "Array" <> (brackets (ppType ty))
 
 ppVar :: ILName -> Doc
-ppVar (ILName v id) = text v <> char '_' <> int id
+ppVar (ILName v x) = text v <> char '_' <> int x
 
 ppExp :: ILExp -> Doc
 ppExp (EInt i) = int i
@@ -64,6 +64,9 @@ ppBinaryOp op e1 e2 =
           AddD -> "addd"
           Xor -> "xor"
           DivD -> "divd"
+          MinI -> "mini"
+          LtI -> "lti"
+          _ -> error (show op)
   in text opName <> parens (ppExp e1 <> comma <> ppExp e2)
 
 ppStmt :: Stmt a -> Doc

@@ -624,21 +624,21 @@ benchmark ctx (VInt n) body =
                 finish ctx
                 -- deallocate everything before exiting the loop
                 releaseAllDeviceArrays)
-     allocsAfter <- getsState deviceAllocations
-     let sizes = map (\(k,cty) -> k `muli` sizeOf cty) (Map.elems allocsAfter)
-     let totalTransferredBytes = foldl addi (constant (0 :: Int)) sizes
+     -- allocsAfter <- getsState deviceAllocations
+     -- let sizes = map (\(k,cty) -> k `muli` sizeOf cty) (Map.elems allocsAfter)
+     -- let totalTransferredBytes = foldl addi (constant (0 :: Int)) sizes
      -- reset allocations
      modifyState (\s -> s { deviceAllocations = allocs })
      t1 <- now "t1"
      let formatString1 = "Benchmark (%i repetitions): %f ms per run\\n"
-         formatString2 = "Throughput (%i repetitions): %.4f GiB/s, data transferred per run: %.4f MiB\\n"
+         -- formatString2 = "Throughput (%i repetitions): %.4f GiB/s, data transferred per run: %.4f MiB\\n"
      milliseconds_per_iter <- let_ "ms" CDouble (divd (i2d (subi t1 t0)) (i2d n))
-     seconds <- let_ "seconds" CDouble (milliseconds_per_iter `divd` (constant (1000.0 :: Double)))
-     mebibytes <- let_ "mib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0 :: Double)))
-     gebibytes <- let_ "gib" CDouble (mebibytes `divd` (constant (1024.0 :: Double)))
-     throughput <- let_ "throughput" CDouble (gebibytes `divd` seconds)
+     -- seconds <- let_ "seconds" CDouble (milliseconds_per_iter `divd` (constant (1000.0 :: Double)))
+     -- mebibytes <- let_ "mib" CDouble (totalTransferredBytes `divd` (constant (1024.0*1024.0 :: Double)))
+     -- gebibytes <- let_ "gib" CDouble (mebibytes `divd` (constant (1024.0 :: Double)))
+     -- throughput <- let_ "throughput" CDouble (gebibytes `divd` seconds)
      exec void_t "fprintf" [stderr, string formatString1, n, milliseconds_per_iter]
-     exec void_t "fprintf" [stderr, string formatString2, n, throughput, mebibytes]
+     -- exec void_t "fprintf" [stderr, string formatString2, n, throughput, mebibytes]
 benchmark _ _ _ = error "Benchmark expects int as first argument (number of iterations)."
 
 ---------------------

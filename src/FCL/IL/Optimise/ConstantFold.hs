@@ -100,6 +100,8 @@ foldBinOp Srl (EInt v0) (EInt v1) = EInt (shiftR v0 v1)
 foldBinOp Land (EInt v0) (EInt v1) = EInt (v0 .&. v1)
 foldBinOp Lor (EInt v0) (EInt v1) = EInt (v0 .|. v1)
 
+foldBinOp MinI (EInt v0) (EInt v1) = EInt (min v0 v1)
+
 foldBinOp op e0 e1 = EBinOp op e0 e1
 
 constantFold :: [Stmt a] -> [Stmt a]

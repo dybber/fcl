@@ -25,7 +25,9 @@ reservedNames =
    "synchronize",
    "readIntCSV",
    "printIntArray",
-   "benchmark"]
+   "benchmark",
+   "mini",
+   "lti"]
 
 reservedOps :: [String]
 reservedOps =

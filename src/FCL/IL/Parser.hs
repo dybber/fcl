@@ -93,7 +93,7 @@ unop name op =
 
 binop :: String -> BinOp -> Parser ILExp
 binop name op =
-  do symbol name
+  do reserved name
      (e1, e2) <- tuple expr expr
      return (EBinOp op e1 e2)
   
@@ -104,6 +104,8 @@ operator =
          , binop "muli" MulI
          , binop "divi" DivI
          , binop "modi" ModI
+         , binop "mini" MinI
+         , binop "lti" LtI
          , binop "eqi" EqI]
 
 term :: Parser ILExp
@@ -176,6 +178,7 @@ assign =
   do x <- variable
      reservedOp "="
      e <- expr
+     reservedOp ";"
      return (Assign x e ())
 
 assignSub :: Parser (Stmt ())
@@ -236,7 +239,6 @@ ifStmt :: Parser (Stmt ())
 ifStmt =
   do reserved "if"
      cond <- parens expr
-     reserved "then"
      body1 <- stmts
      body2 <- (try (reserved "else" >> stmts)) <|> return []
      return (If cond body1 body2 ())

@@ -18,6 +18,7 @@ data FCLError = ParseError ParseError
               | MonomorphError MonomorphError
               | TypeErrorIL IL.TypeError
 
+ticks :: Doc -> Doc
 ticks = enclose (char '`') (char '`')
 
 instance Pretty FCLError where
@@ -25,6 +26,11 @@ instance Pretty FCLError where
   pretty (DesugarError err)   = pretty err
   pretty (TypeError err)      = pretty err
   pretty (MonomorphError err) = pretty err
+  pretty (TypeErrorIL err)    = pretty err
+
+instance Pretty IL.TypeError where
+  pretty IL.TypeMismatch = text "Internal error. Type mismatch in IL."
+  pretty (IL.NotInScope x) = text "Internal error. Variable" <+> ticks (text (show x)) <+> text "not in scope while type checking IL."
 
 instance Pretty ParseError where
   pretty err = text (show err)

@@ -106,6 +106,7 @@ optionDescriptions =
   , Option "v" ["verbose"]           (NoArg (\opt -> opt {fclVerbosity = 2})) "Verbose output"
   , Option "d" ["debug"]             (NoArg (\opt -> opt {fclVerbosity = 3})) "Debugging output"
   , Option "p" ["profile"]           (NoArg (\opt -> opt {fclProfile = True})) "Profile kernel calls & data transfers."
+  , Option "O" ["optimise"]          (ReqArg (\n -> \opt -> opt {fclOptimizeIterations = read n}) "ITERATIONS") "Optimization iterations (defaults to 10)."
   ]
 
 parseOptions :: [String] -> Either [String] ([String], Options)

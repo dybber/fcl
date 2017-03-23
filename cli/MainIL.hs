@@ -130,6 +130,7 @@ optionDescriptions =
   , Option "v" ["verbose"]           (NoArg (\opt -> opt {ilVerbosity = 2})) "Verbose output"
   , Option "d" ["debug"]             (NoArg (\opt -> opt {ilVerbosity = 3})) "Debugging output"
   , Option "p" ["profile"]           (NoArg (\opt -> opt {ilProfile = True})) "Profile kernel calls & data transfers."
+  , Option "O" ["optimise"]          (ReqArg (\n -> \opt -> opt {ilOptimizeIterations = read n}) "ITERATIONS") "Optimization iterations (defaults to 10)."
   ]
 
 parseOptions :: [String] -> Either [String] ([String], Options)
