@@ -105,14 +105,16 @@ renameLocalVars (Alloc v ty e i : s) =
                       s' <- renameLocalVars s
                       return (Alloc v' ty e' i : s'))
 renameLocalVars (Assign v e i : s) =
-  do e' <- renameInExp e
+  do v' <- renameVar v
+     e' <- renameInExp e
      s' <- renameLocalVars s
-     return (Assign v e' i : s')
+     return (Assign v' e' i : s')
 renameLocalVars (AssignSub v e1 e2 i : s) =
-  do e1' <- renameInExp e1
+  do v' <- renameVar v
+     e1' <- renameInExp e1
      e2' <- renameInExp e2
      s' <- renameLocalVars s
-     return (AssignSub v e1' e2' i : s')
+     return (AssignSub v' e1' e2' i : s')
 renameLocalVars (ReadIntCSV v vlen e i : s) =
   newVar v (\v' ->
     newVar vlen (\vlen' ->
