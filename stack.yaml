@@ -4,7 +4,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/dybber/cgen
-    commit: e630d1958fc07770ec408861169f6a0bc80a009c
+    commit: a34317de48bb93d57ce0deccd778866d4ed50949
   extra-dep: true
   
 extra-deps: []
