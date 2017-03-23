@@ -29,8 +29,10 @@ optimise1 stmts =
       ss3 = constantFold ss2
       ss4 = unroll ss3
 
-      (_, liveOutMap) = liveness ss4 graph
-      ss5 = deadCodeElimination ss4 liveOutMap
+      ss4' = addLabels ss4
+      graph' = makeFlowGraph ss4'
+      (_, liveOutMap) = liveness ss4' graph'
+      ss5 = deadCodeElimination ss4' liveOutMap
   in ss5
 
 optimiseExp :: ILExp -> ILExp

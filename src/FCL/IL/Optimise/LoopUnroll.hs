@@ -7,7 +7,7 @@ import FCL.IL.Analysis (Label)
 
 -- unroll all while loops twenty iterations
 numUnrolls :: Int
-numUnrolls = 0
+numUnrolls = 1
 
 unroll :: [Stmt Label] -> [Stmt Label]
 unroll stmts = concat (map process stmts)

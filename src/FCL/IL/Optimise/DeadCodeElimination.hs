@@ -26,7 +26,7 @@ deadCodeElimination stmts liveOutMap =
     -- elimStmt (Assign (_, ILArray _) _ _) = False
     -- elimStmt (Declare (_, ILArray _) _ _) = False
     elimStmt (Assign v _ lbl) = canElim lbl v
-    elimStmt (Declare v _ _ lbl) = canElim lbl v
+--    elimStmt (Declare v _ _ lbl) = canElim lbl v
     elimStmt _ = False
 
   in filterStmt elimStmt stmts

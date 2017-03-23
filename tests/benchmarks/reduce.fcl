@@ -20,11 +20,13 @@ fun reducePart f neutralElement arr =
 -- Full reduction
 sig reduce : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> 'a
 fun reduce f neutralElement arr =
-  let cond = fn arr => 1 != lengthPull arr
-  in do <grid>
-      { a <- while<grid> cond (reducePart f neutralElement) (reducePart f neutralElement arr)
-      ; return<grid> (index a 0)
-      }
+  do<grid>
+   { a <- while<grid>
+             (fn arr => 1 != lengthPull arr)
+             (reducePart f neutralElement)
+             (reducePart f neutralElement arr)
+   ; return<grid> (index a 0)
+   }
 
 ------------------
 -- Benchmarking --
