@@ -105,29 +105,40 @@ foldBinOp MinI (EInt v0) (EInt v1) = EInt (min v0 v1)
 foldBinOp op e0 e1 = EBinOp op e0 e1
 
 constantFold :: [Stmt a] -> [Stmt a]
-constantFold stmts = concat (map process stmts)
+constantFold stmts = process stmts --concat (map process stmts)
  where
-   process :: Stmt a -> [Stmt a]
-   process (SeqFor v e body i)          =
+   process :: [Stmt a] -> [Stmt a]
+   process [] = []
+   process (  s1@(Assign v e _)
+            : s2@(While econd _ _)
+            : ss) =
+       case (econd, e) of
+         (EVar v2, EBool False) | v == v2 -> process1 s1 ++ process ss
+         _ -> process1 s1 ++ process1 s2 ++ process ss
+   process (s : ss) = process1 s ++ process ss
+
+   
+   process1 :: Stmt a -> [Stmt a]
+   process1 (SeqFor v e body i) =
      case foldExp e of
        EInt 0 -> []
        EInt 1 -> [Declare v ILInt (EInt 0) i] ++ constantFold body
        e' -> [SeqFor v e' (constantFold body) i]
-   process (ParFor lvl v e body i)          = [ParFor lvl v (foldExp e) (constantFold body) i]
-   process (Distribute lvl v e body i)          = [Distribute lvl v (foldExp e) (constantFold body) i]
-   process (If e strue sfalse i) =
+   process1 (ParFor lvl v e body i)          = [ParFor lvl v (foldExp e) (constantFold body) i]
+   process1 (Distribute lvl v e body i)          = [Distribute lvl v (foldExp e) (constantFold body) i]
+   process1 (If e strue sfalse i) =
         case foldExp e of
           EBool True -> constantFold strue
           EBool False -> constantFold sfalse
           e' -> [If e' (constantFold strue)
                        (constantFold sfalse) i]
-   process (While e body i)        = [While (foldExp e) (constantFold body) i]
-   process (Declare v ty e i)      = [Declare v ty (foldExp e) i]
-   process (Assign v e i)          = [Assign v (foldExp e) i]
-   process (AssignSub v e0 e1 i)   = [AssignSub v (foldExp e0) (foldExp e1) i]
-   process (Alloc v ty e i)        = [Alloc v ty (foldExp e) i]
-   process (Synchronize i)         = [Synchronize i]
-   process (ReadIntCSV v1 v2 e i)  = [ReadIntCSV v1 v2 (foldExp e) i]
-   process (PrintIntArray e1 e2 i) = [PrintIntArray e1 e2 i]
-   process (Benchmark e body i)    = [Benchmark (foldExp e) (constantFold body) i]
+   process1 (While e body i)        = [While (foldExp e) (constantFold body) i]
+   process1 (Declare v ty e i)      = [Declare v ty (foldExp e) i]
+   process1 (Assign v e i)          = [Assign v (foldExp e) i]
+   process1 (AssignSub v e0 e1 i)   = [AssignSub v (foldExp e0) (foldExp e1) i]
+   process1 (Alloc v ty e i)        = [Alloc v ty (foldExp e) i]
+   process1 (Synchronize i)         = [Synchronize i]
+   process1 (ReadIntCSV v1 v2 e i)  = [ReadIntCSV v1 v2 (foldExp e) i]
+   process1 (PrintIntArray e1 e2 i) = [PrintIntArray e1 e2 i]
+   process1 (Benchmark e body i)    = [Benchmark (foldExp e) (constantFold body) i]
 

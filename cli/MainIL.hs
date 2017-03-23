@@ -206,13 +206,13 @@ dispatch filenames opts =
      onCommand DumpParsed (message (prettyIL ast))
 
      logInfo "Numbering."
-     let numbered = rename ast
+     let (numbered, varCount) = rename ast
      
      logInfo "Typechecking."
      type_env <- liftEither TypeError (typecheck numbered)
 
      optIter <- asks ilOptimizeIterations
-     let optimised = optimise optIter ast
+     let optimised = optimise varCount optIter ast
 
      onCommand DumpOptimised (message (prettyIL optimised))
 

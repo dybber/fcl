@@ -38,6 +38,9 @@ filterStmt p (stmt:rest)
   | otherwise =
       let stmt' = case stmt of
                     SeqFor v e ss lbl -> SeqFor v e (filterStmt p ss) lbl
+                    ParFor lvl v e body i -> ParFor lvl v e (filterStmt p body) i
+                    Distribute lvl v e body i -> Distribute lvl v e (filterStmt p body) i
+                    Benchmark e body i -> Benchmark e (filterStmt p body) i
                     While e ss lbl -> While e (filterStmt p ss) lbl
                     If e ss0 ss1 lbl -> If e (filterStmt p ss0) (filterStmt p ss1) lbl
                     ss' -> ss'

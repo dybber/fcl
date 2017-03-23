@@ -10,10 +10,10 @@ import FCL.IL.Cons
 import FCL.IL.Syntax (Stmt)
 import FCL.IL.Program (runProgram)
 
-compile :: Exp -> [Stmt ()]
+compile :: Exp -> ([Stmt ()], Int)
 compile e =
   case compileExp defaultCompileEnvironment e of
-    TagProgram p -> fst (runProgram p)
+    TagProgram p -> runProgram p
     _ -> error "'main'-function should return a value of type \"Program <grid> 'a\" for some 'a."
 
 compileLiteral :: Literal -> Value

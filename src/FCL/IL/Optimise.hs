@@ -13,12 +13,10 @@ iterateN :: Int -> (a -> a) -> a -> a
 iterateN 0 _ x = x
 iterateN n f x = iterateN (n-1) f (f x)
 
-optimise :: Int -> [Stmt a] -> [Stmt Label]
-optimise n stmts =
-  let stmts_labelled = addLabels stmts -- TODO this is unnecessary work, remove double computation
-  in iterateN n optimise1 stmts_labelled
+optimise :: Int -> Int -> [Stmt a] -> [Stmt Label]
+optimise varCount n stmts = iterateN n optimise1 (unroll varCount (addLabels stmts))
 
-optimise1 :: [Stmt Label] -> [Stmt Label]
+optimise1 :: [Stmt a] -> [Stmt Label]
 optimise1 stmts =
   let
       ss0 = addLabels stmts
@@ -27,12 +25,12 @@ optimise1 stmts =
       ss1 = constantProp ss0 reachInMap defs
       ss2 = copyProp ss1 reachInMap defs
       ss3 = constantFold ss2
-      ss4 = unroll ss3
+      -- ss4 = unroll ss3
 
-      ss4' = addLabels ss4
-      graph' = makeFlowGraph ss4'
-      (_, liveOutMap) = liveness ss4' graph'
-      ss5 = deadCodeElimination ss4' liveOutMap
+      ss3' = addLabels ss3
+      graph' = makeFlowGraph ss3'
+      (_, liveOutMap) = liveness ss3' graph'
+      ss5 = deadCodeElimination ss3' liveOutMap
   in ss5
 
 optimiseExp :: ILExp -> ILExp

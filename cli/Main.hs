@@ -82,7 +82,7 @@ data Options =
 defaultOptions :: Options
 defaultOptions =
   Options { fclVerbosity = 0
-          , fclOptimizeIterations = 10
+          , fclOptimizeIterations = 30
           , fclNoPrelude = False
           , fclCommand = Compile
           , fclOutputFile = "main"
@@ -272,11 +272,11 @@ dispatch filenames opts =
 
      logInfo "Compiling."
 
-     let intermediate_prog = compile monomorphed
+     let (intermediate_prog, varCount) = compile monomorphed
      onCommand DumpIL (message (prettyIL intermediate_prog))
 
      optIter <- asks fclOptimizeIterations
-     let optimised = optimise optIter intermediate_prog
+     let optimised = optimise varCount optIter intermediate_prog
 
      onCommand DumpILOptimised (message (prettyIL optimised))
 

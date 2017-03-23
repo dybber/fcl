@@ -4,8 +4,8 @@ import Control.Monad.Trans.State
 import qualified Data.Map as Map
 import FCL.IL.Syntax
 
-rename :: [Stmt ()] -> [Stmt ()]
-rename stmts = evalState (renameProg Map.empty stmts) 0
+rename :: [Stmt ()] -> ([Stmt ()], Int)
+rename stmts = runState (renameProg Map.empty stmts) 0
 
 type M a = State Int a
 

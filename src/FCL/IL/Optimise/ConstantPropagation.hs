@@ -16,6 +16,8 @@ constantProp :: [Stmt Label]
              -> [Stmt Label]
 constantProp stmts inSet defs =
   let
+    -- is there a single definition that is live on the input?
+    -- this definition can be forwarded
     traceVar :: ILName -> Label -> Maybe ILExp
     traceVar v lbl =
       let definitions :: Set (Label, Maybe ILExp)
@@ -53,7 +55,7 @@ constantProp stmts inSet defs =
     prop (Distribute lvl v e ss lbl)   = Distribute lvl v (rep lbl e) (map prop ss) lbl
     prop (If e0 ss0 ss1 lbl)       = If (rep lbl e0) (map prop ss0) (map prop ss1) lbl
     prop (While e ss lbl)   = While e (map prop ss) lbl
-    prop (Benchmark e ss lbl)   = Benchmark e (map prop ss) lbl
+    prop (Benchmark e ss lbl)   = Benchmark (rep lbl e) (map prop ss) lbl
     prop (Alloc v ty e lbl) = Alloc v ty (rep lbl e) lbl
     prop (Synchronize lbl) = Synchronize lbl
     prop (ReadIntCSV v1 v2 e lbl) = ReadIntCSV v1 v2 (rep lbl e) lbl
