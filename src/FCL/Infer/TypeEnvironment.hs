@@ -26,7 +26,8 @@ unaryOps =
    i2i "absi",
    i2i "signi",
    i2d "i2d",
-   b2i "b2i"
+   b2i "b2i",
+   i2i "clz"
   ]
 
 binaryOps :: [(Identifier, TypeScheme)]
@@ -39,9 +40,11 @@ binaryOps =
    ii2i "modi",
    ii2i "mini",
    ii2i "maxi",
+   ii2i "powi",
 
    -- floating point arithmetic
    dd2d "addr",
+   dd2d "divr",
    
    -- conditionals
    ii2b "eqi",
@@ -109,7 +112,7 @@ i2d op = (op,
 
 b2i :: String -> (Identifier, TypeScheme)
 b2i op = (op,
-          TypeScheme [] [] (IntT :> BoolT))
+          TypeScheme [] [] (BoolT :> IntT))
 
 
 ii2i :: String -> (Identifier, TypeScheme)

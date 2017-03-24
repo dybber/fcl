@@ -5,51 +5,54 @@ fun ffz x =
   in subi 31 (clz (andi y (negatei y)))
 
 sig grayCode : int -> int
-fun grayCode i = xori i (shiftRi i 1)
+fun grayCode i = xor i (srl i 1)
 
 sig sobol_num_bits : int
-fun sobol_num_bits = 30
+val sobol_num_bits = 30
 
 sig sobolInd : int -> [int] -> [int]<thread>
 fun sobolInd ix dirVec =
   let bitVec = mapPull (fn i => b2i (testBit (grayCode ix) i))
                        (iota sobol_num_bits)
-  in foldl xori 0 (zipWith muli dirVec bitVec)
+  in foldl xor 0 (zipWith muli dirVec bitVec)
 
 -- sig sobolInd1D : int -> [int] -> [int]
 -- fun sobolInd1D n dirVec = mapPull (fn ix => sobolInd ix dirVec) (iota n)
 
-sig sobolInd1DBlock : [int] -> [int] -> Program <block> [int]<block>
+--sig sobolInd1DBlock : [int] -> [int] -> Program <block> [int]<block>
 fun sobolInd1DBlock dirVec indices =
   mapPull (fn ix => sobolInd ix dirVec) indices
-   |> mapPull (return <block>)
-   |> concat 128
+   |> mapPull (return <thread>)
+   |> concat<thread> 1
 
-sig sobolInd1DGrid : int -> [int] -> Program <grid> [int]<grid>
+--sig sobolInd1DGrid : int -> [int] -> Program <grid> [int]<grid>
 fun sobolInd1DGrid n dirVec =
   splitUp 4096 (pad 4096 0 (iota n))
    |> mapPull (sobolInd1DBlock dirVec)
-   |> concat 4096
+   |> concat<block> 4096
 
--- sig sobolIndND : int -> [[int]] -> [[int]]
--- fun sobolIndND n dirVs = mapPull (sobolInd1D n) dirVs
+--sig sobolIndND : int -> [[int]] -> [[int]]
+fun sobolIndND n dirVs = mapPull (sobolInd1DGrid n) dirVs
 
 -- Alternative version
 --   sig sobolIndND : int -> [[int]] -> [[int]]
 --   fun sobolIndND n dirVs = mapPull (fn ix => mapPull (sobolInd ix) dirVs) (iota n)
 
--- sig sobolRec : [int] -> int -> int -> int
--- fun sobolRec dirVec previous ix = xori previous (index dirVec (ffz ix))
+sig sobolRec : [int] -> int -> int -> int
+fun sobolRec dirVec previous ix = xor previous (index dirVec (ffz ix))
 
--- sig sobolRec1D : int -> int -> [int] -> [int]<thread>
--- fun sobolRec1D startIx n dirVs = 
---   let initial = sobolInd startIx dirVs
---   in scanl (sobolRec dirVs) initial (range startIx (subi (addi startIx n) 2))
+sig sobolRec1D : int -> int -> [int] -> Program <thread> [int]<thread>
+fun sobolRec1D startIx n dirVs = 
+  do<thread>
+   { initial <- force<thread> (sobolInd startIx dirVs)
+   ; return<thread> (scanl (sobolRec dirVs) (index initial 0) (range startIx (subi (addi startIx n) 2)))
+   }
 
--- sig sobolRec1DChunked : int -> int -> [int] -> Program <block> [int]<block>
--- fun sobolRec1DChunked chunkSize n dirVec = 
---   concat chunkSize (mapPull (fn i => return <thread> (sobolRec1D i chunkSize dirVec))
---                             (mapPull (muli chunkSize) (range 0 (divi n chunkSize))))
+sig sobolRec1DChunked : int -> int -> [int] -> Program <block> [int]<block>
+fun sobolRec1DChunked chunkSize n dirVec =
+  mapPull (muli chunkSize) (range 0 (divi n chunkSize))
+   |> (mapPull (fn i => sobolRec1D i chunkSize dirVec))
+   |> concat<thread> chunkSize 
 
 -- sig sobolRecND : int -> [[int]] -> [[int]<thread>]
 -- fun sobolRecND n dirVs = mapPull (sobolRec1D 0 n) dirVs
@@ -74,24 +77,24 @@ fun sobolInd1DGrid n dirVec =
 --   let initials = sobolInd1D stepSize dirVec
 --   in mapPull (sobolSkipPart logskip steps dirVec) initials
 
--- -- Normalise to floating point [0;1]
--- sig sobol_divisor : double
--- fun sobol_divisor = i2d (powi 2 sobol_num_bits)
+-- Normalise to floating point [0;1]
+sig sobol_divisor : double
+val sobol_divisor = i2d (powi 2 sobol_num_bits)
 
 -- -- Convert a sobol number to floating point in the interval [0,1]
 
--- sig normalise : int -> double
--- fun normalise x = divr (i2d x) sobol_divisor
+sig normalise : int -> double
+fun normalise x = divr (i2d x) sobol_divisor
 
--- sig normaliseND : [[int]] -> [[double]]
--- fun normaliseND = mapPull (mapPull normalise)
+sig normaliseND : [[int]] -> [[double]]
+val normaliseND = mapPull (mapPull normalise)
 
--- sig iterations : int
--- fun iterations = 50
+sig iterations : int
+val iterations = 50
 
--- -- status: works (in interpreter)
+-- status: works (in interpreter)
 -- sig testSobolIndND : [[double]]
--- fun testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
+-- val testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
 
 -- -- status: works (in interpreter)
 -- sig testSobolRecND : [[double]<thread>]
@@ -110,11 +113,12 @@ fun sobolInd1DGrid n dirVec =
 -- fun main = sobolIndND iterations sobol_dirVs
 -- fun main = testSobolRecND
 sig main : Program <grid> [int]
-fun main =
-  do { directionVectors <- readIntCSV "sobol_direction_vectors.csv"
-     ; arr <- sobolInd1DGrid (1024*4096) (take 30 directionVectors)
-     ; forceAndPrint 100 arr
-     }
+val main =
+  do<grid>
+   { directionVectors <- readIntCSV "sobol_direction_vectors.csv"
+   ; arr <- sobolInd1DGrid (1024*4096) (take 30 directionVectors)
+   ; forceAndPrint 100 arr
+   }
      
   --testSobolSkip1D
 

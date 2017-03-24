@@ -8,10 +8,11 @@ module FCL.IL.Cons (
 
  -- -- Unary operators
  -- not, i2d, negatei, negated,
- absi, absd, signi,
+ absi, absd, signi, b2i,
  -- negateBitwise,
  -- ceil, floor, exp, ln,
  -- addressOf, deref, sizeOf,
+ clz,
  
  -- Binary operators
  addi, subi, muli, divi, modi,
@@ -203,6 +204,10 @@ signi :: ILExp -> ILExp
 signi = EUnaryOp SignI
 absd :: ILExp -> ILExp
 absd = EUnaryOp AbsD
+clz :: ILExp -> ILExp
+clz = EUnaryOp CLZ
+b2i :: ILExp -> ILExp
+b2i = EUnaryOp B2I
 
 -- Arithmetic (Int)
 addi, subi, muli, divi, modi :: ILExp -> ILExp -> ILExp

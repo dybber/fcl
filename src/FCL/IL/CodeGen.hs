@@ -190,6 +190,8 @@ unop :: UnaryOp -> Value -> Value
 unop AbsI (VInt i0) = VInt (absi i0)
 unop AbsD (VDouble i0) = VDouble (absd i0)
 unop SignI (VInt i0) = VInt (signi i0)
+unop CLZ (VInt i0) = VInt (countLeadingZeroes i0)
+unop B2I (VBool i0) = VInt (b2i i0)
 unop op _ = error ("operation not implemented yet: " ++ show op)
 
 binop :: BinOp -> Value -> Value -> Value

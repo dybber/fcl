@@ -75,7 +75,7 @@ fun liftM<lvl> f arrP =
    }
 
 sig take : forall 'a. int -> ['a] -> ['a]
-fun take n arr = generate n (fn ix => index arr n)
+fun take n arr = generate n (fn ix => index arr ix)
 
 sig drop : forall 'a. int -> ['a] -> ['a]
 fun drop n arr = generate (subi (lengthPull arr) n) (fn i => index arr (i+n))

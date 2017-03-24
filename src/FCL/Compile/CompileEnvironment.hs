@@ -59,6 +59,8 @@ unaryOps =
   [ i2i "absi" absi
   , i2i "signi" signi
   , d2d "absd" absd
+  , i2i "clz" clz
+  , bool2int
   ]
 
 i2i :: String -> (ILExp -> ILExp) -> (Identifier, Binding)
@@ -66,6 +68,10 @@ i2i op f = (op, ignoreType (TagFn (\i0 -> TagInt (f (unInt i0)))))
 
 d2d :: String -> (ILExp -> ILExp) -> (Identifier, Binding)
 d2d op f = (op, ignoreType (TagFn (\d0 -> TagDouble (f (unInt d0)))))
+
+bool2int :: (Identifier, Binding)
+bool2int = ("b2i", ignoreType (TagFn (\d0 -> TagInt (b2i (unBool d0)))))
+
 
 binaryOps :: [(Identifier, Binding)]
 binaryOps =

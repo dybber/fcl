@@ -57,6 +57,10 @@ inferUnaryOp op e =
                return ILInt
     AbsD -> do check e ILDouble
                return ILDouble
+    CLZ -> do check e ILInt
+              return ILInt
+    B2I -> do check e ILBool
+              return ILInt
 
 inferBinaryOp :: BinOp -> ILExp -> ILExp -> Check ILType
 inferBinaryOp op e1 e2 =

@@ -44,6 +44,8 @@ ppUnaryOp op e1 =
           AbsI -> "absi"
           SignI -> "signi"
           AbsD -> "absd"
+          CLZ -> "clz"
+          B2I -> "b2i"
   in text opName <> parens (ppExp e1)
 
 ppBinaryOp :: BinOp -> ILExp -> ILExp -> Doc

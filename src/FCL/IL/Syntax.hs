@@ -47,7 +47,7 @@ data BinOp =
     MinI | MaxI
   deriving (Eq, Show, Ord)
 
-data UnaryOp = SignI | AbsI | AbsD
+data UnaryOp = SignI | AbsI | AbsD | CLZ | B2I
   deriving (Eq, Show, Ord)
 
 data Stmt a =
