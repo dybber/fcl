@@ -21,9 +21,9 @@
 #ifndef _REDUCE_KERNEL_H_
 #define _REDUCE_KERNEL_H_
 
-#define T int
-#define blockSize get_local_size(0)
-#define nIsPow2 1
+#define T float
+#define blockSize 128
+#define nIsPow2 0
 
 /*
     Parallel sum reduction using shared memory
