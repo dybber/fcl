@@ -126,6 +126,11 @@ renameLocalVars (PrintIntArray e1 e2 i : s) =
      e2' <- renameInExp e2
      s' <- renameLocalVars s
      return (PrintIntArray e1' e2' i : s')
+renameLocalVars (PrintDoubleArray e1 e2 i : s) =
+  do e1' <- renameInExp e1
+     e2' <- renameInExp e2
+     s' <- renameLocalVars s
+     return (PrintDoubleArray e1' e2' i : s')
 renameLocalVars (Benchmark e body i : s) =
   do e' <- renameInExp e
      body' <- renameLocalVars body

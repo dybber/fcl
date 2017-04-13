@@ -140,5 +140,6 @@ constantFold stmts = process stmts --concat (map process stmts)
    process1 (Synchronize i)         = [Synchronize i]
    process1 (ReadIntCSV v1 v2 e i)  = [ReadIntCSV v1 v2 (foldExp e) i]
    process1 (PrintIntArray e1 e2 i) = [PrintIntArray e1 e2 i]
+   process1 (PrintDoubleArray e1 e2 i) = [PrintDoubleArray e1 e2 i]
    process1 (Benchmark e body i)    = [Benchmark (foldExp e) (constantFold body) i]
 

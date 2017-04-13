@@ -47,7 +47,7 @@ data BinOp =
     MinI | MaxI
   deriving (Eq, Show, Ord)
 
-data UnaryOp = SignI | AbsI | AbsD | CLZ | B2I
+data UnaryOp = SignI | AbsI | AbsD | CLZ | B2I | I2D | Not | NegateInt | NegateDouble
   deriving (Eq, Show, Ord)
 
 data Stmt a =
@@ -63,6 +63,7 @@ data Stmt a =
   | SeqFor ILName ILExp [Stmt a] a
   | ReadIntCSV ILName ILName ILExp a
   | PrintIntArray ILExp ILExp a
+  | PrintDoubleArray ILExp ILExp a
   | Benchmark ILExp [Stmt a] a
  deriving Show
 
@@ -71,16 +72,17 @@ type ILProgram a = [Stmt a]
 labelOf :: Stmt a -> a
 labelOf stmt =
   case stmt of
-    Declare _ _ _ lbl      -> lbl
-    Alloc _ _ _ lbl        -> lbl
-    Distribute _ _ _ _ lbl -> lbl
-    ParFor _ _ _ _ lbl     -> lbl
-    Synchronize lbl        -> lbl
-    Assign _ _ lbl         -> lbl
-    AssignSub _ _ _ lbl    -> lbl
-    If _ _ _ lbl           -> lbl
-    While _ _ lbl          -> lbl
-    SeqFor _ _ _ lbl       -> lbl
-    ReadIntCSV _ _ _ lbl   -> lbl
-    PrintIntArray _ _ lbl  -> lbl
-    Benchmark _ _ lbl      -> lbl
+    Declare _ _ _ lbl        -> lbl
+    Alloc _ _ _ lbl          -> lbl
+    Distribute _ _ _ _ lbl   -> lbl
+    ParFor _ _ _ _ lbl       -> lbl
+    Synchronize lbl          -> lbl
+    Assign _ _ lbl           -> lbl
+    AssignSub _ _ _ lbl      -> lbl
+    If _ _ _ lbl             -> lbl
+    While _ _ lbl            -> lbl
+    SeqFor _ _ _ lbl         -> lbl
+    ReadIntCSV _ _ _ lbl     -> lbl
+    PrintIntArray _ _ lbl    -> lbl
+    PrintDoubleArray _ _ lbl -> lbl
+    Benchmark _ _ lbl        -> lbl

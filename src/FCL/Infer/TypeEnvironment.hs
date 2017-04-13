@@ -43,8 +43,10 @@ binaryOps =
    ii2i "powi",
 
    -- floating point arithmetic
-   dd2d "addr",
-   dd2d "divr",
+   dd2d "addd",
+   dd2d "subd",
+   dd2d "muld",
+   dd2d "divd",
    
    -- conditionals
    ii2b "eqi",
@@ -77,6 +79,7 @@ arrayOps =
    opBlockSize,
    opReadIntCSV,
    opForceAndPrint,
+   opForceAndPrintDouble,
    opBenchmark
   ]
 
@@ -282,6 +285,14 @@ opForceAndPrint =
    TypeScheme [] [] (IntT
                      :> PushArrayT gridLevel IntT
                      :> ProgramT gridLevel (PullArrayT IntT)))
+
+opForceAndPrintDouble :: (Identifier, TypeScheme)
+opForceAndPrintDouble =
+  ("forceAndPrintDouble",
+   TypeScheme [] [] (IntT
+                     :> PushArrayT gridLevel DoubleT
+                     :> ProgramT gridLevel (PullArrayT DoubleT)))
+
 
 opBenchmark :: (Identifier, TypeScheme)
 opBenchmark =

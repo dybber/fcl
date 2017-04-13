@@ -8,24 +8,26 @@ fun reduceBlock<lvl> f arr =
       ; return<lvl> (push<lvl> a)
       }
 
-sig dotp : [int] -> [int] -> Program <block> [int]<block>
+sig dotp : [double] -> [double] -> Program<block> [double]<block>
 fun dotp vec1 vec2 =
-  reduceBlock<block> (fn a => fn b => a + b)
-                     (zipWith (fn a => fn b => a * b) vec1 vec2)
+  reduceBlock<block> (fn a => fn b => addd a b)
+                     (zipWith (fn a => fn b => muld a b) vec1 vec2)
 
-sig matVecMul : [int] -> [int] -> int -> Program<grid> [int]<grid>
+sig matVecMul : [double] -> [double] -> int -> Program<grid> [double]<grid>
 fun matVecMul mat vec cols =
   splitUp cols mat -- split in rows
    |> mapPull (dotp vec)
    |> concat<block> 1 -- concatenate results
 
-sig example : Program<grid> [int]<grid>
-val example = matVecMul (iota (32*32)) (iota 32) 32
-
 sig main : Program<grid> unit
 val main =
-  do<grid>
-   { arr <- example
-   ; forceAndPrint 32 arr
-   ; benchmark 10 (bind<grid> example force<grid>)
-   }
+ let rows = 4096 in
+ let cols = 4096
+ in
+   do<grid>
+    { inputMatrix <- generateDoubleVec (rows*cols)
+    ; inputVect <- generateDoubleVec cols
+    ; arr <- matVecMul inputMatrix inputVect cols
+    ; forceAndPrintDouble 4096 arr
+    ; benchmark 100 (forceM<grid> (matVecMul inputMatrix inputVect cols))
+    }

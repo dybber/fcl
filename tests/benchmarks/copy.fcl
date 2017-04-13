@@ -13,7 +13,7 @@ fun copy arr =
 sig main : Program <grid> unit
 val main =
  do <grid>
-  { input <- generateInput (4096 * 4096)
+  { input <- generateIntVec (4096 * 4096)
   ; arr <- copy input
   ; forceAndPrint 100 arr
   ; benchmark 100 (forceM<grid> (copy input))

@@ -60,6 +60,7 @@ unaryOps =
   , i2i "signi" signi
   , d2d "absd" absd
   , i2i "clz" clz
+  , int2double
   , bool2int
   ]
 
@@ -68,6 +69,9 @@ i2i op f = (op, ignoreType (TagFn (\i0 -> TagInt (f (unInt i0)))))
 
 d2d :: String -> (ILExp -> ILExp) -> (Identifier, Binding)
 d2d op f = (op, ignoreType (TagFn (\d0 -> TagDouble (f (unInt d0)))))
+
+int2double :: (Identifier, Binding)
+int2double = ("i2d", ignoreType (TagFn (\i0 -> TagDouble (i2d (unInt i0)))))
 
 bool2int :: (Identifier, Binding)
 bool2int = ("b2i", ignoreType (TagFn (\d0 -> TagInt (b2i (unBool d0)))))
@@ -83,6 +87,11 @@ binaryOps =
     ii2i "mini" mini,
     ii2i "maxi" maxi,
 
+    dd2d "addd" addd,
+    dd2d "subd" subd,
+    dd2d "muld" muld,
+    dd2d "divd" divd,
+    
     -- conditionals
     ii2b "eqi" eqi,
     ii2b "neqi" neqi,
@@ -93,7 +102,8 @@ binaryOps =
     ii2i "ori" lor,
     ii2i "xor" xor,
     ii2i "sll" sll,
-    ii2i "srl" srl]
+    ii2i "srl" srl
+    ]
 
 ii2i :: String -> (ILExp -> ILExp -> ILExp) -> (Identifier, Binding)
 ii2i op f =
@@ -128,6 +138,7 @@ arrayOps =
   , ("bind", ignoreType (binop bindFn))
   , ("force", ignoreType (unop force))
   , ("forceAndPrint", ignoreType (binop forceAndPrint))
+  , ("forceAndPrintDouble", ignoreType (binop forceAndPrintDouble))
   , ("benchmark", ignoreType (binop benchmarkFn))
   , ("power", ignoreType (triop power))
   , ("while", ignoreType (triop whileArray))
@@ -196,10 +207,11 @@ force (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should ra
 force (TagArray arr) = TagProgram $ do
   let len = size arr                     -- calculate size of complete nested array structure
   name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
-  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+  let writer v ix =                     -- creater writer function (right now: only integer arrays supported!)
         case v of
-          TagInt v' -> assignArray name v' i
-          e -> error (show e)
+          TagInt v' -> assignArray name v' ix
+          TagDouble v' -> assignArray name v' ix
+          e -> error ("cannot force: " ++ show e)
   forceTo writer arr                   -- recursively generate loops for each layer
   return (TagArray (createPull name (baseType arr) len))
 force _ = error ("'force' expects array as argument")
@@ -211,11 +223,24 @@ forceAndPrint (TagInt n) (TagArray arr) = TagProgram $ do
   let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
         case v of
           TagInt v' -> assignArray name v' i
-          e -> error (show e)
+          e -> error ("cannot forceAndPrint: " ++ show e)
   forceTo writer arr                   -- recursively generate loops for each layer
   printIntArray n (var name)
   return (TagArray (createPull name (baseType arr) len))
 forceAndPrint _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
+
+forceAndPrintDouble :: Value -> Value -> Value
+forceAndPrintDouble (TagInt n) (TagArray arr) = TagProgram $ do
+  let len = size arr                     -- calculate size of complete nested array structure
+  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+  let writer v i =                     -- creater writer function (right now: only integer arrays supported!)
+        case v of
+          TagDouble v' -> assignArray name v' i
+          e -> error ("cannot forceAndPrintDouble: " ++ show e)
+  forceTo writer arr                   -- recursively generate loops for each layer
+  printDoubleArray n (var name)
+  return (TagArray (createPull name (baseType arr) len))
+forceAndPrintDouble _ _ = error ("forceAndPrint expects int and grid-level push-array as argument")
 
 benchmarkFn :: Value -> Value -> Value
 benchmarkFn (TagInt n) (TagProgram p) = TagProgram $ do
@@ -306,6 +331,7 @@ power (TagInt n) (TagFn step) (TagProgram p) =
        let writer tv i =
              case tv of
                TagInt v -> assignArray var_array v i
+               TagDouble v -> assignArray var_array v i
                e -> error (show e)
 
        forceTo writer arr
@@ -338,6 +364,7 @@ whileArray (TagFn cond) (TagFn step) (TagProgram p) =
        let writer tv i =
              case tv of
                TagInt v -> assignArray var_array v i
+               TagDouble v -> assignArray var_array v i
                e -> error (show e)
 
        forceTo writer arr

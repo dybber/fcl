@@ -48,6 +48,7 @@ buildDefsMap stmt x =
     go (Benchmark _ ss _)        = foldl unionMaps Map.empty (map go ss)
     go (Synchronize _)           = Map.empty
     go (PrintIntArray _ _ _)     = Map.empty
+    go (PrintDoubleArray _ _ _)     = Map.empty
     go (AssignSub _ _ _ _)       = Map.empty
 
     -- build the map
@@ -74,6 +75,7 @@ gensReachDef stmts = foldl unionMaps Map.empty (map go stmts)
     go (Benchmark _ ss _)        = foldl unionMaps Map.empty (map go ss)
     go (Synchronize _)           = Map.empty
     go (PrintIntArray _ _ _)     = Map.empty
+    go (PrintDoubleArray _ _ _)     = Map.empty
     go (AssignSub _ _ _ _)       = Map.empty
 
 
@@ -96,6 +98,7 @@ killsReachDef defs stmts = foldl unionMaps Map.empty (map go stmts)
     go (Benchmark _ ss _)        = foldl unionMaps Map.empty (map go ss)
     go (Synchronize _)           = Map.empty
     go (PrintIntArray _ _ _)     = Map.empty
+    go (PrintDoubleArray _ _ _)     = Map.empty
     go (AssignSub _ _ _ _)       = Map.empty
 
 reach :: [Stmt Label]

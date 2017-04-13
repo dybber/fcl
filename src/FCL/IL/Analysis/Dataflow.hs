@@ -53,6 +53,7 @@ addLabels stmts = evalState (addMany stmts) (Label 1)
     addLabel (Synchronize _)         = Synchronize       <$> next
     addLabel (ReadIntCSV v1 v2 e _)  = ReadIntCSV v1 v2 e <$> next
     addLabel (PrintIntArray e1 e2 _) = PrintIntArray e1 e2 <$> next
+    addLabel (PrintDoubleArray e1 e2 _) = PrintDoubleArray e1 e2 <$> next
 
 ---------------------------
 -- Create dataflow graph --

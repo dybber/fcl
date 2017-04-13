@@ -157,6 +157,7 @@ compExp env (EIndex x i) =
   let v1 = compExp env i
   in case Map.lookup x env of
        (Just (VarKernelArray ILInt v)) -> VInt (index v (unInt v1))
+       (Just (VarKernelArray ILDouble v)) -> VDouble (index v (unInt v1))
        (Just (VarKernelArray ILBool v)) -> VBool (index v (unInt v1))
        _ -> error "not an array"
 compExp env (EVar x) =
@@ -192,6 +193,7 @@ unop AbsD (VDouble i0) = VDouble (absd i0)
 unop SignI (VInt i0) = VInt (signi i0)
 unop CLZ (VInt i0) = VInt (countLeadingZeroes i0)
 unop B2I (VBool i0) = VInt (b2i i0)
+unop I2D (VInt i0) = VDouble (i2d i0)
 unop op _ = error ("operation not implemented yet: " ++ show op)
 
 binop :: BinOp -> Value -> Value -> Value
@@ -200,10 +202,10 @@ binop SubI (VInt i1) (VInt i2) = VInt (subi i1 i2)
 binop MulI (VInt i1) (VInt i2) = VInt (muli i1 i2)
 binop DivI (VInt i1) (VInt i2) = VInt (divi i1 i2)
 binop ModI (VInt i1) (VInt i2) = VInt (modi i1 i2)
-binop AddD (VInt i1) (VInt i2) = VInt (addd i1 i2)
-binop SubD (VInt i1) (VInt i2) = VInt (subd i1 i2)
-binop MulD (VInt i1) (VInt i2) = VInt (muld i1 i2)
-binop DivD (VInt i1) (VInt i2) = VInt (divd i1 i2)
+binop AddD (VDouble i1) (VDouble i2) = VDouble (addd i1 i2)
+binop SubD (VDouble i1) (VDouble i2) = VDouble (subd i1 i2)
+binop MulD (VDouble i1) (VDouble i2) = VDouble (muld i1 i2)
+binop DivD (VDouble i1) (VDouble i2) = VDouble (divd i1 i2)
 binop LtI (VInt i1) (VInt i2) = VBool (lti i1 i2)
 binop LteI (VInt i1) (VInt i2) = VBool (ltei i1 i2)
 binop NeqI (VInt i1) (VInt i2) = VBool (neqi i1 i2)
@@ -229,6 +231,7 @@ assignSub :: VarEnv -> ILName -> Value -> Value -> CGen a ()
 assignSub env x ix v =
   case (Map.lookup x env, ix, v) of
     (Just (VarKernelArray ILInt x'), VInt ix', VInt v') -> assignArray x' v' ix'
+    (Just (VarKernelArray ILDouble x'), VInt ix', VDouble v') -> assignArray x' v' ix'
     (Just (VarKernelArray ILBool x'), VInt ix', VBool v') -> assignArray x' v' ix'
     _ -> error "TODO assignsub"
 
@@ -284,6 +287,7 @@ compThread cfg env stmts =
     (Distribute _ _ _ _ _ : _) -> error "Cannot use parallel constructs on thread-level."
     (ReadIntCSV _ _ _ _ : _)   -> error "Reading input-data is not possible at thread level."
     (PrintIntArray _ _ _ : _)  -> error "Printing not possible at thread level."
+    (PrintDoubleArray _ _ _ : _)  -> error "Printing not possible at thread level."
     (Benchmark _ _ _ : _)      -> error "Benchmarking not possible at thread level."
 
 ------------------------
@@ -346,6 +350,7 @@ compKernelBody cfg env stmts =
     (SeqFor _ _ _ _ : _)      -> error "seqfor: Only available at thread-level"
     (ReadIntCSV _ _ _ _ : _)  -> error "Reading input-data is not possible at block level"
     (PrintIntArray _ _ _ : _) -> error "Printing not possible at block level"
+    (PrintDoubleArray _ _ _ : _) -> error "Printing not possible at block level"
     (Benchmark _ _ _ : _)     -> error "Benchmarking not possible at block level"
 
 mkKernelBody :: CompileConfig -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILKernel ()
@@ -441,7 +446,13 @@ compHost cfg ctx env stmts =
       do let n = compExp env size
          let arr' = compExp env arr
          finish ctx
-         printArray ctx n arr'
+         printIntArray ctx n arr'
+         compHost cfg ctx env ss
+    (PrintDoubleArray size arr _ : ss) ->
+      do let n = compExp env size
+         let arr' = compExp env arr
+         finish ctx
+         printDoubleArray ctx n arr'
          compHost cfg ctx env ss
     (Benchmark iterations ss0 _ : ss) ->
       do let n = compExp env iterations
@@ -589,8 +600,8 @@ copyToDevice ctx elemty n hostptr =
      modifyState (\s -> s { deviceAllocations = Map.insert buf (n, convertType elemty) (deviceAllocations s) })
      return (VarHostBuffer elemty buf)
 
-printArray :: ClContext -> Value -> Value -> ILHost ()
-printArray ctx n (VHostBuffer elemty buf) =
+printIntArray :: ClContext -> Value -> Value -> ILHost ()
+printIntArray ctx n (VHostBuffer elemty buf) =
   do hostptr <- mmapToHost ctx buf (convertType elemty) (unInt n)
      exec void_t "printf" [string "["]
      let lastElem = subi (unInt n) (constant (1 :: Int))
@@ -599,7 +610,19 @@ printArray ctx n (VHostBuffer elemty buf) =
      exec void_t "printf" [string "%i", index hostptr lastElem]
      exec void_t "printf" [string "]\\n"]
      unmmap ctx buf hostptr
-printArray _ _ _ = error "Print array expects array"
+printIntArray _ _ _ = error "Print array expects array"
+
+printDoubleArray :: ClContext -> Value -> Value -> ILHost ()
+printDoubleArray ctx n (VHostBuffer elemty buf) =
+  do hostptr <- mmapToHost ctx buf (convertType elemty) (unInt n)
+     exec void_t "printf" [string "["]
+     let lastElem = subi (unInt n) (constant (1 :: Int))
+     for lastElem (\i ->
+       exec void_t "printf" [string "%.7f,", index hostptr i])
+     exec void_t "printf" [string "%.7f", index hostptr lastElem]
+     exec void_t "printf" [string "]\\n"]
+     unmmap ctx buf hostptr
+printDoubleArray _ _ _ = error "Print array expects array"
 
 now :: String -> ILHost CExp
 now x =

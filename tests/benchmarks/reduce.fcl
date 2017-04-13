@@ -40,7 +40,7 @@ fun benchFullReduction input = reduce (fn a => fn b => a + b) 0 input
 sig main : Program<grid> unit
 val main =
   do<grid>
-   { input <- generateInput (4096*4096)
+   { input <- generateIntVec (4096*4096)
    ; arr1 <- benchPartialReduction input
    ; forceAndPrint 100 arr1
    ; i <- benchFullReduction input

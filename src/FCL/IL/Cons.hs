@@ -6,8 +6,8 @@ module FCL.IL.Cons (
  -- Getter's (launch parameters and current thread info)
  var, string, int, bool, double,
 
- -- -- Unary operators
- -- not, i2d, negatei, negated,
+ -- Unary operators
+ not, i2d, negatei, negated,
  absi, absd, signi, b2i,
  -- negateBitwise,
  -- ceil, floor, exp, ln,
@@ -16,7 +16,7 @@ module FCL.IL.Cons (
  
  -- Binary operators
  addi, subi, muli, divi, modi,
- -- addd, subd, muld, divd,
+ addd, subd, muld, divd,
  -- addPtr,
  lti, ltei, gti, gtei, eqi, neqi,
  ltd, lted, gtd, gted, eqd, neqd,
@@ -29,7 +29,7 @@ module FCL.IL.Cons (
  allocate,
  distribute, parFor, seqFor, while, iff,
  assign, (<==), assignArray,
- printIntArray, readIntCSV, benchmark,
+ printIntArray, printDoubleArray, readIntCSV, benchmark,
 
  -- Monad
  ILName,
@@ -135,6 +135,9 @@ assignArray arrILName e idx = addStmt (AssignSub arrILName idx e ())
 printIntArray :: ILExp -> ILExp -> Program ()
 printIntArray prefix arr = addStmt (PrintIntArray prefix arr ())
 
+printDoubleArray :: ILExp -> ILExp -> Program ()
+printDoubleArray prefix arr = addStmt (PrintDoubleArray prefix arr ())
+
 readIntCSV :: ILExp -> Program (ILName, ILExp)
 readIntCSV file =
   do arr <- newVar "arr"
@@ -179,15 +182,15 @@ index arrILName e = EIndex arrILName e
 --  Operators  --
 -----------------
 
--- not :: ILExp -> ILExp
--- not = UnaryOpE Not
+not :: ILExp -> ILExp
+not = EUnaryOp Not
 
--- i2d :: ILExp -> ILExp
--- i2d e = UnaryOpE I2D e
--- negatei :: ILExp -> ILExp
--- negatei = UnaryOpE NegateInt
--- negated :: ILExp -> ILExp
--- negated = UnaryOpE NegateDouble
+i2d :: ILExp -> ILExp
+i2d e = EUnaryOp I2D e
+negatei :: ILExp -> ILExp
+negatei = EUnaryOp NegateInt
+negated :: ILExp -> ILExp
+negated = EUnaryOp NegateDouble
 -- negateBitwise :: ILExp -> ILExp
 -- negateBitwise = UnaryOpE NegateBitwise
 -- ceil :: ILExp -> ILExp
@@ -217,12 +220,12 @@ e0 `muli` e1 = (EBinOp MulI e0 e1)
 e0 `divi` e1 = (EBinOp DivI e0 e1)
 e0 `modi` e1 = (EBinOp ModI e0 e1)
 
--- -- Arithmetic (Double)
--- addd, subd, muld, divd :: ILExp -> ILExp -> ILExp
--- e0 `addd` e1 = (EBinOp AddD e0 e1)
--- e0 `subd` e1 = (EBinOp SubD e0 e1)
--- e0 `muld` e1 = (EBinOp MulD e0 e1)
--- e0 `divd` e1 = (EBinOp DivD e0 e1)
+-- Arithmetic (Double)
+addd, subd, muld, divd :: ILExp -> ILExp -> ILExp
+e0 `addd` e1 = (EBinOp AddD e0 e1)
+e0 `subd` e1 = (EBinOp SubD e0 e1)
+e0 `muld` e1 = (EBinOp MulD e0 e1)
+e0 `divd` e1 = (EBinOp DivD e0 e1)
 
 -- -- Comparisons (Int)
 lti, ltei, gti, gtei, eqi, neqi :: ILExp -> ILExp -> ILExp

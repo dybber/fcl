@@ -59,6 +59,7 @@ gensLiveness stmts = liveMany stmts
     go (Synchronize _)           = Map.empty
     go (ReadIntCSV _ _ e lbl)    = expLiveMap lbl [e]
     go (PrintIntArray e0 e1 lbl) = expLiveMap lbl [e0,e1]
+    go (PrintDoubleArray e0 e1 lbl) = expLiveMap lbl [e0,e1]
     go (Benchmark e ss lbl)      = unionMaps (expLiveMap lbl [e]) (liveMany ss)
 
 killsLiveness :: [Stmt Label] -> LiveMap
@@ -76,6 +77,7 @@ killsLiveness stmts = foldl unionMaps Map.empty (map go stmts)
     go (Synchronize _)           = Map.empty
     go (ReadIntCSV v1 v2 _ lbl)  = Map.singleton lbl (Set.fromList [v1,v2])
     go (PrintIntArray _ _ _)     = Map.empty
+    go (PrintDoubleArray _ _ _)  = Map.empty
     go (Benchmark _ ss _)        = foldl unionMaps Map.empty (map go ss)
 
 lkup :: Ord a => a -> Map a (Set b) -> Set b

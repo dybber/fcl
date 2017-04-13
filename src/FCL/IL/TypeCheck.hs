@@ -61,6 +61,8 @@ inferUnaryOp op e =
               return ILInt
     B2I -> do check e ILBool
               return ILInt
+    I2D -> do check e ILInt
+              return ILDouble
 
 inferBinaryOp :: BinOp -> ILExp -> ILExp -> Check ILType
 inferBinaryOp op e1 e2 =
@@ -152,3 +154,6 @@ checkStmt s =
     PrintIntArray e1 e2 _ ->
       do check e1 ILInt
          check e2 (ILArray ILInt)
+    PrintDoubleArray e1 e2 _ ->
+      do check e1 ILInt
+         check e2 (ILArray ILDouble)

@@ -60,6 +60,7 @@ constantProp stmts inSet defs =
     prop (Synchronize lbl) = Synchronize lbl
     prop (ReadIntCSV v1 v2 e lbl) = ReadIntCSV v1 v2 (rep lbl e) lbl
     prop (PrintIntArray e1 e2 lbl) = PrintIntArray (rep lbl e1) (rep lbl e2) lbl
+    prop (PrintDoubleArray e1 e2 lbl) = PrintDoubleArray (rep lbl e1) (rep lbl e2) lbl
     
     
   in map prop stmts

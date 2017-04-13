@@ -46,6 +46,7 @@ freeVars stmts =
       `union` fv bound ss1
       `union` fv bound ss
     fv bound (PrintIntArray e0 e1 _ : ss) = freeInExp bound e0 `union` freeInExp bound e1 `union` fv bound ss
+    fv bound (PrintDoubleArray e0 e1 _ : ss) = freeInExp bound e0 `union` freeInExp bound e1 `union` fv bound ss
     fv bound (Benchmark e ss0 _ : ss) =
       freeInExp bound e
        `union` fv bound ss0

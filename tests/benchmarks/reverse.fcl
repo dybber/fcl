@@ -14,7 +14,7 @@ fun simpleReverse splitSize arr =
 sig main : Program <grid> unit
 val main =
  do <grid>
-  { input <- generateInput (4096*4096)
+  { input <- generateIntVec (4096*4096)
   ; arr <- simpleReverse 256 input
   ; forceAndPrint 100 arr
   ; benchmark 100 (forceM<grid> (simpleReverse 256 input))
