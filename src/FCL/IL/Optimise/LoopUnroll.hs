@@ -8,7 +8,7 @@ import FCL.IL.Syntax
 
 -- unroll all while loops twenty iterations
 numUnrolls :: Int
-numUnrolls = 10 
+numUnrolls = 0
 
 unroll :: Int -> [Stmt a] -> [Stmt a]
 unroll varCount stmts = fst (evalRWS (unrollM stmts) Map.empty varCount)

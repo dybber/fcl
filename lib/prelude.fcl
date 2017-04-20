@@ -67,6 +67,14 @@ fun forceM<lvl> arrP =
    ; force<lvl> arr
    }
 
+sig forcePull : forall <lvl> 'a. ['a] -> Program <lvl> ['a]
+fun forcePull<lvl> arrP =
+  do<lvl>
+   { arr <- pushM <lvl> arrP
+   ; force<lvl> arr
+   }
+
+
 sig liftM : forall <lvl> 'a 'b. ('a -> 'b) -> Program <lvl> 'a -> Program <lvl> 'b
 fun liftM<lvl> f arrP =
   do<lvl>

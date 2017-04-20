@@ -18,11 +18,17 @@ mapArray f outType (ArrPull len _ g) =
   ArrPull len outType (f . g)
 mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
 --  ArrPush len lvl outType (\w -> g (\e ix -> w (f e) ix))
-mapArray f outType (ArrPushThread size' iterations _ g Nothing) =
-  ArrPushThread size' iterations outType g (Just f)
-mapArray f outType (ArrPushThread len iterations _ g (Just h)) =
-  ArrPushThread len iterations outType g (Just (f . h))
-mapArray f outType (ArrInterleave lvl n ixt arr) = ArrInterleave lvl n ixt (mapArray f outType arr)
+mapArray f outType (ArrPushThread size' iterations ty g Nothing) =
+  ArrPushThread size' iterations ty g (Just f)
+mapArray f outType (ArrPushThread len iterations ty g (Just h)) =
+  ArrPushThread len iterations ty g (Just (f . h))
+mapArray f outType (ArrInterleave lvl n ixt (ArrPull len ty g)) =
+  ArrInterleave lvl n ixt (ArrPull len (ProgramT lvl (PushArrayT lvl outType))
+                            (\i -> let p = unProgram "mapPush (interleave)" (g i)
+                                   in TagProgram $
+                                        do arr <- p
+                                           let arr' = unArray "mapPush (interleave)" arr
+                                           return (TagArray $ mapArray f outType arr')))
 
 size :: Array -> ILExp
 size (ArrPull len _ _)       = len
@@ -79,13 +85,13 @@ untagScalar :: Type -> Value -> ILExp
 untagScalar IntT (TagInt e) = e
 untagScalar DoubleT (TagDouble e) = e
 untagScalar BoolT (TagBool e) = e
-untagScalar _ _ = error ""
+untagScalar ty v = error ("untagScalar: unexpected value of type " ++ show v ++ " expected " ++ show ty)
 
 tagScalar :: Type -> ILExp -> Value
 tagScalar IntT e = TagInt e
 tagScalar DoubleT e = TagDouble e
 tagScalar BoolT e = TagBool e
-tagScalar _ _ = error ""
+tagScalar ty _ = error ("tagScalar: unexpected value of type " ++ show ty)
 
 unop :: (Value -> Value) -> Value
 unop f = TagFn (\a1 -> f a1)
@@ -108,9 +114,9 @@ app2 :: Value -> Value -> Value -> Value
 app2 (TagFn f) x y = app1 (f x) y
 app2 _ _ _         = error "expected function"
 
-unInt :: Value -> ILExp
-unInt (TagInt i) = i
-unInt _          = error "expected int"
+unInt :: String -> Value -> ILExp
+unInt _ (TagInt i) = i
+unInt loc v          = error ("expected int in " ++ loc ++ ", got " ++ show v)
 
 unDouble :: Value -> ILExp
 unDouble (TagDouble d) = d

@@ -43,43 +43,62 @@ fun intermediateSums lgChunkSize arr =
   let chunkSize = 1 << lgChunkSize
   in mapPull last (splitUp chunkSize arr)
 
-sig adjust : int -> [int] -> [int] -> Program <grid> [int]<grid>
-fun adjust lgChunkSize scans sums =
+--sig adjust : forall 'a. int -> ('a -> 'a -> 'a) -> 'a -> ['a] -> ['a] -> Program <grid> ['a]<grid>
+fun adjust lgChunkSize f neutral scans sums =
   let n = 1 << lgChunkSize
   in (generate (divi (lengthPull scans) n)
        (fn i => generate n
-         (fn j => (index scans ((i * n) + j))
-                  + (if i == 0
-                     then 0
+         (fn j => f (index scans ((i * n) + j))
+                    (if i == 0
+                     then neutral
                      else index sums (subi i 1)))))
       |> mapPull (fn a => return <block> (push<block> a))
       |> concat <block> n
 
-sig main : Program <grid> [int]
-val main =
-  do <grid>
-     { scans <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
---     ; scans' <- forceAndPrint 128 scans
-     ; scans' <- force <grid> scans
-               
-     -- Intermediate sums: [496,1520,2544,3568]
-     ; sums <- computeInSingleBlock (intermediateSums 5 scans')
---     ; sums' <- forceAndPrint 4 sums
-     ; sums' <- force <grid> sums
-
-     -- Scan of intermediate sums: [496,2016,4560,8128]
-     ; scanSums <- scanInChunks 2 (fn a => fn b => a + b) (intermediateSums 5 scans')
---     ; scanSums' <- forceAndPrint 4 scanSums
-     ; scanSums' <- force <grid> scanSums
-
-     -- Add intermediate sums
-     ; result <- adjust 5 scans' scanSums'
-     ; result' <- forceAndPrint 128 result
-                
-     ; return <grid> scans'
-     -- ; b <- forceAndPrint 128 arr
-     -- ; forceAndPrint 4 (push <grid> (intermediateSums 5 b))
+sig scan : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]<grid>
+fun scan f neutral input =
+ let lgChunkSize = 5
+ in do<grid>
+     { scans <- forceM<grid> (scanInChunks lgChunkSize f input)
+     ; scanSums <- forceM<grid> (scanInChunks 2 f (intermediateSums lgChunkSize scans))
+     ; adjust lgChunkSize f neutral scans scanSums
      }
+
+sig main : Program <grid> unit
+val main =
+  do<grid>
+   { input <- generateIntVec (4096*4096)
+   ; result <- scan addi 0 input
+   ; forceAndPrint 128 result
+   ; benchmark 100 (forceM<grid> (scan addi 0 input))
+   ; return<grid> ()
+   }
+
+-- sig main : Program <grid> [int]
+-- val main =
+--   do <grid>
+--      { scans <- scanInChunks 5 (fn a => fn b => a + b) (generate 128 (fn i => i))
+-- --     ; scans' <- forceAndPrint 128 scans
+--      ; scans' <- force <grid> scans
+               
+--      -- Intermediate sums: [496,1520,2544,3568]
+--      ; sums <- computeInSingleBlock (intermediateSums 5 scans')
+-- --     ; sums' <- forceAndPrint 4 sums
+--      ; sums' <- force <grid> sums
+
+--      -- Scan of intermediate sums: [496,2016,4560,8128]
+--      ; scanSums <- scanInChunks 2 (fn a => fn b => a + b) (intermediateSums 5 scans')
+-- --     ; scanSums' <- forceAndPrint 4 scanSums
+--      ; scanSums' <- force <grid> scanSums
+
+--      -- Add intermediate sums
+--      ; result <- adjust 5 scans' scanSums'
+--      ; result' <- forceAndPrint 128 result
+                
+--      ; return <grid> scans'
+--      -- ; b <- forceAndPrint 128 arr
+--      -- ; forceAndPrint 4 (push <grid> (intermediateSums 5 b))
+--      }
 
 -- TODO:
 ------- Fix simplifier/typechecker bug. I guess it's the simplifier that's buggy.

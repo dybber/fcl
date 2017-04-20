@@ -65,13 +65,13 @@ unaryOps =
   ]
 
 i2i :: String -> (ILExp -> ILExp) -> (Identifier, Binding)
-i2i op f = (op, ignoreType (TagFn (\i0 -> TagInt (f (unInt i0)))))
+i2i op f = (op, ignoreType (TagFn (\i0 -> TagInt (f (unInt op i0)))))
 
 d2d :: String -> (ILExp -> ILExp) -> (Identifier, Binding)
-d2d op f = (op, ignoreType (TagFn (\d0 -> TagDouble (f (unInt d0)))))
+d2d op f = (op, ignoreType (TagFn (\d0 -> TagDouble (f (unInt op d0)))))
 
 int2double :: (Identifier, Binding)
-int2double = ("i2d", ignoreType (TagFn (\i0 -> TagDouble (i2d (unInt i0)))))
+int2double = ("i2d", ignoreType (TagFn (\i0 -> TagDouble (i2d (unInt "i2d" i0)))))
 
 bool2int :: (Identifier, Binding)
 bool2int = ("b2i", ignoreType (TagFn (\d0 -> TagInt (b2i (unBool d0)))))
@@ -109,13 +109,13 @@ ii2i :: String -> (ILExp -> ILExp -> ILExp) -> (Identifier, Binding)
 ii2i op f =
   (op, ignoreType
          (TagFn (\i0 ->
-           TagFn (\i1 -> TagInt (f (unInt i0) (unInt i1))))))
+           TagFn (\i1 -> TagInt (f (unInt op i0) (unInt op i1))))))
 
 ii2b :: String -> (ILExp -> ILExp -> ILExp) -> (Identifier, Binding)
 ii2b op f =
   (op, ignoreType
          (TagFn (\i0 ->
-           TagFn (\i1 -> TagBool (f (unInt i0) (unInt i1))))))
+           TagFn (\i1 -> TagBool (f (unInt op i0) (unInt op i1))))))
 
 dd2d :: String -> (ILExp -> ILExp -> ILExp) -> (Identifier, Binding)
 dd2d op f =
@@ -264,16 +264,16 @@ forceTo writer (arr@(ArrPushThread _ iterations ty step post)) =
      seqFor (size arr)
        (\i -> case post of
                 Nothing ->
-                  writer (TagInt (index temp i)) i
+                  writer (tagScalar ty (index temp i)) i
                 Just postprocess ->
-                  let v = postprocess (TagInt (index temp i)) -- TODO tag using type info
+                  let v = postprocess (tagScalar ty (index temp i)) -- TODO tag using type info
                   in writer v i)
 forceTo _ (ArrPush _ _) = error "Push can only be applied to pull arrays."
 forceTo _ (ArrPull _ _ _) = error "Pull arrays can not be forced."
 forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) =
   distribute (convertLevel lvl) n $ \bix -> do
     let p = idx bix
-    let writer' a ix = writer a (unInt (f (TagPair (TagInt bix) (TagInt ix))))
+    let writer' a ix = writer a (unInt "forceTo interleave" (f (TagPair (TagInt bix) (TagInt ix))))
     arr <- unProgram "forceTo" p
     forceTo writer' (unArray "forceTo" arr)
 forceTo _ _ = error "force: interleave applied to non-pull-array."
@@ -325,7 +325,7 @@ power (TagInt n) (TagFn step) (TagProgram p) =
     do TagArray arr <- p
        -- Declare array
        len <- lets "len" (TagInt (size arr))
-       var_array <- allocate (convertType (baseType arr)) (unInt len)
+       var_array <- allocate (convertType (baseType arr)) (unInt "power" len)
        (var_len,_) <- letsVar "arraySize" len
 
        let writer tv i =
@@ -347,7 +347,7 @@ power (TagInt n) (TagFn step) (TagProgram p) =
             arr' <- (unArray "power") `fmap` p'
             len' <- lets "len" (TagInt (size arr'))
             forceTo writer arr'
-            assign var_len (unInt len')
+            assign var_len (unInt "power" len')
             assign i (addi (var i) (int 1))
        return vararr
 power _ _ _ = error "first two arguments to power should be integer and step function, respectively"
@@ -358,7 +358,7 @@ whileArray (TagFn cond) (TagFn step) (TagProgram p) =
     do -- Declare array
        TagArray arr <- p
        len <- lets "len" (TagInt (size arr))
-       var_array <- allocate (convertType (baseType arr)) (unInt len)
+       var_array <- allocate (convertType (baseType arr)) (unInt "whileArray" len)
        (var_len,_) <- letsVar "arraySize" len
 
        let writer tv i =
@@ -377,7 +377,7 @@ whileArray (TagFn cond) (TagFn step) (TagProgram p) =
             TagArray arr' <- p'
             len' <- lets "len" (TagInt (size arr'))
             forceTo writer arr'
-            assign var_len (unInt len')
+            assign var_len (unInt "whileArray" len')
             assign var_cond (unBool (cond vararr))
        return vararr
 whileArray (TagFn _) (TagFn _) _ = error "third argument to while should be a push-array"
@@ -401,14 +401,14 @@ whileSeq _ _ _ = error "incompatible arguments for whileSeq"
 
 seqForFn :: Type -> Value -> Value -> Value -> Value
 seqForFn ty size_ iter f =
-  let size' = unInt size_
-      iterations = unInt iter
+  let size' = unInt "seqFor" size_
+      iterations = unInt "seqFor" iter
       basety = case ty of
                  (_ :> (_ :> (((_ :> bty) :> _) :> _))) -> bty
                  _ -> error "incorrect type of third argument to seqfor"
       step :: (ILExp -> Value) -> ILExp -> (ILExp, Value)
       step ixf i =
-        let ixf' = TagFn (ixf . unInt)
+        let ixf' = TagFn (ixf . (unInt "seqFor"))
             i' = TagInt i
         in case app2 f ixf' i' of
              TagPair (TagInt e) v -> (e,v)

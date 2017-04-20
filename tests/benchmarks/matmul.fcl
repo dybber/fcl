@@ -41,8 +41,8 @@ fun matmulRect tiledA tiledB splitSize tileSize m p n row col =
               let subA = index tiledA (i * (p / splitSize) + col) in
               let subB = index tiledB (row * (p / splitSize) + i)
               in do<block>
-                  { subA' <- forceM<block> (pushM<block> subA)
-                  ; subB' <- forceM<block> (pushM<block> subB)
+                  { subA' <- forcePull<block> subA
+                  ; subB' <- forcePull<block> subB
                   ; res <- forceM<block> (simpleMatmul<thread> splitSize splitSize splitSize subA' subB')
                   ; pushM<block> (zipWith addd c res)
                   })
@@ -64,11 +64,12 @@ fun matmulTiled splitSize m p n A B =
 sig main : Program <grid> unit
 val main =
   do<grid>
-   { input <- generateDoubleVec (32*32)
+   { input <- generateDoubleVec (4096*4096)
    -- ; out <- simpleMatmul<block> 32 32 32 input input
    -- ; forceAndPrintDouble (32*32) out
-   ; outtiled <- matmulTiled 8 32 32 32 input input
-   ; forceAndPrintDouble (32*32) outtiled
-   -- ; benchmark 10 (forceM<grid> (simpleMatmul<block> 32 32 32 input input))
+   ; outtiled <- matmulTiled 16 4096 4096 4096 input input
+   ; forceAndPrintDouble (4096) outtiled
+   ; benchmark 100 (forceM<grid> (simpleMatmul<block> 4096 4096 4096 input input))
+   ; benchmark 100 (forceM<grid> (matmulTiled 16 4096 4096 4096 input input))
    ; return<grid> ()
    }
