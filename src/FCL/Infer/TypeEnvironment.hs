@@ -179,7 +179,7 @@ opMapPush =
       tb = VarT tvb
       lvl = VarL lvlVar
   in  ("mapPush",
-       TypeScheme [lvlVar] [tva,tvb] ((ta :> tb)
+       TypeScheme [lvlVar] [tva,tvb] ((IntT :> ta :> tb)
                                       :> PushArrayT lvl ta
                                       :> PushArrayT lvl tb))
 

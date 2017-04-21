@@ -41,7 +41,7 @@ compileExp env (Cond e0 e1 e2 _) =
       elseBranch = compileExp env e2
   in case (thenBranch, elseBranch) of
        (TagInt i1, TagInt i2) -> TagInt (if_ b0 i1 i2)
-       (TagDouble d1, TagDouble d2) -> TagBool (if_ b0 d1 d2)
+       (TagDouble d1, TagDouble d2) -> TagDouble (if_ b0 d1 d2)
        (TagBool b1, TagBool b2) -> TagBool (if_ b0 b1 b2)
        (TagString s1, TagString s2) -> TagString (if_ b0 s1 s2)
        (TagArray _, TagArray _) -> error "ArrayInConditional"

@@ -14,6 +14,7 @@ import FCL.Core.MonoLevel
 import FCL.Core.Monotyped
 import FCL.Compile.Value
 import FCL.IL.Cons
+import FCL.IL.Syntax (ILExp(EInt))
 
 type CompileEnv = Map.Map Identifier Binding
 
@@ -129,7 +130,7 @@ arrayOps =
   , ("lengthPull", ignoreType (lengthFn "lengthPull"))
   , ("generate", Predefined (\ty -> binop (generate ty)))
   , ("mapPull", Predefined (\ty -> binop (mapFn "mapPull" ty)))
-  , ("mapPush", Predefined (\ty -> binop (mapFn "mapPush" ty)))
+  , ("mapPush", Predefined (\ty -> binop (mapPushFn "mapPush" ty)))
   , ("index", ignoreType (binop indexFn))
   , ("readIntCSV", ignoreType readIntCSVFn)
   , interleaveFn
@@ -152,6 +153,48 @@ lengthFn variant = TagFn (\arr -> TagInt (size (unArray variant arr)))
 mapFn :: String -> Type -> Value -> Value -> Value
 mapFn variant ((_ :> outType) :> _) f arr = TagArray (mapArray (unFn variant f) outType (unArray variant arr))
 mapFn variant _ _ _ =  error ("non function type in argument to " ++ variant)
+
+mapArray :: (Value -> Value) -> Type -> Array -> Array
+mapArray f outType (ArrPull len _ g) =
+  ArrPull len outType (f . g)
+mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
+--  ArrPush len lvl outType (\w -> g (\e ix -> w (f e) ix))
+mapArray f _ (ArrPushThread size' iterations ty g Nothing) =
+  ArrPushThread size' iterations ty g (Just (const f))
+mapArray f _ (ArrPushThread len iterations ty g (Just h)) =
+  ArrPushThread len iterations ty g (Just (\i -> f . h i))
+mapArray f outType (ArrInterleave lvl n ixt (ArrPull len ty g)) =
+  ArrInterleave lvl n ixt (ArrPull len (ProgramT lvl (PushArrayT lvl outType))
+                            (\i -> let p = unProgram "mapPush (interleave)" (g i)
+                                   in TagProgram $
+                                        do arr <- p
+                                           let arr' = unArray "mapPush (interleave)" arr
+                                           return (TagArray $ mapArray f outType arr')))
+
+
+mapPushFn :: String -> Type -> Value -> Value -> Value
+mapPushFn variant ((_ :> (_ :> outType)) :> _) f arr = TagArray (mapPush (unFn2 variant f) outType (unArray variant arr))
+mapPushFn variant _ _ _ =  error ("non function type in argument to " ++ variant)
+
+mapPush :: (Value -> Value -> Value) -> Type -> Array -> Array
+mapPush f outType (ArrPull len _ g) =
+  ArrPull len outType (\i -> f (TagInt i) (g i))
+mapPush f outType (ArrPush lvl arr) = ArrPush lvl (mapPush f outType arr)
+--  ArrPush len lvl outType (\w -> g (\e ix -> w (f e) ix))
+mapPush f _ (ArrPushThread size' iterations ty g Nothing) =
+  ArrPushThread size' iterations ty g (Just f)
+mapPush f _ (ArrPushThread len iterations ty g (Just h)) =
+  ArrPushThread len iterations ty g (Just (\i v -> f i (h i v)))
+mapPush f outType (ArrInterleave lvl n ixt (ArrPull len ty g)) =
+  ArrInterleave lvl n ixt (ArrPull len (ProgramT lvl (PushArrayT lvl outType))
+                            (\i -> let p = unProgram "mapPush (interleave)" (g i)
+                                   in TagProgram $
+                                        do arr <- p
+                                           let arr' = unArray "mapPush (interleave)" arr
+                                           let f' j v = f (TagInt (addi (muli i n) (unInt "interleave" j))) v
+                                           return (TagArray $ mapPush f' outType arr')))
+
+
 
 generate :: Type -> Value -> Value -> Value
 generate (_ :> ((_ :> ty1) :> _)) (TagInt n) (TagFn f) = TagArray (ArrPull n ty1 (\i -> f (TagInt i)))
@@ -256,6 +299,18 @@ forceTo writer (ArrPush lvl (ArrPull len _ idx)) =
   parFor (convertLevel lvl)
          len
          (\i -> writer (idx i) i)
+forceTo writer (arr@(ArrPushThread (EInt 1) iterations ty step post)) =
+  do (temp_var,temp) <- letsVar "temp" (case ty of
+                              IntT -> TagInt (int 0)
+                              DoubleT -> TagDouble (double 0.0)
+                              _ -> error "unsupported element type in forceTo")
+     seqFor iterations
+       (\i -> let (_, v) = step (\_ -> temp) i
+              in assign temp_var (untagScalar ty v))
+     case post of
+       Nothing ->
+         writer temp (int 0)
+       Just postprocess -> writer (postprocess (TagInt (int 0)) temp) (int 0)
 forceTo writer (arr@(ArrPushThread _ iterations ty step post)) =
   do temp <- allocate (convertType (baseType arr)) (size arr)
      seqFor iterations
@@ -266,7 +321,7 @@ forceTo writer (arr@(ArrPushThread _ iterations ty step post)) =
                 Nothing ->
                   writer (tagScalar ty (index temp i)) i
                 Just postprocess ->
-                  let v = postprocess (tagScalar ty (index temp i)) -- TODO tag using type info
+                  let v = postprocess (TagInt i) (tagScalar ty (index temp i))
                   in writer v i)
 forceTo _ (ArrPush _ _) = error "Push can only be applied to pull arrays."
 forceTo _ (ArrPull _ _ _) = error "Pull arrays can not be forced."

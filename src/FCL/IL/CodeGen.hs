@@ -222,6 +222,7 @@ assignVar :: VarEnv -> ILName -> Value -> CGen a ()
 assignVar env x v =
   case (Map.lookup x env, v) of
     (Just (VarInt x'), VInt v') -> assign x' v'
+    (Just (VarDouble x'), VDouble v') -> assign x' v'
     (Just (VarBool x'), VBool v') -> assign x' v'
     (Just (VarString x'), VString v') -> assign x' v'
     (Nothing, _) -> error ("Variable " ++ show x ++ " not defined.")

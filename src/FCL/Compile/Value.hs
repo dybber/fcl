@@ -10,25 +10,8 @@ type Writer a = a -> ILExp -> Program ()
 
 data Array = ArrPull ILExp Type (ILExp -> Value)
            | ArrPush Level Array
-           | ArrPushThread ILExp ILExp Type ((ILExp -> Value) -> ILExp -> (ILExp,Value)) (Maybe (Value -> Value))
+           | ArrPushThread ILExp ILExp Type ((ILExp -> Value) -> ILExp -> (ILExp,Value)) (Maybe (Value -> Value -> Value))
            | ArrInterleave Level ILExp (Value -> Value) Array
-
-mapArray :: (Value -> Value) -> Type -> Array -> Array
-mapArray f outType (ArrPull len _ g) =
-  ArrPull len outType (f . g)
-mapArray f outType (ArrPush lvl arr) = ArrPush lvl (mapArray f outType arr)
---  ArrPush len lvl outType (\w -> g (\e ix -> w (f e) ix))
-mapArray f outType (ArrPushThread size' iterations ty g Nothing) =
-  ArrPushThread size' iterations ty g (Just f)
-mapArray f outType (ArrPushThread len iterations ty g (Just h)) =
-  ArrPushThread len iterations ty g (Just (f . h))
-mapArray f outType (ArrInterleave lvl n ixt (ArrPull len ty g)) =
-  ArrInterleave lvl n ixt (ArrPull len (ProgramT lvl (PushArrayT lvl outType))
-                            (\i -> let p = unProgram "mapPush (interleave)" (g i)
-                                   in TagProgram $
-                                        do arr <- p
-                                           let arr' = unArray "mapPush (interleave)" arr
-                                           return (TagArray $ mapArray f outType arr')))
 
 size :: Array -> ILExp
 size (ArrPull len _ _)       = len
@@ -135,8 +118,12 @@ unArray _ (TagArray arr) = arr
 unArray loc v            = error ("expected array in " ++ loc ++ " got " ++ show v)
 
 unFn :: String -> Value -> (Value -> Value)
-unFn _ (TagFn arr) = arr
-unFn loc v            = error ("expected array in " ++ loc ++ " got " ++ show v)
+unFn _ (TagFn f) = f
+unFn loc v            = error ("expected function in " ++ loc ++ " got " ++ show v)
+
+unFn2 :: String -> Value -> (Value -> Value -> Value)
+unFn2 loc (TagFn f) = (\v -> unFn loc (f v))
+unFn2 loc v            = error ("expected function in " ++ loc ++ " got " ++ show v)
 
 unProgram :: String -> Value -> Program Value
 unProgram _ (TagProgram p) = p
