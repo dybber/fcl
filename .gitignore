@@ -21,3 +21,7 @@ tests/reference/reduce/nvidia-original/SdkMasterLog.csv
 tests/reference/reduce/nvidia-original/oclReduction.txt
 tests/reference/reduce/nvidia-original/oclReduction
 bugs/
+/tests/reference/matmul/nvidia-original/oclMatrixMul
+/tests/reference/matmul/nvidia-original/oclMatrixMul.txt
+/tests/reference/scan/nvidia-original/oclScan
+/tests/reference/scan/nvidia-original/oclScan.txt

@@ -1,5 +1,5 @@
-INCLUDEDIR = -I../../../shared/nvidia-opencl/include -Isrc
-LIBDIR = -L../../../shared/nvidia-opencl/lib
+INCLUDEDIR = -I../../../shared/nvidia-opencl/include -Isrc -I/usr/local/cuda/include/
+LIBDIR = -L../../../shared/nvidia-opencl/lib -L/usr/local/cuda/lib64/
 CFLAGS=-Wall -m64 -O3 -DUNIX
 LIB= -lshrUtils -loclUtils -lOpenCL
 

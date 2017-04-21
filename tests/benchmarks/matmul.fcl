@@ -58,7 +58,6 @@ fun zipWithP <lvl> f a1 a2 =
   mapPush<lvl> (fn i => fn x => f (index a1 i) x) a2
 
 
-
 -- sig matmulRect : [[int]] -> [[int]] -> int -> int -> int -> int -> int -> Program <block> [int]<block>
 fun matmulRect tiledA tiledB splitSize tileSize m p n row col =
   let init = pushM<block> (generate tileSize (fn i => 0.0)) in
@@ -89,12 +88,13 @@ fun matmulTiled splitSize m p n A B =
 sig main : Program <grid> unit
 val main =
   do<grid>
-   { input <- generateDoubleVec (4096*4096)
+   { inputA <- generateDoubleVec (1600*800)
+   ; inputB <- generateDoubleVec (800*800)
    -- ; out <- simpleMatmul<block> 32 32 32 input input
    -- ; forceAndPrintDouble (32*32) out
-   ; outtiled <- matmulTiled 16 4096 4096 4096 input input
-   ; forceAndPrintDouble (4096) outtiled
-   ; benchmark 100 (forceM<grid> (simpleMatmul<block> 4096 4096 4096 input input))
-   ; benchmark 100 (forceM<grid> (matmulTiled 16 4096 4096 4096 input input))
+   ; outtiled <- matmulTiled 16 1600 800 800 inputA inputB
+   ; forceAndPrintDouble (160) outtiled
+--   ; benchmark 100 (forceM<grid> (simpleMatmul<block> 4096 4096 4096 input input))
+   ; benchmark 100 (forceM<grid> (matmulTiled 16 1600 800 800 inputA inputB))
    ; return<grid> ()
    }

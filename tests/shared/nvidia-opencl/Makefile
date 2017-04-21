@@ -1,5 +1,4 @@
-
-INCLUDE=-Iinclude
+INCLUDE=-Iinclude -I/usr/local/cuda/include/ -L/usr/local/cuda/lib64
 CFLAGS= -Wall -m64 -O2 -DUNIX
 
 build: lib/libshrutil.a lib/liboclUtil.a
@@ -11,7 +10,7 @@ obj/shrUtils.cpp.o: src/shrUtils.cpp
 
 obj/cmd_arg_reader.cpp.o: src/cmd_arg_reader.cpp
 	mkdir -p obj
-	g++ -Wall -m64  -Iinclude -O2 -o $@ -c src/cmd_arg_reader.cpp
+	g++ -Wall -m64  $(INCLUDE) -O2 -o $@ -c src/cmd_arg_reader.cpp
 
 lib/libshrutil.a: obj/shrUtils.cpp.o obj/cmd_arg_reader.cpp.o
 	mkdir -p lib
@@ -20,15 +19,11 @@ lib/libshrutil.a: obj/shrUtils.cpp.o obj/cmd_arg_reader.cpp.o
 # oclUtils
 obj/oclUtils.cpp.o:
 	mkdir -p obj
-	g++ -Wall -m64 -Iinclude -O3 -o obj/oclUtils.cpp.o -c src/oclUtils.cpp
+	g++ -Wall -m64 $(INCLUDE) -O3 -o obj/oclUtils.cpp.o -c src/oclUtils.cpp
 
 lib/liboclUtil.a: obj/oclUtils.cpp.o
 	mkdir -p lib
 	ar qv lib/liboclUtils.a obj/oclUtils.cpp.o  
-
-
-
-
 
 clean:
 	rm -rf lib
