@@ -25,3 +25,4 @@ bugs/
 /tests/reference/matmul/nvidia-original/oclMatrixMul.txt
 /tests/reference/scan/nvidia-original/oclScan
 /tests/reference/scan/nvidia-original/oclScan.txt
+/tests/reference/scan/thrust/scan

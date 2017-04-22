@@ -57,10 +57,10 @@ fun adjust lgChunkSize f neutral scans sums =
 
 sig scan : forall 'a. ('a -> 'a -> 'a) -> 'a -> ['a] -> Program <grid> ['a]<grid>
 fun scan f neutral input =
- let lgChunkSize = 5
+ let lgChunkSize = 8
  in do<grid>
      { scans <- forceM<grid> (scanInChunks lgChunkSize f input)
-     ; scanSums <- forceM<grid> (scanInChunks 2 f (intermediateSums lgChunkSize scans))
+     ; scanSums <- forceM<grid> (scanInChunks 8 f (intermediateSums lgChunkSize scans))
      ; adjust lgChunkSize f neutral scans scanSums
      }
 
