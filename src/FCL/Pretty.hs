@@ -115,8 +115,8 @@ instance Pretty Ext.Exp where
         ppLvls lvls <> prettyAnnotation anno <+> text "="
         <> nest nestDepth (softline <> pretty e1) <+> text "in"
         </> pretty e2 
-      Ext.UnaryOp op e1 -> pretty op <+> pretty e1
-      Ext.BinaryOp op e1 e2 -> pretty e1 <+> pretty op <+> pretty e2
+      Ext.UnaryOp op e1 -> pretty op <+> prettyParensExt e1
+      Ext.BinaryOp op e1 e2 -> prettyParensExt e1 <+> pretty op <+> prettyParensExt e2
       Ext.Do lvl stmt ->
         text "do" <+> angles (pretty lvl) </>
           indent 2 (braces (cat (punctuate (char ';' <> softline) (map pretty stmt))))

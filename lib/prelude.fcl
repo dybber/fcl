@@ -1,6 +1,9 @@
 sig id : forall 'a. 'a -> 'a
 fun id x = x
 
+sig const : forall 'a 'b. 'a -> 'b -> 'a
+fun const x = fn y => x
+
 sig concat : forall <lvl> 'a. int -> [Program<lvl> ['a]<lvl>] -> Program<1+lvl> ['a]<1+lvl>
 fun concat<lvl> n arr =
   interleave<lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
@@ -16,6 +19,10 @@ sig zipWith : forall 'a 'b 'c. ('a -> 'b -> 'c) -> ['a] -> ['b] -> ['c]
 fun zipWith f a1 a2 =
   generate (mini (lengthPull a1) (lengthPull a2))
     (fn ix => f (index a1 ix) (index a2 ix))
+
+sig zipWithPush : forall <lvl> 'a 'b 'c. ('a -> 'b -> 'c) -> ['a] -> ['b]<lvl> -> ['c]<lvl>
+fun zipWithPush <lvl> f a1 a2 =
+  mapPush<lvl> (fn i => fn x => f (index a1 i) x) a2
 
 sig backpermute : forall 'a. int -> (int -> (int, int)) -> [['a]] -> ['a]
 fun backpermute totalSize f array =

@@ -1,100 +1,65 @@
-sig transpose : forall 'a. int -> int -> ['a] -> ['a]
-fun transpose cols rows elems =
-  generate (cols * rows)
-           (fn n =>
-              let i = n / rows in
-              let j = n % rows
-              in index elems (j * rows + i))
+-- Dot product, sequential
+sig dotp : forall 'a 'b 'c 'd. ('a -> 'b -> 'a) -> ('d -> 'c -> 'b) -> 'a -> ['d] -> ['c] -> ['a]<thread>
+fun dotp f g neutral vec1 vec2 = foldl f neutral (zipWith g vec1 vec2)
 
-sig reduceBlock : forall <lvl> 'a. ('a -> 'a -> 'a) -> ['a] -> Program<lvl> ['a]<lvl>
-fun reduceBlock<lvl> f arr =
-  let cond = fn arr => 1 != lengthPull arr in
-  let step = fn arr => let x = halve arr
-                       in return<lvl> (push<lvl> (zipWith f (fst x) (snd x)))
-  in do<lvl>
-      { a <- while<lvl> cond step (step arr)
-      ; return<lvl> (push<lvl> a)
-      }
-
-sig dotp : forall <lvl>. [double] -> [double] -> Program<lvl> [double]<lvl>
-fun dotp<lvl> vec1 vec2 =
-  reduceBlock<lvl> (fn a => fn b => addd a b)
-                   (zipWith (fn a => fn b => muld a b) vec1 vec2)
-
+-- Block-wide matrix multiplication
 -- multiply m*p matrix by p*n matrix --> result an m*n matrix
-sig simpleMatmul : forall <lvl>. int -> int -> int -> [double] -> [double] -> Program <1+lvl> [double]<1+lvl>
-fun simpleMatmul<lvl> m p n A B =
+sig simpleMatmul : forall 'a 'b 'c 'd. ('d -> 'c -> 'd) -> ('a -> 'b -> 'c) -> 'd -> int -> int -> int -> ['a] -> ['b] -> Program <block> ['d]<block>
+fun simpleMatmul f g neutral m p n A B =
   generate (m * n)
     (fn i =>
        let col = i % n in
        let row = divi i n in
        let rowVec = generate p (fn j => index A (row * p + j)) in
        let colVec = generate p (fn j => index B (j * p + col))
-       in dotp<lvl> rowVec colVec)
-   |> concat<lvl> 1
-
-sig dotp2 : [double] -> [double] -> [double]<thread>
-fun dotp2 vec1 vec2 =
-  foldl addd 0.0 (zipWith muld vec1 vec2)
-
--- multiply m*p matrix by p*n matrix --> result an m*n matrix
-sig simpleMatmul2 : int -> int -> int -> [double] -> [double] -> Program <block> [double]<block>
-fun simpleMatmul2 m p n A B =
-  generate (m * n)
-    (fn i =>
-       let col = i % n in
-       let row = divi i n in
-       let rowVec = generate p (fn j => index A (row * p + j)) in
-       let colVec = generate p (fn j => index B (j * p + col))
-       in return<thread> (dotp2 rowVec colVec))
+       in return<thread> (dotp f g neutral rowVec colVec))
    |> concat<thread> 1
 
--- TODO
--- zipWith, zipping push array and pull array. Not possible??
---
-
-sig zipWithP : forall <lvl> 'a 'b 'c. ('a -> 'b -> 'c) -> ['a] -> ['b]<lvl> -> ['c]<lvl>
-fun zipWithP <lvl> f a1 a2 =
-  mapPush<lvl> (fn i => fn x => f (index a1 i) x) a2
-
-
--- sig matmulRect : [[int]] -> [[int]] -> int -> int -> int -> int -> int -> Program <block> [int]<block>
-fun matmulRect tiledA tiledB splitSize tileSize m p n row col =
-  let init = pushM<block> (generate tileSize (fn i => 0.0)) in
+-- Multiplying two rectangular matrices, partitioned in submatrices
+sig matmulRect : forall 'a 'b 'c. ('a -> 'a -> 'a) -> ('c -> 'b -> 'a) -> 'a -> [['c]] -> [['b]] -> int -> int -> Program <block> ['a]<block>
+fun matmulRect f g neutral rectA rectB splitSize q =
+  let tileSize = splitSize*splitSize in
+  let init = pushM<block> (generate tileSize (const neutral)) in
   let body = (fn i => fn c =>
-              let subA = index tiledA (i * (p / splitSize) + col) in
-              let subB = index tiledB (row * (p / splitSize) + i)
-              in do<block>
-                  { subA' <- forcePull<block> subA
-                  ; subB' <- forcePull<block> subB
-                  ; res <- simpleMatmul2 splitSize splitSize splitSize subA' subB'
-                  ; return<block> (zipWithP<block> addd c res) -- pushM<block> (zipWith addd c res)
+                do<block>
+                  { subA' <- forcePull<block> (index rectA i)
+                  ; subB' <- forcePull<block> (index rectB i)
+                  ; res <- simpleMatmul f g neutral splitSize splitSize splitSize subA' subB'
+                  ; return<block> (zipWithPush<block> f c res)
                   })
-  in liftM<block> push<block> (power<block> (p / splitSize) body init)
+  in liftM<block> push<block> (power<block> q body init)
 
---sig matmulTiled : int -> int -> int -> int -> [int] -> [int] -> Program <grid> [int]<grid>
-fun matmulTiled splitSize m p n A B =
+-- Multiply two matrices in grid-wide computation
+sig matmulTiled : forall 'a 'b 'c. ('c -> 'c -> 'c) -> ('a -> 'b -> 'c) -> 'c -> int -> int -> int -> int -> ['a] -> ['b] -> Program <grid> ['c]<grid>
+fun matmulTiled f g neutral splitSize hA wA wB A B =
   let tileSize = splitSize * splitSize in
-  let tiledA = splitGrid splitSize tileSize p (p / splitSize) (m / splitSize) A in
-  let tiledB = splitGrid splitSize tileSize n (n / splitSize) (p / splitSize) B
+  let p = wA / splitSize in
+  let q = wB / splitSize in
+  let tiledA = splitGrid splitSize wA hA A in
+  let tiledB = splitGrid splitSize wB wA B
   in
-     iota (m*n / tileSize)
+     iota (hA*wB / tileSize)
       |> mapPull (fn tile =>
-                    let tileRow = tile / (p / splitSize) in
-                    let tileCol = tile % (p / splitSize)
-                    in matmulRect tiledA tiledB splitSize tileSize m p n tileRow tileCol)
-      |> concatGrid<block> splitSize tileSize (m / splitSize) n
+                    let tileRow = tile / q in
+                    let tileCol = tile % q in
+                    let rectA = generate p (fn i => index tiledA (p * tileRow + i)) in -- (a)
+                    let rectB = generate p (fn i => index tiledB (i * q + tileCol))
+                    in matmulRect f g neutral rectA rectB splitSize p)
+      |> concatGrid<block> splitSize wB
 
 sig main : Program <grid> unit
 val main =
+  let n = 1600 in
+  let p = 800 in
+  let m = 800 in
   do<grid>
-   { inputA <- generateDoubleVec (1600*800)
-   ; inputB <- generateDoubleVec (800*800)
-   -- ; out <- simpleMatmul<block> 32 32 32 input input
-   -- ; forceAndPrintDouble (32*32) out
-   ; outtiled <- matmulTiled 16 1600 800 800 inputA inputB
-   ; forceAndPrintDouble (160) outtiled
---   ; benchmark 100 (forceM<grid> (simpleMatmul<block> 4096 4096 4096 input input))
-   ; benchmark 100 (forceM<grid> (matmulTiled 16 1600 800 800 inputA inputB))
-   ; return<grid> ()
+   { inputA <- generateDoubleVec (n*p)
+   ; inputB <- generateDoubleVec (p*m)
+
+   -- test, print 8000 first numbers (as in matmul.expected)
+   ; outtiled <- matmulTiled addd muld 0.0 16 n p m inputA inputB
+   ; forceAndPrintDouble 8000 outtiled
+
+   -- benchmark
+   ; benchmark 100 (forceM<grid> (matmulTiled addd muld 0.0 16 n p m inputA inputB))
    }

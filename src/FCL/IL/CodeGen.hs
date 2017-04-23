@@ -619,8 +619,8 @@ printDoubleArray ctx n (VHostBuffer elemty buf) =
      exec void_t "printf" [string "["]
      let lastElem = subi (unInt n) (constant (1 :: Int))
      for lastElem (\i ->
-       exec void_t "printf" [string "%.7f,", index hostptr i])
-     exec void_t "printf" [string "%.7f", index hostptr lastElem]
+       exec void_t "printf" [string "%.5f,", index hostptr i])
+     exec void_t "printf" [string "%.5f", index hostptr lastElem]
      exec void_t "printf" [string "]\\n"]
      unmmap ctx buf hostptr
 printDoubleArray _ _ _ = error "Print array expects array"

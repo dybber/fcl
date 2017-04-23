@@ -1,19 +1,19 @@
 sig generateIntVec : int -> Program <grid> [int]
 fun generateIntVec n =
- let n' = 256 * (divi (n + 255) 256)
+ let n' = 256 * ((n + 255) / 256)
  in
   splitUp 256 (iota n')
-    |> mapPull (fn arr => return <block> (push <block> arr))
+    |> mapPull pushM<block>
     |> concat <block> 256
     |> forceM<grid>
     |> liftM<grid> (take n)
 
 sig generateDoubleVec : int -> Program <grid> [double]
 fun generateDoubleVec n =
- let n' = 256 * (divi (n + 256) 256)
+ let n' = 256 * ((n + 256) / 256)
  in
   splitUp 32 (generate n' (fn i => divd (i2d i) (i2d n)))
-    |> mapPull (fn arr => return <block> (push <block> arr))
+    |> mapPull pushM<block>
     |> concat <block> 32
     |> forceM<grid>
     |> liftM<grid> (take n)
@@ -21,8 +21,11 @@ fun generateDoubleVec n =
 -- Split a 2D array (represented as a flat vector) into a 2D array of 2D arrays
 -- First argument @splitSize is width and height of tiles
 -- Second and third argument is the width and height of the original array
-sig splitGrid : forall 'a. int -> int -> int -> int -> int -> ['a] -> [['a]]
-fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
+sig splitGrid : forall 'a. int -> int -> int -> ['a] -> [['a]]
+fun splitGrid splitSize width height elems =
+  let tileSize = splitSize * splitSize in
+  let groupsWidth = width / splitSize in
+  let groupsHeight = height / splitSize in
   let mkTile =
         (fn groupIDy =>
           fn groupIDx =>
@@ -30,8 +33,8 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
                       (fn tid =>
                          let localIDx = tid % splitSize in -- column in inner array
                          let localIDy = tid / splitSize in -- row in inner array
-                         let xIndex = groupIDy * splitSize + localIDx in
-                         let yIndex = groupIDx * splitSize + localIDy in
+                         let xIndex = groupIDx * splitSize + localIDx in
+                         let yIndex = groupIDy * splitSize + localIDy in
                          let ix = yIndex * width + xIndex
                          in index elems ix))
   in generate (groupsWidth * groupsHeight)
@@ -42,16 +45,15 @@ fun splitGrid splitSize tileSize width groupsWidth groupsHeight elems =
 
 -- Concatenate a 2D array of 2D arrays
 -- First argument @splitSize is the width and height of inner arrays
--- Second argument @tileSize must be === splitSize*splitSize
--- Third argument @groupsPerRow is the width of the outer array
+-- Second argument @groupsPerRow is the width of the outer array
 -- Total number of elements is thus splitSize*splitSize*groupsPerRow*groupsPerRow
-sig concatGrid : forall <lvl> 'a. int -> int -> int -> int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
+sig concatGrid : forall <lvl> 'a. int -> int -> [Program <lvl> ['a]<lvl>] -> Program <1+lvl> ['a]<1+lvl>
 fun concatGrid <lvl>
                splitSize  -- width&height of inner array (2)
-               tileSize
-               groupsWidth       -- width of outer array (2)
-               height
+               width
                arr =
+    let tileSize = splitSize * splitSize in
+    let groupsWidth = width / splitSize in -- width of outer array (2)
     let mkGrid =
           (fn sh =>
              let gid = fst sh in -- index into outer (0..3)
@@ -60,8 +62,8 @@ fun concatGrid <lvl>
              let groupIDy = gid / groupsWidth in -- row in outer
              let localIDx = tid % splitSize in -- column in inner array
              let localIDy = tid / splitSize in -- row in inner array
-             let xIndex = groupIDy * splitSize + localIDx in
-             let yIndex = groupIDx * splitSize + localIDy in
-             let ix = yIndex * height + xIndex
+             let xIndex = groupIDx * splitSize + localIDx in
+             let yIndex = groupIDy * splitSize + localIDy in
+             let ix = yIndex * width + xIndex
              in ix)
     in interleave <lvl> tileSize mkGrid arr

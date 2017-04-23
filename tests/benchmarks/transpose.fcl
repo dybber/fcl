@@ -14,16 +14,13 @@ fun transpose cols rows elems =
 --  - write back to global memory with concatGrid
 sig transposeChunked : forall 'a. int -> int -> int -> ['a] -> Program <grid> ['a]<grid>
 fun transposeChunked splitSize width height elems =
-  let tileSize = splitSize * splitSize in
-  let groupsWidth = width / splitSize in -- width of outer array
-  let groupsHeight = height / splitSize in -- height of outer array
-    splitGrid splitSize tileSize width groupsWidth groupsHeight elems
+    splitGrid splitSize width height elems
      |> mapPull pushM<block>
      |> mapPull forceM<block>
      |> mapPull (liftM<block> (transpose splitSize splitSize))
-     |> transpose groupsWidth groupsHeight
+     |> transpose (width / splitSize) (height / splitSize)
      |> mapPull (liftM<block> push<block>)
-     |> concatGrid <block> splitSize tileSize groupsWidth height
+     |> concatGrid<block> splitSize width
 
 sig transposeChunked16 : forall 'a. int -> int -> ['a] -> Program <grid> ['a]<grid>
 val transposeChunked16 = transposeChunked 16
