@@ -348,7 +348,12 @@ compKernelBody cfg env stmts =
              (compKernelBody cfg env then_
              ,compKernelBody cfg env else_)
          compKernelBody cfg env ss
-    (SeqFor _ _ _ _ : _)      -> error "seqfor: Only available at thread-level"
+    (SeqFor loopVar loopBound body _ : ss) ->
+      do let ub = compExp env loopBound
+         for (unInt ub)
+             (\i -> do i' <- lett "ub" (VInt i)
+                       compKernelBody cfg (Map.insert loopVar i' env) body)
+         compKernelBody cfg env ss
     (ReadIntCSV _ _ _ _ : _)  -> error "Reading input-data is not possible at block level"
     (PrintIntArray _ _ _ : _) -> error "Printing not possible at block level"
     (PrintDoubleArray _ _ _ : _) -> error "Printing not possible at block level"
@@ -498,7 +503,12 @@ compHost cfg ctx env stmts =
              (compHost cfg ctx env then_
              ,compHost cfg ctx env else_)
          compHost cfg ctx env ss
-    (SeqFor _ _ _ _ : _) -> error "seqfor: Only available at thread-level"
+    (SeqFor loopVar loopBound body _ : ss) ->
+      do let ub = compExp env loopBound
+         for (unInt ub)
+             (\i -> do i' <- lett "ub" (VInt i)
+                       compHost cfg ctx (Map.insert loopVar i' env) body)
+         compHost cfg ctx env ss
 
 distribute :: CompileConfig -> ClContext -> VarEnv -> ILName -> ILExp -> [Stmt a] -> ILHost ()
 distribute cfg ctx env loopVar loopBound stmts =

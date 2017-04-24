@@ -12,18 +12,21 @@ data Array = ArrPull ILExp Type (ILExp -> Value)
            | ArrPush Level Array
            | ArrPushThread ILExp ILExp Type ((ILExp -> Value) -> ILExp -> (ILExp,Value)) (Maybe (Value -> Value -> Value))
            | ArrInterleave Level ILExp (Value -> Value) Array
+           | ArrInterleaveSeq Level ILExp (Value -> Value) Array
 
 size :: Array -> ILExp
 size (ArrPull len _ _)       = len
 size (ArrPush _ arr)       = size arr
 size (ArrPushThread len _ _ _ _) = len
 size (ArrInterleave _ rn _ arr) = rn `muli` (size arr)
+size (ArrInterleaveSeq _ rn _ arr) = rn `muli` (size arr)
 
 baseType :: Array -> Type
 baseType (ArrPull _ ty _)              = elemType ty
 baseType (ArrPush _ arr)      = baseType arr
 baseType (ArrPushThread _ _ bty _ _) = bty
 baseType (ArrInterleave _ _ _ arr) = baseType arr
+baseType (ArrInterleaveSeq _ _ _ arr) = baseType arr
 
 elemType :: Type -> Type
 elemType IntT = IntT
@@ -51,7 +54,9 @@ instance Show Array where
   show (ArrPull _ ty _) = "pull<" ++ show ty ++ ">"
   show (ArrPush lvl arr) = "push<" ++ show lvl ++ "> (" ++ show arr ++ ")"
   show (ArrInterleave lvl e _ arr) = "interleave<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
+  show (ArrInterleaveSeq lvl e _ arr) = "interleaveSeq<" ++ show lvl ++ "> (" ++ show e ++ ") <fn> (" ++ show arr ++ ")"
   show (ArrPushThread _ _ ty _ _) = show ty
+
 
 instance Show Value where
   show (TagInt e) = "TagInt(" ++ show e ++ ")"

@@ -73,6 +73,7 @@ arrayOps =
    opReturn,
    opBind,
    opInterleave,
+   opInterleaveSeq,
    opSeqFor,
    opPower,
    opWhile,
@@ -237,6 +238,19 @@ opInterleave =
                                  :> ((IntT :*: IntT) :> IntT)
                                  :> PullArrayT (ProgramT lvl (PushArrayT lvl ta))
                                  :> ProgramT (Step lvl) (PushArrayT (Step lvl) ta)))
+
+opInterleaveSeq :: (Identifier, TypeScheme)
+opInterleaveSeq =
+  let tva = TyVar 0 Nothing
+      lvlVar = LvlVar 0 Nothing
+      ta = VarT tva
+      lvl = VarL lvlVar
+  in ("interleaveSeq",
+      TypeScheme [lvlVar] [tva] (IntT
+                                 :> ((IntT :*: IntT) :> IntT)
+                                 :> PullArrayT (ProgramT lvl (PushArrayT lvl ta))
+                                 :> ProgramT lvl (PushArrayT lvl ta)))
+
 
 opSeqFor :: (Identifier, TypeScheme)
 opSeqFor =

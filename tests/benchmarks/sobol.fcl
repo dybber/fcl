@@ -30,9 +30,9 @@ fun sobolInd1DBlock n dirVec = sobolInd1DPart dirVec (iota n)
 -- Full grid-computation, computing a single sequence using multiple blocks
 sig sobolInd1DGrid : int -> [int] -> Program <grid> [int]<grid>
 fun sobolInd1DGrid n dirVec =
-  splitUp 4096 (pad 4096 0 (iota n))
+  splitUp 256 (pad 256 0 (iota n))
    |> mapPull (sobolInd1DPart dirVec)
-   |> concat<block> 4096
+   |> concat<block> 256
 
 sig sobolIndND : int -> [[int]] -> [Program <block> [int]<block>]
 fun sobolIndND n dirVecs =
@@ -42,8 +42,8 @@ fun sobolIndND n dirVecs =
 -- Full grid computation, computing a single sequence using a single block
 sig sobolIndNDGrid : int -> [[int]] -> Program <grid> [int]<grid>
 fun sobolIndNDGrid n dirVecs =
-   mapPull (sobolInd1DBlock n) dirVecs
-   |> concat<block> n
+   mapPull (sobolInd1DGrid n) dirVecs
+   |> concatSeq<grid> (((n + 255) / 256) * 256)
 
 sig sobolRec : [int] -> int -> int -> int
 fun sobolRec dirVec previous ix = xor previous (index dirVec (ffz ix))
@@ -88,7 +88,7 @@ fun sobolRecNDDouble n dirVec = normal (sobolRecND n dirVec)
 
 sig main : Program <grid> unit
 val main =
-  let n = 100000 in
+  let n = 100096 in
   do<grid>
    { directionVectors <- readIntCSV "sobol_direction_vectors.csv"
    -- ; arr1 <- sobolInd1DGrid n (take sobol_num_bits directionVectors)
@@ -97,7 +97,7 @@ val main =
    ; forceAndPrintDouble (2*n) arr2
    -- ; arr3 <- sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)
    -- ; forceAndPrintDouble (2*n) arr3
-   ; benchmark 100 (forceM<grid> (sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)))
+   -- ; benchmark 100 (forceM<grid> (sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)))
    -- ; benchmark 100 (forceM<grid> (sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)))
    ; return<grid> ()
    }

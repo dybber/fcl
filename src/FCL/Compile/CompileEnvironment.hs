@@ -134,6 +134,7 @@ arrayOps =
   , ("index", ignoreType (binop indexFn))
   , ("readIntCSV", ignoreType readIntCSVFn)
   , interleaveFn
+  , interleaveSeqFn
   , ("push", Predefined (\ty -> unop (push ty)))
   , ("return", ignoreType (unop returnFn))
   , ("bind", ignoreType (binop bindFn))
@@ -193,6 +194,14 @@ mapPush f outType (ArrInterleave lvl n ixt (ArrPull len ty g)) =
                                            let arr' = unArray "mapPush (interleave)" arr
                                            let f' j v = f (TagInt (addi (muli i n) (unInt "interleave" j))) v
                                            return (TagArray $ mapPush f' outType arr')))
+mapPush f outType (ArrInterleaveSeq lvl n ixt (ArrPull len ty g)) =
+  ArrInterleaveSeq lvl n ixt (ArrPull len (ProgramT lvl (PushArrayT lvl outType))
+                            (\i -> let p = unProgram "mapPush (interleave)" (g i)
+                                   in TagProgram $
+                                        do arr <- p
+                                           let arr' = unArray "mapPush (interleave)" arr
+                                           let f' j v = f (TagInt (addi (muli i n) (unInt "interleave" j))) v
+                                           return (TagArray $ mapPush f' outType arr')))
 
 
 
@@ -209,6 +218,10 @@ readIntCSVFn =
 interleaveFn :: (Identifier, Binding)
 interleaveFn = ("interleave", ignoreType (triop interleave))
 
+interleaveSeqFn :: (Identifier, Binding)
+interleaveSeqFn = ("interleaveSeq", ignoreType (triop interleaveSeq))
+
+
 interleave :: Value -> Value -> Value -> Value
 interleave (TagInt rn) (TagFn ixf) (TagArray (arr@(ArrPull _ ty _))) =
   case ty of
@@ -218,6 +231,16 @@ interleave v f a = error (unwords ["unexpected arguments to interleave",
                                    show v,
                                    show f,
                                    show a])
+
+interleaveSeq :: Value -> Value -> Value -> Value
+interleaveSeq (TagInt rn) (TagFn ixf) (TagArray (arr@(ArrPull _ ty _))) =
+  case ty of
+    ProgramT lvl _ -> TagProgram (return (TagArray (ArrInterleaveSeq lvl rn ixf arr)))
+    _ -> error ("Interleave: third argument must be Program, was: " ++ show ty)
+interleaveSeq v f a = error (unwords ["unexpected arguments to interleave",
+                                      show v,
+                                      show f,
+                                      show a])
 
 indexFn :: Value -> Value -> Value
 indexFn (TagArray (ArrPull _ _ idx)) (TagInt i) = idx i
@@ -240,8 +263,6 @@ bindFn v0 v1 =
                         -- TagProgram m1 -> m1 >>= lets "x" -- maybe like this?
                         _ -> error "expected Program as result of second argument to Bind")
     _ -> error "program and function returning program as arguments to bind"
-
-
 
 
 force :: Value -> Value
@@ -329,6 +350,12 @@ forceTo writer (ArrInterleave lvl _ f (ArrPull n _ idx)) =
   distribute (convertLevel lvl) n $ \bix -> do
     let p = idx bix
     let writer' a ix = writer a (unInt "forceTo interleave" (f (TagPair (TagInt bix) (TagInt ix))))
+    arr <- unProgram "forceTo" p
+    forceTo writer' (unArray "forceTo" arr)
+forceTo writer (ArrInterleaveSeq _ _ f (ArrPull n _ idx)) =
+  seqFor n $ \bix -> do
+    let p = idx bix
+    let writer' a ix = writer a (unInt "forceTo interleaveSeq" (f (TagPair (TagInt bix) (TagInt ix))))
     arr <- unProgram "forceTo" p
     forceTo writer' (unArray "forceTo" arr)
 forceTo _ _ = error "force: interleave applied to non-pull-array."
