@@ -10,16 +10,6 @@ fun grayCode i = xor i (srl i 1)
 sig sobol_num_bits : int
 val sobol_num_bits = 30
 
-
--- Normalise to floating point [0;1]
-sig sobol_divisor : double
-val sobol_divisor = 1073741824.0 --(powi 2 sobol_num_bits)
-
--- Convert a sobol number to floating point in the interval [0,1]
-sig normalise : int -> double
-fun normalise x = divd (i2d x) sobol_divisor
-
-
 -- Single sobol number, given index and direction vector
 sig sobolInd : int -> [int] -> [int]<thread>
 fun sobolInd ix dirVec =
@@ -30,14 +20,12 @@ fun sobolInd ix dirVec =
 -- Sobol numbers for all numbers in indices array
 sig sobolInd1DPart : [int] -> [int] -> Program <block> [int]<block>
 fun sobolInd1DPart dirVec indices =
-  mapPull (fn ix => sobolInd ix dirVec) indices
-   |> mapPull (return <thread>)
+  mapPull (fn ix => return<thread> (sobolInd ix dirVec)) indices
    |> concat<thread> 1
 
 -- Length 'n' 1D sobol sequence, given n and direction vector
 sig sobolInd1DBlock : int -> [int] -> Program <block> [int]<block>
-fun sobolInd1DBlock n dirVec =
-   sobolInd1DPart dirVec (iota n)
+fun sobolInd1DBlock n dirVec = sobolInd1DPart dirVec (iota n)
 
 -- Full grid-computation, computing a single sequence using multiple blocks
 sig sobolInd1DGrid : int -> [int] -> Program <grid> [int]<grid>
@@ -52,10 +40,9 @@ fun sobolIndND n dirVecs =
    |> mapPull (sobolInd1DBlock n)
 
 -- Full grid computation, computing a single sequence using a single block
-sig sobolIndNDGrid : int -> [[int]] -> Program <grid> [double]<grid>
+sig sobolIndNDGrid : int -> [[int]] -> Program <grid> [int]<grid>
 fun sobolIndNDGrid n dirVecs =
    mapPull (sobolInd1DBlock n) dirVecs
-   |> mapPull (liftM<block> (mapPush<block> normalise))
    |> concat<block> n
 
 sig sobolRec : [int] -> int -> int -> int
@@ -74,91 +61,44 @@ fun sobolRec1DChunked chunkSize n dirVec =
    |> mapPull (fn i => sobolRec1D i chunkSize dirVec)
    |> concat<thread> chunkSize
 
-sig sobolRecND : int -> [[int]] -> Program <grid> [double]<grid>
+sig sobolRecND : int -> [[int]] -> Program <grid> [int]<grid>
 fun sobolRecND n dirVs =
   mapPull (sobolRec1DChunked 64 n) dirVs
-   |> mapPull (liftM<block> (mapPush<block> normalise))
    |> concat<block> n
-
--- sig sobolSkip : [int] -> int -> int -> int -> int
--- fun sobolSkip dirVec p prev n =
---   let q_n = ffz (ori n (subi (powi 2 p) 1))
---   in xori prev
---           (xori (index dirVec (subi p 1))
---                 (index dirVec q_n))
-
--- sig sobolSkipPart : int -> int -> [int] -> int -> [int]<thread>
--- fun sobolSkipPart logskip steps dirVec initial =
---   let stepSize = powi 2 logskip
---   in scanl (sobolSkip dirVec logskip)
---            initial
---            (mapPull (muli stepSize) (iota (subi steps 1)))
-
--- sig sobolSkip1D : int -> int -> [int] -> [[int]<thread>]
--- fun sobolSkip1D logskip steps dirVec =
---   let stepSize = powi 2 logskip in
---   let initials = sobolInd1D stepSize dirVec
---   in mapPull (sobolSkipPart logskip steps dirVec) initials
 
 sig iterations : int
 val iterations = 50
 
--- status: works (in interpreter)
--- sig testSobolIndND : [[double]]
--- val testSobolIndND = normaliseND (sobolIndND iterations sobol_dirVs)
+-- Normalise to floating point [0;1]
+sig sobol_divisor : double
+val sobol_divisor = 1073741824.0 --(powi 2 sobol_num_bits)
 
--- status: works (in interpreter)
--- sig testSobolRecND : [[double]<thread>]
--- fun testSobolRecND = mapPull (mapPush normalise) (sobolRecND iterations sobol_dirVs)
+-- Convert a sobol number to floating point in the interval [0,1]
+sig normalise : int -> double
+fun normalise x = divd (i2d x) sobol_divisor
 
--- -- status:
--- --   * generates right numbers
--- --   * still needs to be reordered (but written coalesced),
--- --   * needs to support higher dimensions (now only generates first dimension)
--- sig testSobolSkip1D : [[int]<thread>]
--- fun testSobolSkip1D =
---   let vec = index sobol_dirVs 0
---   in sobolSkip1D 3 6 vec
+sig normal : Program <grid> [int]<grid> -> Program <grid> [double]<grid>
+val normal = liftM<grid> (mapPush<grid> (const normalise))
 
+sig sobolIndNDDouble : int -> [[int]] -> Program <grid> [double]<grid>
+fun sobolIndNDDouble n dirVec = normal (sobolIndNDGrid n dirVec)
 
---sig debugThread : forall 'a. 'a -> int -> Program <thread> ['a]<thread>
--- fun debugThread startIx n = return<thread> (push<thread> (generate n (fn i => 1)))
+sig sobolRecNDDouble : int -> [[int]] -> Program <grid> [double]<grid>
+fun sobolRecNDDouble n dirVec = normal (sobolRecND n dirVec)
 
--- -- sig debugBlock : Program <block> [int]<block>
--- -- val debugBlock =
--- --   iota 2
--- --    |> mapPull (fn i => debugThread i 64)
--- --    |> concat<thread> 64
-
--- sig debugGrid : Program <grid> [double]<grid>
--- val debugGrid =
---   -- generate 2 (fn i => debugBlock)
---   --  |> mapPull (fn arr1 => (do<block>
---   --                         { arr <- arr1
---   --                         ; return<block> (mapPush<block> normalise arr)
---   --                         }))
---   generate 2 (fn i => (do<block>
---                           { arr <- (concat<thread> 64 (generate 2 (fn i => debugThread i 64)))
---                           ; return<block> (mapPush<block> normalise arr)
---                           }))
---    |> concat<block> 128
-
--- fun main = testSobolIndND
--- fun main = sobolIndND iterations sobol_dirVs
--- fun main = testSobolRecND
 sig main : Program <grid> unit
 val main =
+  let n = 100000 in
   do<grid>
    { directionVectors <- readIntCSV "sobol_direction_vectors.csv"
-   ; arr1 <- sobolInd1DGrid 100 (take 30 directionVectors)
-   ; forceAndPrint 100 arr1
-   ; arr2 <- sobolIndNDGrid 100 (splitUp 30 directionVectors)
-   ; forceAndPrintDouble 200 arr2
-   ; arr3 <- sobolRecND  100 (splitUp 30 directionVectors)
-   ; forceAndPrintDouble 200 arr3
-   -- ; arr3 <- debugGrid
-   -- ; forceAndPrintDouble 200 arr3
+   -- ; arr1 <- sobolInd1DGrid n (take sobol_num_bits directionVectors)
+   -- ; forceAndPrint n arr1
+   ; arr2 <- sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)
+   ; forceAndPrintDouble (2*n) arr2
+   -- ; arr3 <- sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)
+   -- ; forceAndPrintDouble (2*n) arr3
+   ; benchmark 100 (forceM<grid> (sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)))
+   -- ; benchmark 100 (forceM<grid> (sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)))
    ; return<grid> ()
    }
-  --testSobolSkip1D
 
