@@ -268,16 +268,32 @@ bindFn v0 v1 =
 force :: Value -> Value
 force (TagArray (ArrPull _ _ _)) = error ("force: forcing a pull-array should raise type error." ++
                                           "Needs iteration scheme before it can be forced.")
-force (TagArray arr) = TagProgram $ do
-  let len = size arr                     -- calculate size of complete nested array structure
-  name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
-  let writer v ix =                     -- creater writer function (right now: only integer arrays supported!)
-        case v of
-          TagInt v' -> assignArray name v' ix
-          TagDouble v' -> assignArray name v' ix
-          e -> error ("cannot force: " ++ show e)
-  forceTo writer arr                   -- recursively generate loops for each layer
-  return (TagArray (createPull name (baseType arr) len))
+force (TagArray arr) =
+  case size arr of
+    EInt 1 ->
+      TagProgram $
+        do let ty = baseType arr
+           (temp_var,temp) <- letsVar "temp" (case ty of
+                                IntT -> TagInt (int 0)
+                                DoubleT -> TagDouble (double 0.0)
+                                _ -> error "unsupported element type in forceTo")
+           let writer v ix =                     -- creater writer function (right now: only integer arrays supported!)
+                 case v of
+                   TagInt v' -> assign temp_var v'
+                   TagDouble v' -> assign temp_var v'
+                   e -> error ("cannot force: " ++ show e)
+           forceTo writer arr                   -- recursively generate loops for each layer
+           return (TagArray (ArrPull (EInt 1) ty (\_ -> temp)))
+    len ->
+      TagProgram $ do
+        name <- allocate (convertType (baseType arr)) len    -- allocate shared memory
+        let writer v ix =                     -- creater writer function (right now: only integer arrays supported!)
+              case v of
+                TagInt v' -> assignArray name v' ix
+                TagDouble v' -> assignArray name v' ix
+                e -> error ("cannot force: " ++ show e)
+        forceTo writer arr                   -- recursively generate loops for each layer
+        return (TagArray (createPull name (baseType arr) len))
 force _ = error ("'force' expects array as argument")
 
 forceAndPrint :: Value -> Value -> Value

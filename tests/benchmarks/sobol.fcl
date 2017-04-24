@@ -23,10 +23,6 @@ fun sobolInd1DPart dirVec indices =
   mapPull (fn ix => return<thread> (sobolInd ix dirVec)) indices
    |> concat<thread> 1
 
--- Length 'n' 1D sobol sequence, given n and direction vector
-sig sobolInd1DBlock : int -> [int] -> Program <block> [int]<block>
-fun sobolInd1DBlock n dirVec = sobolInd1DPart dirVec (iota n)
-
 -- Full grid-computation, computing a single sequence using multiple blocks
 sig sobolInd1DGrid : int -> [int] -> Program <grid> [int]<grid>
 fun sobolInd1DGrid n dirVec =
@@ -34,14 +30,9 @@ fun sobolInd1DGrid n dirVec =
    |> mapPull (sobolInd1DPart dirVec)
    |> concat<block> 256
 
-sig sobolIndND : int -> [[int]] -> [Program <block> [int]<block>]
-fun sobolIndND n dirVecs =
-  dirVecs
-   |> mapPull (sobolInd1DBlock n)
-
 -- Full grid computation, computing a single sequence using a single block
-sig sobolIndNDGrid : int -> [[int]] -> Program <grid> [int]<grid>
-fun sobolIndNDGrid n dirVecs =
+sig sobolIndND : int -> [[int]] -> Program <grid> [int]<grid>
+fun sobolIndND n dirVecs =
    mapPull (sobolInd1DGrid n) dirVecs
    |> concatSeq<grid> (((n + 255) / 256) * 256)
 
@@ -55,16 +46,22 @@ fun sobolRec1D startIx n dirVs =
    ; return<thread> (scanl (sobolRec dirVs) (index initial 0) (range startIx ((startIx + n) - 2)))
    }
 
-sig sobolRec1DChunked : int -> int -> [int] -> Program <block> [int]<block>
-fun sobolRec1DChunked chunkSize n dirVec =
-  mapPull (muli chunkSize) (iota (1 + (n / chunkSize)))
+sig sobolRec1DChunked : int -> [int] -> [int] -> Program <block> [int]<block>
+fun sobolRec1DChunked chunkSize chunks dirVec =
+  mapPull (muli chunkSize) chunks
    |> mapPull (fn i => sobolRec1D i chunkSize dirVec)
    |> concat<thread> chunkSize
 
+sig sobolRec1DGrid : int -> int -> int -> [int] -> Program <grid> [int]<grid>
+fun sobolRec1DGrid chunksPerGroup chunkSize n dirVec =
+  splitUp chunksPerGroup (iota ((n + chunkSize - 1) / chunkSize))
+   |> mapPull (fn chunks => sobolRec1DChunked chunkSize chunks dirVec)
+   |> concat<block> (chunksPerGroup*chunkSize)
+
 sig sobolRecND : int -> [[int]] -> Program <grid> [int]<grid>
 fun sobolRecND n dirVs =
-  mapPull (sobolRec1DChunked 64 n) dirVs
-   |> concat<block> n
+  mapPull (sobolRec1DGrid 128 32 n) dirVs
+   |> concatSeq<grid> n
 
 sig iterations : int
 val iterations = 50
@@ -81,24 +78,21 @@ sig normal : Program <grid> [int]<grid> -> Program <grid> [double]<grid>
 val normal = liftM<grid> (mapPush<grid> (const normalise))
 
 sig sobolIndNDDouble : int -> [[int]] -> Program <grid> [double]<grid>
-fun sobolIndNDDouble n dirVec = normal (sobolIndNDGrid n dirVec)
+fun sobolIndNDDouble n dirVec = normal (sobolIndND n dirVec)
 
 sig sobolRecNDDouble : int -> [[int]] -> Program <grid> [double]<grid>
 fun sobolRecNDDouble n dirVec = normal (sobolRecND n dirVec)
 
 sig main : Program <grid> unit
 val main =
-  let n = 100096 in
+  let n = 1048576 in
   do<grid>
    { directionVectors <- readIntCSV "sobol_direction_vectors.csv"
-   -- ; arr1 <- sobolInd1DGrid n (take sobol_num_bits directionVectors)
-   -- ; forceAndPrint n arr1
-   ; arr2 <- sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)
-   ; forceAndPrintDouble (2*n) arr2
-   -- ; arr3 <- sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)
-   -- ; forceAndPrintDouble (2*n) arr3
-   -- ; benchmark 100 (forceM<grid> (sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)))
-   -- ; benchmark 100 (forceM<grid> (sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)))
+   -- ; arr2 <- sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)
+   -- ; forceAndPrintDouble (2*n) arr2
+   ; arr3 <- sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)
+   ; forceAndPrintDouble (2*n) arr3
+   ; benchmark 100 (forceM<grid> (sobolIndNDDouble n (splitUp sobol_num_bits directionVectors)))
+   ; benchmark 100 (forceM<grid> (sobolRecNDDouble n (splitUp sobol_num_bits directionVectors)))
    ; return<grid> ()
    }
-
