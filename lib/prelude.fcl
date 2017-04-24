@@ -8,6 +8,11 @@ sig concat : forall <lvl> 'a. int -> [Program<lvl> ['a]<lvl>] -> Program<1+lvl> 
 fun concat<lvl> n arr =
   interleave<lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
 
+sig concatSeq : forall <lvl> 'a. int -> [Program<lvl> ['a]<lvl>] -> Program<lvl> ['a]<lvl>
+fun concatSeq<lvl> n arr =
+  interleaveSeq<lvl> n (fn sh => ((fst sh) * n) + (snd sh)) arr
+
+
 sig iota : int -> [int]
 fun iota n = generate n (fn x => x)
 
@@ -132,10 +137,11 @@ fun scanl op b array =
 
 -- Pad array with a neutral element
 sig pad : forall 'a. int -> 'a -> ['a] -> ['a]
-fun pad divisor neutralElement arr =
+fun pad multiple neutralElement arr =
   let n = lengthPull arr in
-  let extension = subi divisor (n % divisor) in
-  let newlength = n + extension
+  -- let extension = subi divisor (n % divisor) in
+  -- let newlength = n + extension
+  let newlength = ((n + multiple - 1) / multiple) * multiple
   in generate newlength
        (fn i => if lti i n
                 then index arr i
